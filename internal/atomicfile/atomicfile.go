@@ -1,0 +1,64 @@
+// Package atomicfile replaces a file the way a crash cannot half-observe: the data goes to a
+// temp file beside the target, is fsynced, and is renamed over the target. Every operation
+// goes through the fsx seam, so the crash simulator can test it.
+//
+// Write does not fsync the directory. After a process crash the rename is complete; after a
+// power loss it may be undone, leaving the previous version, and never a torn or empty file,
+// because the data was synced before the name moved (decision 40). Callers that need the
+// rename itself to be durable call WriteSyncDir, or fsx.FS.SyncDir at the points decision 65
+// names.
+package atomicfile
+
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"io/fs"
+	"path/filepath"
+
+	"github.com/netstar-labs/quill/internal/fsx"
+)
+
+// TempPrefix starts every temp file name. Scans ignore such names, and the writer removes
+// those older than an hour when it opens a log (decision 67).
+const TempPrefix = ".tmp-"
+
+// Write replaces path with data: temp file (TempPrefix plus a random suffix, in the same
+// directory, created exclusively and never through a symbolic link), chmod to perm exactly,
+// write, fsync, rename. A failure at any step removes the temp file and leaves path as it was.
+func Write(fsys fsx.FS, path string, data []byte, perm fs.FileMode) error {
+	var suffix [8]byte
+	if _, err := rand.Read(suffix[:]); err != nil {
+		return err
+	}
+	tmp := filepath.Join(filepath.Dir(path), TempPrefix+hex.EncodeToString(suffix[:]))
+	f, err := fsys.OpenFile(tmp, fsx.O_RDWR|fsx.O_CREATE|fsx.O_EXCL, perm)
+	if err != nil {
+		return err
+	}
+	err = f.Chmod(perm)
+	if err == nil {
+		_, err = f.WriteAt(data, 0)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil { // closed exactly once, whatever failed before
+		err = cerr
+	}
+	if err == nil {
+		err = fsys.Rename(tmp, path)
+	}
+	if err != nil {
+		_ = fsys.Remove(tmp) // no failed write leaves a temp file behind
+	}
+	return err
+}
+
+// WriteSyncDir is Write followed by an fsync of the containing directory, so the rename
+// itself survives a power loss.
+func WriteSyncDir(fsys fsx.FS, path string, data []byte, perm fs.FileMode) error {
+	if err := Write(fsys, path, data, perm); err != nil {
+		return err
+	}
+	return fsys.SyncDir(filepath.Dir(path))
+}

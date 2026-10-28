@@ -1,0 +1,77 @@
+package strictjson
+
+import (
+	"errors"
+	"testing"
+)
+
+type tail struct {
+	Seq    uint64 `json:"seq"`
+	Seg    uint64 `json:"seg"`
+	Off    uint64 `json:"off"`
+	MaxSeg uint64 `json:"maxseg"`
+}
+
+func TestUnmarshalAcceptsExactlyTheExpectedShape(t *testing.T) {
+	var v tail
+	if err := Unmarshal([]byte(` {"seq":1,"seg":2,"off":3,"maxseg":4} `+"\n"), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v != (tail{1, 2, 3, 4}) {
+		t.Fatalf("got %+v", v)
+	}
+}
+
+func TestUnmarshalRefusesEveryDamagedShape(t *testing.T) {
+	cases := map[string]string{
+		"unknown field":      `{"seq":1,"seg":2,"off":3,"maxseg":4,"extra":5}`,
+		"trailing value":     `{"seq":1,"seg":2,"off":3,"maxseg":4}{}`,
+		"trailing garbage":   `{"seq":1,"seg":2,"off":3,"maxseg":4} x`,
+		"negative":           `{"seq":-1,"seg":2,"off":3,"maxseg":4}`,
+		"float":              `{"seq":1.5,"seg":2,"off":3,"maxseg":4}`,
+		"string for number":  `{"seq":"1","seg":2,"off":3,"maxseg":4}`,
+		"too large":          `{"seq":18446744073709551616,"seg":2,"off":3,"maxseg":4}`,
+		"truncated":          `{"seq":1,"seg":2,"off":3,"max`,
+		"empty":              ``,
+		"zeros":              "\x00\x00\x00",
+		"invalid utf-8":      "{\"seq\":1,\"seg\":2,\"off\":3,\"maxseg\":4,\"x\":\"\xff\"}",
+		"lone low surrogate": `{"seq":1,"seg":2,"off":3,"maxseg":4,"x":"\udc00"}`,
+		"lone high":          `{"seq":1,"seg":2,"off":3,"maxseg":4,"x":"\ud800"}`,
+		"high then non-low":  `{"seq":1,"seg":2,"off":3,"maxseg":4,"x":"\ud800A"}`,
+		"array":              `[1,2,3,4]`,
+	}
+	for name, in := range cases {
+		var v tail
+		if err := Unmarshal([]byte(in), &v); err == nil {
+			t.Errorf("%s: accepted %q as %+v", name, in, v)
+		}
+	}
+	var v tail
+	if err := Unmarshal([]byte(`{"seq":1,"seg":2,"off":3,"maxseg":4} x`), &v); !errors.Is(err, ErrTrailing) {
+		t.Fatalf("trailing: %v", err)
+	}
+	if err := Unmarshal([]byte("\"\xff\""), new(string)); !errors.Is(err, ErrBadString) {
+		t.Fatalf("invalid utf-8: %v", err)
+	}
+}
+
+func TestAGenuineReplacementCharacterAndAValidPairStay(t *testing.T) {
+	var s string
+	for _, in := range []string{`"�"`, "\"ï¿½\"", `"😀"`, `"a\\u"`, `"\\ud800"`} {
+		if err := Unmarshal([]byte(in), &s); err != nil {
+			t.Errorf("%s: %v", in, err)
+		}
+	}
+}
+
+func FuzzUnmarshalNeverPanics(f *testing.F) {
+	f.Add([]byte(`{"seq":1,"seg":2,"off":3,"maxseg":4}`))
+	f.Add([]byte(`"𐀀"`))
+	f.Add([]byte(`\u`))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var v tail
+		_ = Unmarshal(data, &v)
+		var s string
+		_ = Unmarshal(data, &s)
+	})
+}
