@@ -1,0 +1,12 @@
+# Review routing. GitHub ignores an owner it cannot resolve, or one without write
+# access to the repository, WITHOUT ERROR. After editing, confirm each login below
+# can write here:
+#     gh api repos/netstar-labs/quill/collaborators/<login>/permission --jq .permission
+
+*                       @zxdev
+
+# Paths that always need a second look, whoever wrote the change.
+/.github/workflows/     @zxdev
+/SECURITY.md            @zxdev
+/docs/format.md         @zxdev
+/build/                 @zxdev

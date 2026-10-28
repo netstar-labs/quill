@@ -1,0 +1,31 @@
+# Test binary, built with `go test -c`
+*.test
+
+# Editor/IDE
+.vscode/
+.claude
+
+# macOS
+**/.DS_Store
+**/~*
+
+# transient work dirs
+_bin/
+_dev/
+sandbox/
+install/
+
+# working plans stay local; the rest of docs/ is committed
+docs/plan/
+
+# binaries built at the repository root (anchored: cmd/quill and build/quill are tracked)
+/quill
+
+# build/ tracks only the build script (build/quill); its output is not tracked
+build/install/
+build/bin/
+build/host
+
+# profiles, coverage and fuzz output that is not a regression corpus
+*.prof
+coverage.out
