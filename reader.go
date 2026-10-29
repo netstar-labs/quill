@@ -193,7 +193,9 @@ func (r *Reader) wait(ctx context.Context, offset uint64) error {
 
 // segment returns the cached entry for a sealed segment, reading its first frame on the
 // first call. A cached entry costs no file operation; it is dropped when a read finds the
-// file gone or changed in size, and rebuilt on the next view (decision 63).
+// file gone or changed in size, and rebuilt on the next view (decision 63). A segment that
+// is damaged (not a regular file, oversize, a bad first frame) is cached as bad; one that
+// could not be opened for an I/O reason is not, so the next view re-examines it (decision 94).
 func (r *Reader) segment(id uint64) *readerSegment {
 	r.mu.Lock()
 	s, ok := r.segs[id]
@@ -204,6 +206,13 @@ func (r *Reader) segment(id uint64) *readerSegment {
 	path := r.path(segmentName(id))
 	s = &readerSegment{id: id, path: path}
 	f, size, err := openSegment(r.fs, path)
+	var se *SegmentError
+	if err != nil && !errors.As(err, &se) {
+		// An I/O error (EMFILE, EACCES, a transient ENOENT) says nothing lasting about the
+		// file: this view sees a hole, the entry is not cached, and the next view looks again.
+		s.bad = err
+		return s
+	}
 	if err != nil {
 		s.bad = err
 	} else {
