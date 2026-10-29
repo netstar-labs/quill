@@ -45,6 +45,7 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | Path | Purpose |
 |---|---|
 | `doc.go` | Package comment: the rules to know |
+| `errors.go` | The exported errors |
 | `codec.go` | The frame: encode, decode, CRC |
 | `load.go` | Segment verification and parse-forward recovery; in phase 2, the directory scan and hole detection |
 | `state.go` | `quill.tail`, `quill.format`, `quill.policy` and consumer files: encode, strict decode, atomic write |
@@ -52,7 +53,7 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `internal/atomicfile/` | Temp file, fsync, rename, optional directory fsync, through `fsx` |
 | `internal/strictjson/` | State-file parsing that refuses damaged values and unknown fields |
 | `testdata/` | Golden fixtures that freeze the format |
-| `hack/gate.sh` | The commit gate: gofmt, vet, build, `test -race`, staticcheck, deadcode, fuzz, tidy |
+| `hack/gate.sh`, `hack/fuzz.sh` | The commit gate: gofmt, vet, build, `test -race`, staticcheck, deadcode, every fuzz target for 20 s, tidy |
 | `.github/workflows/` | CI on Linux and macOS, the same gate as separate steps, and the PR-issue-link check |
 
 Phases 2 to 4 add `log.go`, `append.go`, `flush.go`, `read.go`, `reader.go`, `iter.go`,
