@@ -120,3 +120,26 @@ func decodeBody(body []byte) (Record, error) {
 	// writing into the bytes after it.
 	return Record{Seq: seq, At: int64(at), Payload: body[:plen:plen]}, nil
 }
+
+// frameHeader reads a frame's length and its first two body varints without checking the
+// CRC, for frames already verified: the writer indexing the buffer it just made durable.
+func frameHeader(data []byte) (seq uint64, at int64, total int, ok bool) {
+	bodyLen, n := binary.Uvarint(data)
+	if n <= 0 {
+		return 0, 0, 0, false
+	}
+	total = n + int(bodyLen) + 4
+	if len(data) < total {
+		return 0, 0, 0, false
+	}
+	body := data[n:]
+	seq, m := binary.Uvarint(body)
+	if m <= 0 {
+		return 0, 0, 0, false
+	}
+	a, k := binary.Uvarint(body[m:])
+	if k <= 0 {
+		return 0, 0, 0, false
+	}
+	return seq, int64(a), total, true
+}

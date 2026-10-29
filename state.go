@@ -23,10 +23,33 @@ import (
 
 // File names inside a log directory.
 const (
-	tailName   = "quill.tail"
-	formatName = "quill.format"
-	policyName = "quill.policy"
+	tailName     = "quill.tail"
+	formatName   = "quill.format"
+	policyName   = "quill.policy"
+	lockName     = "quill.lock"
+	consumersDir = "consumers"
+	tempPrefix   = atomicfile.TempPrefix
 )
+
+// segmentName is the file name of segment id: ten decimal digits and ".log".
+func segmentName(id uint64) string { return fmt.Sprintf("%010d.log", id) }
+
+// parseSegmentName returns the id of a segment file name, or false for any other name.
+func parseSegmentName(name string) (uint64, bool) {
+	digits, ok := strings.CutSuffix(name, ".log")
+	if !ok || len(digits) != 10 {
+		return 0, false
+	}
+	var id uint64
+	for i := 0; i < len(digits); i++ {
+		c := digits[i]
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		id = id*10 + uint64(c-'0')
+	}
+	return id, true
+}
 
 // formatVersion is the version this build writes and the highest it reads.
 const formatVersion = 1

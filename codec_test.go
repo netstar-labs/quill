@@ -13,8 +13,8 @@ func recEqual(a, b Record) bool {
 	return a.Seq == b.Seq && a.At == b.At && bytes.Equal(a.Payload, b.Payload)
 }
 
-// segment encodes records with sequences first..first+n-1, At from at, payloads from fn.
-func segment(first uint64, n int, at int64, fn func(i int) []byte) []byte {
+// image encodes records with sequences first..first+n-1, At from at, payloads from fn.
+func image(first uint64, n int, at int64, fn func(i int) []byte) []byte {
 	var buf []byte
 	for i := 0; i < n; i++ {
 		rec := Record{Seq: first + uint64(i), At: at + int64(i), Payload: fn(i)}

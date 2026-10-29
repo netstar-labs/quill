@@ -32,8 +32,8 @@ func FuzzDecodeFrame(f *testing.F) {
 }
 
 func FuzzRecoverSegment(f *testing.F) {
-	f.Add(segment(1, 5, 0, smallPayload), int64(0))
-	f.Add(segment(3, 2, 0, smallPayload), int64(10))
+	f.Add(image(1, 5, 0, smallPayload), int64(0))
+	f.Add(image(3, 2, 0, smallPayload), int64(10))
 	f.Add([]byte{0x01, 0x00, 0x00, 0x00, 0x00}, int64(0))
 	f.Fuzz(func(t *testing.T, data []byte, durable int64) {
 		size := int64(len(data))

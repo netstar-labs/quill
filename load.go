@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
+	"slices"
+	"sync"
 
 	"github.com/netstar-labs/quill/internal/fsx"
 )
@@ -188,6 +191,9 @@ func verifySegment(r io.ReaderAt, size int64) (segInfo, error) {
 	w := &window{r: r, size: size}
 	info, err := walk(w, 0, 0, false, nil)
 	if err != nil {
+		if !isFrameError(err) {
+			return info, err // I/O
+		}
 		return info, &SegmentError{Offset: info.end, Intact: info.end, Reason: reason(err)}
 	}
 	if info.frames == 0 {
@@ -209,11 +215,14 @@ func recoverSegment(r io.ReaderAt, size int64, durable int64) (info segInfo, cut
 	w := &window{r: r, size: durable}
 	info, err = walk(w, 0, 0, false, nil)
 	if err != nil {
+		if !isFrameError(err) {
+			return info, false, err // I/O
+		}
 		return info, false, &SegmentError{Offset: info.end, Intact: info.end, Reason: reason(err) + " below the durable offset"}
 	}
 	w.size = size
 	tail, err := walk(w, durable, info.last.Seq, info.frames > 0, nil)
-	if err != nil && !errors.Is(err, errTornFrame) && !errors.Is(err, errBadFrame) {
+	if err != nil && !isFrameError(err) {
 		return info, false, err // I/O
 	}
 	cut = tail.end < size
@@ -229,6 +238,10 @@ func recoverSegment(r io.ReaderAt, size int64, durable int64) (info segInfo, cut
 	return info, cut, nil
 }
 
+func isFrameError(err error) bool {
+	return errors.Is(err, errTornFrame) || errors.Is(err, errBadFrame)
+}
+
 func reason(err error) string {
 	switch {
 	case errors.Is(err, errTornFrame):
@@ -237,4 +250,225 @@ func reason(err error) string {
 		return "bad frame"
 	}
 	return err.Error()
+}
+
+// load reads the state files, scans the directory and recovers the newest segment (decision
+// 39), then republishes the marker. The lock is held and creation is complete.
+func (l *Log) load() error {
+	data, err := readState(l.fs, l.path(formatName))
+	if err != nil {
+		return err
+	}
+	id, err := decodeFormat(data)
+	if err != nil {
+		if errors.Is(err, ErrFutureVersion) {
+			return err
+		}
+		return fmt.Errorf("%w: %v", ErrCorrupt, err)
+	}
+	l.id = id
+	data, err = readState(l.fs, l.path(tailName))
+	if err != nil {
+		return err
+	}
+	tl, err := decodeTail(data)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrCorrupt, err)
+	}
+	ids, err := l.listSegments()
+	if err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return fmt.Errorf("%w: no segment files", ErrCorrupt)
+	}
+	newest := ids[len(ids)-1]
+	if tl.Seg > newest {
+		return fmt.Errorf("%w: %s names segment %d, the newest on disk is %d", ErrCorrupt, tailName, tl.Seg, newest)
+	}
+
+	// Sealed segments are verified whole, in parallel.
+	sealed := make([]*segment, len(ids)-1)
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, max(runtime.GOMAXPROCS(0), 1))
+	for i, id := range ids[:len(ids)-1] {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			sealed[i] = l.loadSealed(id)
+		}()
+	}
+	wg.Wait()
+
+	// The newest segment is recovered by parsing forward from the marker.
+	a := &activeSegment{id: newest, path: l.path(segmentName(newest))}
+	f, size, err := openActive(l.fs, a.path)
+	if err != nil {
+		return err
+	}
+	durable := int64(0)
+	if tl.Seg == newest {
+		durable = int64(tl.Off)
+	}
+	info, cut, err := recoverSegment(f, size, durable)
+	if err != nil {
+		_ = f.Close()
+		var se *SegmentError
+		if errors.As(err, &se) {
+			se.Path = a.path // a *SegmentError matches ErrCorrupt
+		}
+		return err
+	}
+	if cut {
+		err = f.Truncate(info.end)
+		if err == nil {
+			err = f.Sync()
+		}
+		if err != nil {
+			_ = f.Close()
+			return err
+		}
+	}
+	a.f, a.durable, a.frames, a.index = f, info.end, info.frames, info.index
+	a.nextAnchor = info.end
+	if info.frames > 0 {
+		a.first, a.at, a.lastAt = info.first.Seq, info.first.At, info.last.At
+	}
+
+	// Contiguity across segments: holes, overlaps, the head.
+	var holes []Hole
+	var prevLast uint64
+	havePrev := false
+	var pendingHole bool // a bad segment seen since the last good one
+	for _, s := range sealed {
+		if s.bad != nil {
+			if l.loadErr == nil {
+				l.loadErr = s.bad
+			}
+			pendingHole = true
+			continue
+		}
+		if havePrev {
+			if s.first <= prevLast {
+				_ = f.Close()
+				return fmt.Errorf("%w: segment %d starts at %d, inside the range of the one before (ends at %d)", ErrCorrupt, s.id, s.first, prevLast)
+			}
+			if s.first != prevLast+1 {
+				holes = append(holes, Hole{From: prevLast + 1, To: s.first - 1})
+			}
+		} else if pendingHole {
+			holes = append(holes, Hole{From: 1, To: s.first - 1}) // from "unknown": the first good segment's start bounds it
+		}
+		pendingHole = false
+		prevLast, havePrev = s.last, true
+	}
+	head := tl.Seq
+	hasFrames := havePrev || a.frames > 0
+	if a.frames > 0 {
+		if havePrev {
+			if a.first <= prevLast {
+				_ = f.Close()
+				return fmt.Errorf("%w: the active segment starts at %d, inside the range of the one before (ends at %d)", ErrCorrupt, a.first, prevLast)
+			}
+			if a.first != prevLast+1 {
+				holes = append(holes, Hole{From: prevLast + 1, To: a.first - 1})
+			}
+		} else if pendingHole {
+			holes = append(holes, Hole{From: 1, To: a.first - 1})
+		}
+		head = info.last.Seq
+	} else if havePrev {
+		head = prevLast
+		if pendingHole && tl.Seq > prevLast {
+			holes = append(holes, Hole{From: prevLast + 1, To: tl.Seq})
+			head = tl.Seq
+		}
+	} else if pendingHole {
+		holes = append(holes, Hole{From: 1, To: tl.Seq})
+	}
+	if hasFrames && head < tl.Seq {
+		_ = f.Close()
+		return fmt.Errorf("%w: the last valid sequence is %d but %s says %d is durable", ErrCorrupt, head, tailName, tl.Seq)
+	}
+	if a.frames == 0 {
+		a.first = head + 1
+	}
+	l.active, l.sealed, l.holes, l.head = a, sealed, holes, head
+	l.nextSeq = head + 1
+	l.maxSeg = max(tl.MaxSeg, newest)
+	// Republish the marker from what was really on disk, and make it durable.
+	l.marker = tail{} // force a write
+	if err := l.publishLocked(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return l.fs.SyncDir(l.dir)
+}
+
+// listSegments returns the segment ids in the directory, ascending. Other names are ignored.
+func (l *Log) listSegments() ([]uint64, error) {
+	names, err := l.fs.ReadDir(l.dir)
+	if err != nil {
+		return nil, err
+	}
+	var ids []uint64
+	for _, n := range names {
+		if id, ok := parseSegmentName(n); ok {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids, nil
+}
+
+// loadSealed verifies one sealed segment; a failure makes it a bad segment whose range is a
+// hole, and the file is never modified.
+func (l *Log) loadSealed(id uint64) *segment {
+	s := &segment{id: id, path: l.path(segmentName(id))}
+	f, size, err := openSegment(l.fs, s.path)
+	if err != nil {
+		s.bad = err
+		return s
+	}
+	defer f.Close()
+	info, err := verifySegment(f, size)
+	if err != nil {
+		var se *SegmentError
+		if errors.As(err, &se) {
+			se.Path = s.path
+		}
+		s.bad = err
+		return s
+	}
+	s.first, s.last, s.size, s.index, s.at, s.lastAt = info.first.Seq, info.last.Seq, size, info.index, info.first.At, info.last.At
+	return s
+}
+
+// openActive opens the newest segment read-write with the checks of openSegment.
+func openActive(fsys fsx.FS, path string) (fsx.File, int64, error) {
+	info, err := fsys.Lstat(path)
+	if err != nil {
+		return nil, 0, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, 0, &SegmentError{Path: path, Reason: "not a regular file"}
+	}
+	f, err := fsys.OpenFile(path, fsx.O_RDWR, 0)
+	if err != nil {
+		return nil, 0, err
+	}
+	info, err = f.Stat()
+	if err == nil && !info.Mode().IsRegular() {
+		err = &SegmentError{Path: path, Reason: "not a regular file"}
+	}
+	if err == nil && info.Size() > maxSegmentBytes {
+		err = &SegmentError{Path: path, Reason: fmt.Sprintf("%d bytes, over the %d limit", info.Size(), maxSegmentBytes)}
+	}
+	if err != nil {
+		_ = f.Close()
+		return nil, 0, err
+	}
+	return f, info.Size(), nil
 }

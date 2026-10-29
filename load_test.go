@@ -39,7 +39,7 @@ func frameEnds(t *testing.T, data []byte) []int64 {
 }
 
 func TestVerifySegmentAcceptsAWholeSegmentAndIndexesIt(t *testing.T) {
-	data := segment(100, 5000, 1_700_000_000, func(i int) []byte { return bytes.Repeat([]byte{byte(i)}, 100) })
+	data := image(100, 5000, 1_700_000_000, func(i int) []byte { return bytes.Repeat([]byte{byte(i)}, 100) })
 	info, err := verify(data)
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +72,7 @@ func TestVerifySegmentReadsAcrossChunkBoundariesAndFramesLargerThanAChunk(t *tes
 	for i := range big {
 		big[i] = byte(i * 7)
 	}
-	data := segment(1, 40, 0, func(i int) []byte {
+	data := image(1, 40, 0, func(i int) []byte {
 		if i%13 == 0 {
 			return big
 		}
@@ -91,7 +91,7 @@ func TestVerifySegmentReadsAcrossChunkBoundariesAndFramesLargerThanAChunk(t *tes
 }
 
 func TestASealedSegmentWithDamageAnywhereIsCorruption(t *testing.T) {
-	data := segment(1, 20, 0, smallPayload)
+	data := image(1, 20, 0, smallPayload)
 	ends := frameEnds(t, data)
 	if _, err := verify(nil); err == nil || !errors.Is(err, ErrCorrupt) {
 		t.Fatalf("empty sealed segment: %v", err)
@@ -150,7 +150,7 @@ func TestASealedSegmentWithDamageAnywhereIsCorruption(t *testing.T) {
 }
 
 func TestRecoveryParsesForwardFromTheMarkerAndTruncatesAtTheFirstBadFrame(t *testing.T) {
-	data := segment(1, 30, 0, smallPayload)
+	data := image(1, 30, 0, smallPayload)
 	ends := frameEnds(t, data)
 	for di, durable := range append([]int64{0}, ends...) {
 		// A torn tail at every position past the marker cuts at the last frame boundary.
@@ -199,7 +199,7 @@ func TestRecoveryParsesForwardFromTheMarkerAndTruncatesAtTheFirstBadFrame(t *tes
 }
 
 func TestRecoveryRefusesAMarkerOffABoundaryOrPastTheFile(t *testing.T) {
-	data := segment(1, 5, 0, smallPayload)
+	data := image(1, 5, 0, smallPayload)
 	ends := frameEnds(t, data)
 	if _, _, err := recover_(data, int64(len(data))+1); !errors.Is(err, ErrCorrupt) {
 		t.Fatalf("marker past the file: %v", err)
@@ -222,8 +222,8 @@ func TestRecoveryRefusesAMarkerOffABoundaryOrPastTheFile(t *testing.T) {
 func TestNothingAfterTheFirstBadFrameIsTrustedWhateverItContains(t *testing.T) {
 	// T2: a payload that embeds a whole valid segment, cut inside the embedded bytes: the
 	// embedded frames are contiguous with the real ones, and must never be reached.
-	inner := segment(4, 10, 0, smallPayload)
-	data := segment(1, 3, 0, smallPayload)
+	inner := image(4, 10, 0, smallPayload)
+	data := image(1, 3, 0, smallPayload)
 	embed := Record{Seq: 4, At: 0, Payload: inner}
 	ends := frameEnds(t, data)
 	data = appendFrame(data, &embed)
@@ -233,9 +233,9 @@ func TestNothingAfterTheFirstBadFrameIsTrustedWhateverItContains(t *testing.T) {
 		t.Fatalf("embedded segment: %+v %v %v", info, cut, err)
 	}
 	// A zeroed page (a lost write) followed by intact frames: truncated at the hole.
-	head := segment(1, 3, 0, smallPayload)
+	head := image(1, 3, 0, smallPayload)
 	hole := make([]byte, 4096)
-	tailFrames := segment(4, 3, 0, smallPayload)
+	tailFrames := image(4, 3, 0, smallPayload)
 	data = append(append(bytes.Clone(head), hole...), tailFrames...)
 	info, cut, err = recover_(data, 0)
 	if err != nil || !cut || info.end != int64(len(head)) || info.frames != 3 {
@@ -244,13 +244,13 @@ func TestNothingAfterTheFirstBadFrameIsTrustedWhateverItContains(t *testing.T) {
 	// An intact frame with the wrong sequence, then intact contiguous frames: cut at it.
 	wrong := Record{Seq: 9, At: 0, Payload: []byte("x")}
 	data = appendFrame(bytes.Clone(head), &wrong)
-	data = append(data, segment(10, 3, 0, smallPayload)...)
+	data = append(data, image(10, 3, 0, smallPayload)...)
 	info, cut, err = recover_(data, 0)
 	if err != nil || !cut || info.end != int64(len(head)) {
 		t.Fatalf("wrong sequence: %+v %v %v", info, cut, err)
 	}
 	// A stale marker below acknowledged records keeps all of them.
-	data = segment(1, 50, 0, smallPayload)
+	data = image(1, 50, 0, smallPayload)
 	info, cut, err = recover_(data, 0)
 	if err != nil || cut || info.frames != 50 || info.last.Seq != 50 {
 		t.Fatalf("stale marker: %+v %v %v", info, cut, err)
@@ -260,7 +260,7 @@ func TestNothingAfterTheFirstBadFrameIsTrustedWhateverItContains(t *testing.T) {
 func TestACraftedTailCostsOnePassAndStopsAtTheFirstBadFrame(t *testing.T) {
 	// A tail of plausible length prefixes: every byte decodes as a short frame length with
 	// no CRC behind it. Parse-forward never backtracks, so it stops at the first.
-	head := segment(1, 3, 0, smallPayload)
+	head := image(1, 3, 0, smallPayload)
 	data := append(bytes.Clone(head), bytes.Repeat([]byte{0x01, 0x00}, 1<<20)...)
 	counting := &countingReader{r: bytes.NewReader(data)}
 	info, cut, err := recoverSegment(counting, int64(len(data)), 0)
@@ -284,10 +284,10 @@ func (c *countingReader) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func TestAReaderShorterThanItsStatedSizeIsAnError(t *testing.T) {
-	data := segment(1, 3, 0, smallPayload)
+	data := image(1, 3, 0, smallPayload)
 	_, err := verifySegment(bytes.NewReader(data), int64(len(data))+10)
-	if !errors.Is(err, ErrCorrupt) {
-		t.Fatalf("%v", err)
+	if !errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, ErrCorrupt) {
+		t.Fatalf("a short read is an I/O error, not corruption: %v", err)
 	}
 	_, _, err = recoverSegment(bytes.NewReader(data), int64(len(data))+10, 0)
 	if err == nil {
@@ -298,7 +298,7 @@ func TestAReaderShorterThanItsStatedSizeIsAnError(t *testing.T) {
 func TestOpenSegmentRefusesSymlinksFIFOsAndOversizeFiles(t *testing.T) {
 	dir := t.TempDir()
 	good := filepath.Join(dir, "0000000000.log")
-	if err := os.WriteFile(good, segment(1, 2, 0, smallPayload), 0o600); err != nil {
+	if err := os.WriteFile(good, image(1, 2, 0, smallPayload), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	f, size, err := openSegment(fsx.OS{}, good)
