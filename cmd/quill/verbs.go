@@ -138,7 +138,34 @@ func findVerb(name string) *verb {
 }
 
 // run parses `quill [-dir DIR] <verb> [flags] [args]` and runs the verb.
+// run executes one invocation and returns the exit code. Standard output is wrapped so that
+// a write that fails (a full disk, a closed descriptor, an unwritable file) is not lost
+// behind the buffering of the verbs: a verb that would have exited 0 exits 1 instead.
 func run(args []string, in io.Reader, out, errw io.Writer) int {
+	ow := &errWriter{w: out}
+	code := dispatch(args, in, ow, errw)
+	if code == exitOK && ow.err != nil {
+		return (&cli{err: errw}).errorf("%v", ow.err)
+	}
+	return code
+}
+
+// errWriter remembers the first error of the writer it wraps and refuses every write after.
+type errWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (e *errWriter) Write(b []byte) (int, error) {
+	if e.err != nil {
+		return 0, e.err
+	}
+	n, err := e.w.Write(b)
+	e.err = err
+	return n, err
+}
+
+func dispatch(args []string, in io.Reader, out, errw io.Writer) int {
 	c := &cli{in: in, out: out, err: errw}
 	global := flag.NewFlagSet("quill", flag.ContinueOnError)
 	global.SetOutput(io.Discard)

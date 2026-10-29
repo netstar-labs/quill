@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `quill cat`, `read`, `tail`, `stat`, `check`, `ls` and `consumers` exited 0 when writing to
+  standard output failed (a full disk, a closed descriptor) unless the output was over 4 KiB, so
+  records could be lost without the exit status saying so; a failed write now exits 1 with the
+  error, and `tail -follow` stops instead of waiting on.
+
 - Fixed: one transient I/O error (such as too many open files) while a `Reader` scanned a sealed
   segment was remembered for the life of the `Reader`, so every later read of that segment's
   range returned a `GapError` although the file was intact; only damage is remembered now, and

@@ -29,7 +29,7 @@ func newPrinter(w io.Writer, jsonMode, b64 bool) *printer {
 	return &printer{w: bufio.NewWriter(w), json: jsonMode, b64: b64}
 }
 
-func (p *printer) flush() { _ = p.w.Flush() }
+func (p *printer) flush() error { return p.w.Flush() }
 
 // print appends the record to p.buf, which is kept between records, and writes it with one
 // call. The bytes are what encoding/json and strconv.Quote would produce for the same

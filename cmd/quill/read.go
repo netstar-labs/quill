@@ -143,7 +143,7 @@ func printRecords(c *cli, r *quill.Reader, from uint64, follow bool) int {
 			if errors.Is(err, context.Canceled) {
 				return exitOK
 			}
-			p.flush()
+			_ = p.flush()
 			return c.errorf("%v", err)
 		}
 		if err := p.print(rec); err != nil {
@@ -151,8 +151,10 @@ func printRecords(c *cli, r *quill.Reader, from uint64, follow bool) int {
 		}
 		if follow {
 			// The next step may block for as long as the log is quiet, so what has been
-			// printed must not wait in the buffer for it.
-			p.flush()
+			// printed must not wait in the buffer for it. A follow that cannot write stops.
+			if err := p.flush(); err != nil {
+				return c.errorf("%v", err)
+			}
 		}
 		n++
 		if c.limit > 0 && n >= c.limit {
