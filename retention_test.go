@@ -671,3 +671,99 @@ func TestASealedSegmentRemovedBehindTheWritersBackDoesNotStopRetention(t *testin
 		}
 	})
 }
+
+// Decision 65: the directory is fsynced before each unlink, not once before the first, so a
+// crash leaves the surviving segments a suffix. The simulator's crash model is a subset of
+// the unsynced directory operations, so the test asserts the order that makes every subset
+// safe: a directory sync immediately before each segment unlink.
+func TestAPrunePassSyncsTheDirectoryBeforeEachSegmentUnlink(t *testing.T) {
+	s, clk, l := retentionLog(t, nil)
+	defer l.Close()
+	fillSegments(t, l, clk, 6)
+	clk.Advance(2 * time.Hour)
+	var ops []fsx.Op
+	var mu sync.Mutex
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpSyncDir || (op == fsx.OpRemove && strings.HasSuffix(name, ".log")) {
+			mu.Lock()
+			ops = append(ops, op)
+			mu.Unlock()
+		}
+		return nil
+	}
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	s.Inject = nil
+	mu.Lock()
+	defer mu.Unlock()
+	removes := 0
+	for i, op := range ops {
+		if op != fsx.OpRemove {
+			continue
+		}
+		removes++
+		if i == 0 || ops[i-1] != fsx.OpSyncDir {
+			t.Fatalf("unlink %d is not preceded by a directory sync: %v", removes, ops)
+		}
+	}
+	if removes < 2 {
+		t.Fatalf("the pass unlinked %d segments, want a pass of several: %v", removes, ops)
+	}
+}
+
+// Decision 41: a consumer file that cannot be parsed protects every segment, even when no
+// parseable protected consumer exists, so the protection must not depend on hasProtected.
+func TestAnUnparseableConsumerFileAloneProtectsEverySegmentFromTheAgeSweep(t *testing.T) {
+	s, clk, l := retentionLog(t, nil)
+	defer l.Close()
+	fillSegments(t, l, clk, 6)
+	writeFile(t, s, "/log/consumers/broken", []byte("x"))
+	clk.Advance(2 * time.Hour)
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	if ids := segmentFiles(t, s, "/log"); len(ids) != 7 || ids[0] != 0 {
+		t.Fatalf("only a broken consumer file, no protected consumer: segments %v", ids)
+	}
+	if err := s.Remove("/log/consumers/broken"); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	if ids := segmentFiles(t, s, "/log"); len(ids) != 1 {
+		t.Fatalf("with the broken file gone the expired segments go: %v", ids)
+	}
+}
+
+// Decisions 60 (d) and 78: a rotation that failed with nothing left in the buffer is retried
+// by the next flush, because the failure leaves the publish pending. Without that, a log that
+// stopped appending would keep an oversized active segment until the next append.
+func TestAFailedRotationIsRetriedByTheNextFlushEvenWithNothingToWrite(t *testing.T) {
+	s, _, l := retentionLog(t, nil)
+	defer l.Close()
+	// Only the segment file: failing the marker's temp file as well would set the pending flag
+	// by another route and hide the line under test.
+	errCreate := errors.New("injected: cannot create the next segment")
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpCreate && strings.HasSuffix(name, ".log") {
+			return errCreate
+		}
+		return nil
+	}
+	appendN(t, l, 4)
+	if err := l.Flush(); !errors.Is(err, errCreate) {
+		t.Fatalf("flush with the next segment failing: %v", err)
+	}
+	if ids := segmentFiles(t, s, "/log"); len(ids) != 1 {
+		t.Fatalf("setup: segments %v", ids)
+	}
+	s.Inject = nil
+	if err := l.Flush(); err != nil { // no appends since: the buffer is empty
+		t.Fatalf("retry flush: %v", err)
+	}
+	if ids := segmentFiles(t, s, "/log"); len(ids) != 2 {
+		t.Fatalf("the failed rotation was not retried by an empty flush: segments %v", ids)
+	}
+}
