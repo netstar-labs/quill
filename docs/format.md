@@ -89,6 +89,8 @@ Let the marker `quill.tail` name segment S at offset X.
   limit, and whose `seq` is exactly one more than the previous accepted frame's. It truncates
   the file at the first frame that is not, and trusts nothing after it, whatever it contains: an
   intact-looking frame inside a payload is never reached because its predecessor failed.
+  The truncation is made last, once every check that can refuse the log has passed: a writable open that
+  fails with `ErrCorrupt` leaves the newest segment as it found it.
 - If the log holds frames and the last valid sequence is below `quill.tail.seq`, acknowledged
   data is missing and a writable open fails with `ErrCorrupt`. If it holds no frames at all,
   the next sequence is `quill.tail.seq + 1`.

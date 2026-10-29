@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a writable `Open` that failed with `ErrCorrupt` could already have truncated and synced the
+  newest segment, because the untrusted tail was cut before the overlap and last-sequence-below-the-marker
+  checks ran; the cut is now made only after every check has passed, so a refused `Open` leaves the file
+  as it found it.
+
 - Fixed: a prune pass that deleted several sealed segments synced the directory once, before the first
   unlink, so a power loss could persist a later unlink without an earlier one and leave a hole in the
   middle of the retained records; the directory is now synced before each unlink, so what survives a

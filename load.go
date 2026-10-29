@@ -337,16 +337,6 @@ func (l *Log) load() error {
 		_ = f.Close()
 		return err
 	}
-	if cut {
-		err = f.Truncate(info.end)
-		if err == nil {
-			err = f.Sync()
-		}
-		if err != nil {
-			_ = f.Close()
-			return err
-		}
-	}
 	a.f, a.durable, a.frames, a.index = f, info.end, info.frames, info.index
 	a.nextAnchor = info.end
 	if info.frames > 0 {
@@ -398,6 +388,18 @@ func (l *Log) load() error {
 	if head == math.MaxUint64 {
 		_ = f.Close()
 		return fmt.Errorf("%w: the log ends at sequence %d, which is never assigned (the ceiling is %d)", ErrCorrupt, uint64(math.MaxUint64), uint64(math.MaxUint64-1))
+	}
+	// Every check that can refuse the log has passed: only now is the untrusted tail cut, so
+	// an Open that fails with ErrCorrupt leaves the newest segment as it found it.
+	if cut {
+		err = f.Truncate(info.end)
+		if err == nil {
+			err = f.Sync()
+		}
+		if err != nil {
+			_ = f.Close()
+			return err
+		}
 	}
 	if a.frames == 0 {
 		a.first = head + 1
