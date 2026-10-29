@@ -154,12 +154,7 @@ func run(args []string, in io.Reader, out, errw io.Writer) int {
 	if v == nil {
 		return c.usage("unknown verb %q; see quill help", rest[0])
 	}
-	fs := flag.NewFlagSet(v.name, flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	fs.StringVar(&c.dir, "dir", c.dir, "the log directory")
-	if v.flags != nil {
-		v.flags(fs, c)
-	}
+	fs := v.flagSet(c, c.dir)
 	if err := fs.Parse(rest[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			printVerbHelp(c, v, fs)
@@ -173,17 +168,26 @@ func run(args []string, in io.Reader, out, errw io.Writer) int {
 	return v.run(c, fs.Args())
 }
 
+// flagSet builds the verb's flag set: -dir (defaulting to dirDefault) plus the
+// verb's own flags. Output is discarded; printVerbHelp redirects it when help
+// is wanted.
+func (v *verb) flagSet(c *cli, dirDefault string) *flag.FlagSet {
+	fs := flag.NewFlagSet(v.name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.StringVar(&c.dir, "dir", dirDefault, "the log directory")
+	if v.flags != nil {
+		v.flags(fs, c)
+	}
+	return fs
+}
+
 func cmdHelp(c *cli, args []string) int {
 	if len(args) == 1 {
 		v := findVerb(args[0])
 		if v == nil {
 			return c.usage("unknown verb %q", args[0])
 		}
-		fs := flag.NewFlagSet(v.name, flag.ContinueOnError)
-		fs.StringVar(&c.dir, "dir", "", "the log directory")
-		if v.flags != nil {
-			v.flags(fs, c)
-		}
+		fs := v.flagSet(c, "")
 		printVerbHelp(c, v, fs)
 		return exitOK
 	}
@@ -241,11 +245,7 @@ func cmdReference(c *cli, args []string) int {
 			continue
 		}
 		fmt.Fprintf(c.out, "\n## `quill %s`\n\n%s.\n\nLock: %s.\n", v.name, strings.ToUpper(v.summary[:1])+v.summary[1:], lockText(v.lock))
-		fs := flag.NewFlagSet(v.name, flag.ContinueOnError)
-		fs.StringVar(&c.dir, "dir", "", "the log directory")
-		if v.flags != nil {
-			v.flags(fs, c)
-		}
+		fs := v.flagSet(c, "")
 		var names []string
 		fs.VisitAll(func(f *flag.Flag) { names = append(names, f.Name) })
 		sort.Strings(names)
