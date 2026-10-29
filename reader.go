@@ -310,11 +310,19 @@ func (r *Reader) view() (*segView, func(), error) {
 		activeFirst, activeAt, activeFile = rec.Seq, rec.At, f
 	}
 	v := &segView{head: tl.Seq}
-	var prevLast uint64
-	havePrev, pendingHole := false, false
+	// First the ranges of the good segments, then one contiguity check over them and the
+	// active segment, then the segment references.
+	type cand struct {
+		s     *readerSegment
+		last  uint64
+		index []anchor
+	}
+	var cands []cand
+	var rs []seqRange
+	leadBad := false // a bad segment before the first kept one
 	for i, s := range sealed {
 		if s.bad != nil {
-			pendingHole = true
+			leadBad = leadBad || len(cands) == 0
 			continue
 		}
 		// The range ends at the next good segment's first sequence, or the active one's.
@@ -344,23 +352,23 @@ func (r *Reader) view() (*segView, func(), error) {
 				last = res.last // scanned already: its real end is known; the next segment or the marker reports the hole
 			}
 		}
-		if havePrev && s.first <= prevLast {
-			if activeFile != nil {
-				_ = activeFile.Close()
-			}
-			return nil, nil, fmt.Errorf("%w: segment %d starts at %d, inside the one before (ends at %d)", ErrCorrupt, s.id, s.first, prevLast)
+		cands = append(cands, cand{s, last, index})
+		rs = append(rs, seqRange{id: s.id, first: s.first, last: last})
+	}
+	if activeFile != nil {
+		rs = append(rs, seqRange{id: tl.Seg, first: activeFirst, last: tl.Seq})
+	}
+	holes, err := contiguity(rs, leadBad)
+	if err != nil {
+		if activeFile != nil {
+			_ = activeFile.Close()
 		}
-		if (havePrev && s.first != prevLast+1) || (!havePrev && pendingHole) {
-			from := uint64(1)
-			if havePrev {
-				from = prevLast + 1
-			}
-			v.holes = append(v.holes, Hole{From: from, To: s.first - 1})
-		}
-		pendingHole = false
-		prevLast, havePrev = last, true
-		s := s
-		v.segs = append(v.segs, &segRef{id: s.id, first: s.first, last: last, at: s.at, index: index,
+		return nil, nil, err
+	}
+	v.holes = holes
+	for _, c := range cands {
+		s, last := c.s, c.last
+		v.segs = append(v.segs, &segRef{id: s.id, first: s.first, last: last, at: s.at, index: c.index,
 			open: func() (io.ReaderAt, int64, func(), error) {
 				f, size, err := openSegment(r.fs, s.path)
 				if err != nil {
@@ -387,25 +395,12 @@ func (r *Reader) view() (*segView, func(), error) {
 			}})
 	}
 	if activeFile != nil {
-		if (havePrev && activeFirst != prevLast+1) || (!havePrev && pendingHole) {
-			from := uint64(1)
-			if havePrev {
-				from = prevLast + 1
-			}
-			if activeFirst > from {
-				v.holes = append(v.holes, Hole{From: from, To: activeFirst - 1})
-			}
-		}
-		if havePrev && activeFirst <= prevLast {
-			_ = activeFile.Close()
-			return nil, nil, fmt.Errorf("%w: the active segment starts at %d, inside the one before (ends at %d)", ErrCorrupt, activeFirst, prevLast)
-		}
 		off := int64(tl.Off)
 		v.segs = append(v.segs, &segRef{id: tl.Seg, first: activeFirst, last: tl.Seq, at: activeAt, active: true,
 			open: func() (io.ReaderAt, int64, func(), error) { return activeFile, off, func() {}, nil }})
-	} else if havePrev && tl.Seq > prevLast {
-		v.holes = append(v.holes, Hole{From: prevLast + 1, To: tl.Seq})
-	} else if pendingHole && !havePrev && tl.Seq > 0 {
+	} else if len(cands) > 0 && tl.Seq > cands[len(cands)-1].last {
+		v.holes = append(v.holes, Hole{From: cands[len(cands)-1].last + 1, To: tl.Seq})
+	} else if leadBad && len(cands) == 0 && tl.Seq > 0 {
 		v.holes = append(v.holes, Hole{From: 1, To: tl.Seq})
 	}
 	if len(v.segs) > 0 {

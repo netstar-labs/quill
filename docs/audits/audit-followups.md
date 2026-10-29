@@ -31,15 +31,6 @@ reader.go:204-206 calls `reason(ferr)` with `ferr == nil` when the frame is CRC-
 Reader returns `GapError{1,1}` as decisions 11/38 and guarantee 14 require. Why owner: flagged
 semantic (panic becomes a gap). Recommended: approve; test from the probe.
 
-### dedup-19: one `contiguity` helper for the four copies of the hole/overlap bookkeeping (sev:minor)
-
-load.go:364-376, :380-391, reader.go:326-340, :363-376. Why owner: unifying the text changes one
-of two overlap error strings (untested) and adds the `first > from` guard to three sites; both
-are observable on hand-crafted input and the finder rated the risk medium. Both skeptics showed
-the `Hole{1,0}` edge is unreachable from quill's own output and that the helper computes every
-pinned hole identically. Recommended: approve, in a new holes.go, keeping the writer's `head <
-tl.Seq` refusal (decision 39) and the reader's marker hole (decision 11) in their callers.
-
 ### docs-39: the disk bound understates the single-record case by up to `MaxPayloadBytes + 34 − MaxBatchBytes` (sev:minor)
 
 append.go:31 applies `MaxBatchBytes` only to batches of more than one record; decisions 26/46
@@ -51,6 +42,21 @@ userguide.md:152 and decision 69, and say at scope.md:119 / append.go:17-18 that
 is bounded by `MaxPayloadBytes` alone.
 
 ## Applied
+
+### dedup-19: one `contiguity` helper for the hole/overlap bookkeeping (applied)
+
+Decision taken: approved as recommended (decision 102). holes.go holds `contiguity(rs, badFirst)`:
+from the ordered good segments' ids, first and last sequences (the active segment last, when it
+holds frames) and a flag for a bad segment before the first good one, it returns the holes and the
+first overlap as `ErrCorrupt`. `Log.load` and `Reader.view` call it; the writer's refusal when
+`head < tl.Seq` (decision 39) and the reader's marker hole (decision 11) stay in their callers.
+One overlap message replaces the two (`segment N starts at F, inside the one before (segment M,
+ends at L)`), and an empty hole is never reported. The reader now collects the segment ranges
+first and builds the references after the check; the ranges themselves are computed as before.
+Tests in holes_test.go: a table over the helper (bad first segment, bad first at sequence 1, bad
+middle, bad first and middle, empty active, gap before the active segment, a range cut short by
+a scan, a stale marker below a sealed segment's end, three overlaps), and out-of-order sealed
+segments make both `Open` and a `Reader` return `ErrCorrupt`.
 
 ### correctness-28: `quill append` ignored `Close`'s error (applied)
 

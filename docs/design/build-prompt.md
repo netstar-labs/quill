@@ -47,6 +47,7 @@ quill/
   doc.go          package comment: the rules to know
   log.go          Log, Config, defaults, validation, Open (creation protocol), Close, errors
   load.go         open: directory scan, parse-forward recovery, tail truncation, hole detection
+  holes.go        contiguity: the holes and the first overlap from the good segments' ranges (Open and Reader)
   append.go       Append, AppendBatch, buffer room, MaxBufferBytes, MaxBatchBytes, MaxPayloadBytes
   flush.go        Flush, the flush goroutine, pwrite at the durable offset, failure classes, rotation, Roll, Sync
   read.go         Read, ReadWait, Scan, ScanAll, GapError, segment ranges from first frames (Log and Reader)

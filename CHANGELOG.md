@@ -19,6 +19,9 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 - Fixed: a `Reader` whose listed sealed segment was deleted before it could open it (retention
   racing a read) now returns a `*GapError` over the segment's range from `Read`, `Follow`, `Seek`
   and `Archive`, instead of a raw path error.
+- Changed: `Open` and a `Reader` build the holes and detect overlapping segments through one helper;
+  the overlap `ErrCorrupt` message is now the same for both, and a bad first segment before a log
+  that starts at sequence 1 no longer yields an empty hole.
 
 ## v0.1.0
 

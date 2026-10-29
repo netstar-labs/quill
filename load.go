@@ -351,54 +351,41 @@ func (l *Log) load() error {
 	}
 
 	// Contiguity across segments: holes, overlaps, the head.
-	var holes []Hole
-	var prevLast uint64
-	havePrev := false
-	var pendingHole bool // a bad segment seen since the last good one
+	var good []seqRange
+	var leadBad, trailBad bool // a bad segment before the first good one; since the last good one
 	for _, s := range sealed {
 		if s.bad != nil {
 			if l.loadErr == nil {
 				l.loadErr = s.bad
 			}
-			pendingHole = true
+			trailBad = true
+			leadBad = leadBad || len(good) == 0
 			continue
 		}
-		if havePrev {
-			if s.first <= prevLast {
-				_ = f.Close()
-				return fmt.Errorf("%w: segment %d starts at %d, inside the range of the one before (ends at %d)", ErrCorrupt, s.id, s.first, prevLast)
-			}
-			if s.first != prevLast+1 {
-				holes = append(holes, Hole{From: prevLast + 1, To: s.first - 1})
-			}
-		} else if pendingHole {
-			holes = append(holes, Hole{From: 1, To: s.first - 1}) // from "unknown": the first good segment's start bounds it
-		}
-		pendingHole = false
-		prevLast, havePrev = s.last, true
+		good = append(good, seqRange{id: s.id, first: s.first, last: s.last})
+		trailBad = false
+	}
+	rs := good
+	if a.frames > 0 {
+		rs = append(rs, seqRange{id: a.id, first: a.first, last: info.last.Seq})
+	}
+	holes, err := contiguity(rs, leadBad)
+	if err != nil {
+		_ = f.Close()
+		return err
 	}
 	head := tl.Seq
-	hasFrames := havePrev || a.frames > 0
+	hasFrames := len(good) > 0 || a.frames > 0
 	if a.frames > 0 {
-		if havePrev {
-			if a.first <= prevLast {
-				_ = f.Close()
-				return fmt.Errorf("%w: the active segment starts at %d, inside the range of the one before (ends at %d)", ErrCorrupt, a.first, prevLast)
-			}
-			if a.first != prevLast+1 {
-				holes = append(holes, Hole{From: prevLast + 1, To: a.first - 1})
-			}
-		} else if pendingHole {
-			holes = append(holes, Hole{From: 1, To: a.first - 1})
-		}
 		head = info.last.Seq
-	} else if havePrev {
+	} else if len(good) > 0 {
+		prevLast := good[len(good)-1].last
 		head = prevLast
-		if pendingHole && tl.Seq > prevLast {
+		if trailBad && tl.Seq > prevLast {
 			holes = append(holes, Hole{From: prevLast + 1, To: tl.Seq})
 			head = tl.Seq
 		}
-	} else if pendingHole {
+	} else if leadBad {
 		holes = append(holes, Hole{From: 1, To: tl.Seq})
 	}
 	if hasFrames && head < tl.Seq {
