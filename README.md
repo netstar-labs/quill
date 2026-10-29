@@ -47,7 +47,12 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `doc.go` | Package comment: the rules to know |
 | `errors.go` | The exported errors |
 | `codec.go` | The frame: encode, decode, CRC |
-| `load.go` | Segment verification and parse-forward recovery; in phase 2, the directory scan and hole detection |
+| `log.go` | `Log`, `Config`, defaults, validation, `Open` (the creation protocol), `Close` |
+| `load.go` | Segment verification, parse-forward recovery, the directory scan, hole detection |
+| `append.go` | `Append`, `AppendBatch`, the buffer and its bounds |
+| `flush.go` | `Flush`, the flush goroutine, the failure classes, rotation, `Roll`, `Sync` |
+| `read.go` | `Read`, `ReadWait`, `Scan`, `ScanAll`, `GapError`, segment ranges |
+| `lock_unix.go` | Taking `quill.lock` |
 | `state.go` | `quill.tail`, `quill.format`, `quill.policy` and consumer files: encode, strict decode, atomic write |
 | `internal/fsx/` | The file-system seam: the interface, the real implementation, the crash simulator |
 | `internal/atomicfile/` | Temp file, fsync, rename, optional directory fsync, through `fsx` |
@@ -56,9 +61,8 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `hack/gate.sh`, `hack/fuzz.sh` | The commit gate: gofmt, vet, build, `test -race`, staticcheck, deadcode, every fuzz target for 20 s, tidy |
 | `.github/workflows/` | CI on Linux and macOS, the same gate as separate steps, and the PR-issue-link check |
 
-Phases 2 to 4 add `log.go`, `append.go`, `flush.go`, `read.go`, `reader.go`, `iter.go`,
-`seek.go`, `stat.go`, `consumer.go`, `archive.go`, `retention.go`, `disk.go`, `lock_unix.go`,
-`cmd/quill/`, `examples/` and `build/quill`.
+Phases 3 and 4 add `reader.go`, `iter.go`, `seek.go`, `stat.go`, `consumer.go`, `archive.go`,
+`retention.go`, `disk.go`, `cmd/quill/`, `examples/` and `build/quill`.
 
 ## Building
 
