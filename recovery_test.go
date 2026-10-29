@@ -116,8 +116,11 @@ func TestDamageBelowTheMarkerFailsOpenAndLeavesTheFileUnchanged(t *testing.T) {
 	if err != nil || checkContiguous(t, recs, 6) != 12 {
 		t.Fatalf("after the hole: %v %v", seqsOf(recs), err)
 	}
-	if _, err := readAll(l); !isGap(err, 1, 5) {
-		t.Fatalf("ScanAll: %v", err)
+	if recs, err := readAll(l); err != nil || checkContiguous(t, recs, 6) != 12 {
+		t.Fatalf("ScanAll starts at the first retained sequence: %v %v", seqsOf(recs), err)
+	}
+	if err := l.Scan(1, 0, func(Record) bool { return true }); !isGap(err, 1, 5) {
+		t.Fatalf("Scan from 1: %v", err)
 	}
 	if l.Head() != 12 {
 		t.Fatalf("head %d", l.Head())

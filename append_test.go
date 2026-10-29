@@ -199,11 +199,13 @@ func TestDescriptorsAcrossRotationAReadHoldsTheOldActiveSegmentOpen(t *testing.T
 	defer l.Close()
 	appendN(t, l, 3)
 	mustFlush(t, l)
-	v, err := l.view()
+	l.mu.Lock()
+	old := l.active
+	l.mu.Unlock()
+	_, release, err := l.view()
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := v.active
 	appendN(t, l, 5) // rotates at this flush
 	mustFlush(t, l)
 	if !old.retired || old.f == nil {
@@ -212,7 +214,7 @@ func TestDescriptorsAcrossRotationAReadHoldsTheOldActiveSegmentOpen(t *testing.T
 	if _, err := old.f.ReadAt(make([]byte, 1), 0); err != nil {
 		t.Fatalf("the pinned descriptor: %v", err)
 	}
-	l.release(v)
+	release()
 	if old.f != nil {
 		t.Fatal("the retired descriptor was not closed after the last reader left")
 	}

@@ -53,6 +53,8 @@ func (l *Log) appendLocked(payloads [][]byte, size int) (uint64, error) {
 		return 0, ErrClosed
 	case l.failed != nil:
 		return 0, l.failed
+	case l.diskFull:
+		return 0, errDiskFull
 	}
 	n := uint64(len(payloads))
 	if l.nextSeq+n-1 < l.nextSeq || l.nextSeq == 0 {

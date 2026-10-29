@@ -101,12 +101,15 @@ func (l *Log) indexBuffer(a *activeSegment, off int64) {
 // the next flush retries (decision 60 d).
 func (l *Log) publishLocked() error {
 	var rotErr error
+	sealed := false
 	if l.active.durable >= l.cfg.SegmentBytes && l.active.frames > 0 {
 		if rotErr = l.rotateLocked(); rotErr != nil {
 			if l.failed != nil {
 				return l.failed
 			}
 			l.bgErr = rotErr
+		} else {
+			sealed = true
 		}
 	}
 	m := tail{Seq: l.head, Seg: l.active.id, Off: uint64(l.active.durable), MaxSeg: l.maxSeg}
@@ -115,9 +118,24 @@ func (l *Log) publishLocked() error {
 			l.pendingPublish, l.bgErr = true, err
 			return err
 		}
-		l.marker = m
+		l.marker, l.markerAt = m, l.cfg.clock()
 	}
 	l.pendingPublish = rotErr != nil
+	if sealed && rotErr == nil {
+		// The caps are enforced at every seal (decision 24); they override protection, so
+		// only the consumers' offsets are needed, for Dropped.
+		var offsets []uint64
+		if list, err := l.consumerStore().list(); err == nil {
+			for _, c := range list {
+				if c.Err == nil {
+					offsets = append(offsets, c.Offset)
+				}
+			}
+		}
+		if err := l.deleteLocked(l.capsLocked(0), offsets); err != nil {
+			return err
+		}
+	}
 	return rotErr
 }
 
@@ -227,12 +245,29 @@ func (l *Log) flusher() {
 	defer close(l.done)
 	t := time.NewTicker(l.cfg.FlushInterval)
 	defer t.Stop()
+	prune := time.NewTicker(l.cfg.PruneInterval)
+	defer prune.Stop()
+	if l.cfg.NoMaintenance {
+		prune.Stop()
+		prune.C = nil
+	}
 	for {
 		select {
 		case <-l.stop:
 			return
 		case <-t.C:
 		case <-l.flushReq:
+		case <-prune.C:
+			now := l.cfg.clock()
+			cv := l.consumers(now)
+			l.mu.Lock()
+			if !l.closed && l.failed == nil {
+				if err := l.pruneLocked(now, cv, false); err != nil {
+					l.bgErr = err
+				}
+			}
+			l.mu.Unlock()
+			continue
 		}
 		l.mu.Lock()
 		if !l.closed && (l.bufCount > 0 || l.pendingPublish) {

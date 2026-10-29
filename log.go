@@ -58,9 +58,13 @@ type Config struct {
 	MaxRecords int64
 	// ConsumerTTL: a protected consumer behind for this long stops protecting segments (0: off).
 	ConsumerTTL time.Duration
+	// NoMaintenance disables the background prune pass and age rotation: for offline tools
+	// that open a log briefly (decision 68). Flushing still runs.
+	NoMaintenance bool
 
-	fs    fsx.FS           // the seam; nil is the real file system
-	clock func() time.Time // nil is time.Now
+	fs     fsx.FS                           // the seam; nil is the real file system
+	clock  func() time.Time                 // nil is time.Now
+	statfs func(dir string) (uint64, error) // nil is freeBytes
 }
 
 // Defaults and ceilings.
@@ -121,6 +125,9 @@ func (c Config) withDefaults() Config {
 	}
 	if c.clock == nil {
 		c.clock = time.Now
+	}
+	if c.statfs == nil {
+		c.statfs = freeBytes
 	}
 	return c
 }
@@ -216,6 +223,11 @@ type Log struct {
 	flushed  chan struct{}
 	flushGen uint64
 
+	markerAt time.Time // when the marker was last written
+	dropped  uint64    // segments deleted while some consumer's offset was below them
+	stale    []string  // protected consumers found stale at the last prune pass
+	diskFull bool      // MinFreeBytes cannot be met: appends fail with ENOSPC
+
 	flushReq chan struct{} // signals the flusher
 	stop     chan struct{}
 	done     chan struct{}
@@ -289,6 +301,16 @@ func Open(cfg Config) (*Log, error) {
 	l.removeStaleTemps()
 	if err := l.writePolicy(); err != nil {
 		l.bgErr = err
+	}
+	// Protected consumers exist, protected, before any consumer process starts (decision 67).
+	for _, name := range cfg.ProtectedConsumers {
+		c, err := l.consumerStore().open(l, name, ConsumerOptions{Protect: ProtectOn}, false)
+		if err != nil {
+			_ = l.active.f.Close()
+			_ = lock.Close()
+			return nil, fmt.Errorf("protected consumer %q: %w", name, err)
+		}
+		_ = c.Close()
 	}
 	go l.flusher()
 	return l, nil
