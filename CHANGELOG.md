@@ -7,6 +7,8 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 - Fixed: `Close` racing a `Read`, `Follow`, `Seek` or `Archive` no longer crashes the reader with a
   nil dereference; a read in flight finishes and the last one out closes the active segment.
+- Fixed: a damaged sealed segment now counts its file's bytes in `Stat().Bytes` and toward `MaxBytes`
+  (and `MinFreeBytes`), so the cap can delete it when it is the oldest.
 
 ## v0.1.0
 

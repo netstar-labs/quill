@@ -50,14 +50,6 @@ behaviour is kept instead, docs/format.md:161, README.md:18, docs/userguide.md:1
 scope.md:136/267 and decision 29 must say that any writable open rewrites the file (text in
 audit-docs.md item 1).
 
-### correctness-31: a damaged sealed segment's bytes count toward neither `MaxBytes` nor `Stat.Bytes` (sev:minor)
-
-load.go:453-456 assigns `s.size` only on the verify-success path. Why owner: `MaxBytes` evicts
-earlier and `Log.Stat().Bytes` changes on a damaged log (today it disagrees with
-`Reader.Stat().Bytes`, which uses `Lstat`); flagged semantic. Recommended: approve (set `s.size`
-right after `openSegment` succeeds), restoring decision 32 and guarantee 11. Residual: a segment
-whose `openSegment` itself fails still counts 0.
-
 ### correctness-28: `quill append -sync=false` exits 0 when the deferred `Close`, its only flush, fails (sev:minor)
 
 verbs.go:478 discards `Close`'s error; reproduced on the simulator (prints the sequence, exit
@@ -126,6 +118,17 @@ UNHEALTHY and `quill check` exits 3, the same class as an unreadable consumer fi
 41 and 67). `mustList` is deleted. Regression test in check_consumers_test.go: the simulator
 injects `fs.ErrPermission` on `OpReadDir` of `consumers/`; the log is healthy before and
 UNHEALTHY with exactly one fatal `consumer` problem after.
+
+### correctness-31: a damaged sealed segment's bytes counted toward neither `MaxBytes` nor `Stat.Bytes` (applied)
+
+Decision taken: approved as recommended, and the residual closed (decision 98). `loadSealed`
+records the file size on every sealed segment: from `openSegment` when it succeeds, before
+verification; from an `Lstat` when the open fails. A file that cannot be `Lstat`ed counts 0.
+`Log.Stat().Bytes` now equals the sum of the segment files' sizes and `Reader.Stat().Bytes`, and
+`MaxBytes` (and `MinFreeBytes`) count a damaged segment and delete it when it is the oldest.
+Regression tests in load_damaged_bytes_test.go: a sealed segment with a flipped CRC byte, reopened,
+matches the files and the `Reader`, and a `MaxBytes` pass deletes exactly that segment; an
+injected open failure still counts the file's size.
 
 ## Deferred (one issue)
 

@@ -438,21 +438,27 @@ func (l *Log) listSegments() ([]uint64, error) {
 }
 
 // loadSealed verifies one sealed segment; a failure makes it a bad segment whose range is a
-// hole, and the file is never modified.
+// hole, and the file is never modified. A bad segment still occupies its bytes, so its size
+// is recorded whenever it can be learned (decision 98): from the open, or from an Lstat when
+// the open fails.
 func (l *Log) loadSealed(id uint64) *segment {
 	s := &segment{id: id, path: l.path(segmentName(id))}
 	f, size, err := openSegment(l.fs, s.path)
 	if err != nil {
 		s.bad = err
+		if info, lerr := l.fs.Lstat(s.path); lerr == nil {
+			s.size = info.Size()
+		}
 		return s
 	}
 	defer f.Close()
+	s.size = size
 	info, err := verifySegment(f, size, s.path)
 	if err != nil {
 		s.bad = err
 		return s
 	}
-	s.first, s.last, s.size, s.index, s.at, s.lastAt = info.first.Seq, info.last.Seq, size, info.index, info.first.At, info.last.At
+	s.first, s.last, s.index, s.at, s.lastAt = info.first.Seq, info.last.Seq, info.index, info.first.At, info.last.At
 	return s
 }
 
