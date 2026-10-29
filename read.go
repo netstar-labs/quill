@@ -2,6 +2,7 @@ package quill
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -182,6 +183,10 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		if err != nil {
 			if count > 0 && !gapAfter {
 				return next, nil
+			}
+			var gap *GapError
+			if errors.As(err, &gap) {
+				err = &GapError{From: cur, To: gap.To} // a deleted segment: the gap starts at the request
 			}
 			return next, err
 		}

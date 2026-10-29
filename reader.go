@@ -365,6 +365,10 @@ func (r *Reader) view() (*segView, func(), error) {
 				f, size, err := openSegment(r.fs, s.path)
 				if err != nil {
 					r.forget(s.id)
+					if errors.Is(err, fs.ErrNotExist) {
+						// Retention deleted it after the listing: a gap, not a path error (decision 101).
+						return nil, 0, nil, &GapError{From: s.first, To: last}
+					}
 					return nil, 0, nil, err
 				}
 				if size != s.size {

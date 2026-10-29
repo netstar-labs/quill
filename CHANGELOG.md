@@ -16,6 +16,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
   after a failed final flush with `-sync=false`); with `-sync=true` it still prints the last
   sequence, which was already durable.
 
+- Fixed: a `Reader` whose listed sealed segment was deleted before it could open it (retention
+  racing a read) now returns a `*GapError` over the segment's range from `Read`, `Follow`, `Seek`
+  and `Archive`, instead of a raw path error.
+
 ## v0.1.0
 
 The first release: the core, built in four phases from the design in `docs/design/`.

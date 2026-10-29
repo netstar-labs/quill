@@ -68,7 +68,8 @@ for rec, err := range l.Follow(ctx, offset) { ... }              // and then wai
 Reads return records with `Seq >= offset` in order. Where records are unavailable they return
 a `*quill.GapError{From, To}`: `From` is the offset asked for, `To` the last missing sequence.
 Two causes: retention deleted them (the offset is below `Stat().First`), or a hole in the
-middle (a damaged or deleted segment). Nothing is skipped silently; resume from `To + 1`
+middle (a damaged or deleted segment, including one a retention sweep deleted while a reader was
+opening it). Nothing is skipped silently; resume from `To + 1`
 deliberately. An iterator yields an error once and ends; a gap is resumed by iterating again
 from `To + 1`.
 

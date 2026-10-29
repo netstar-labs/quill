@@ -31,16 +31,6 @@ reader.go:204-206 calls `reason(ferr)` with `ferr == nil` when the frame is CRC-
 Reader returns `GapError{1,1}` as decisions 11/38 and guarantee 14 require. Why owner: flagged
 semantic (panic becomes a gap). Recommended: approve; test from the probe.
 
-### correctness-27: a Reader returns a raw `*fs.PathError` when a listed segment is deleted between listing and opening (sev:minor)
-
-reader.go:280-283 and :343-347; read.go:181-187 passes the raw error up once the segment's
-index is cached; reproduced deterministically with an unlink-on-Lstat wrapper. Guarantee 14 and
-decision 11 call for a `GapError`. Why owner: the fix changes the error type three callers see
-(Read/Follow, Seek, Archive) and part 1 adds a retry loop with sleeps to `view`. Recommended:
-approve part 2 only (map `fs.ErrNotExist` from a sealed segment's `open` to `*GapError{From:
-cur, To: s.last}` after `forget`), which one skeptic applied with the full suite green; treat
-the marker-segment retry as optional.
-
 ### dedup-19: one `contiguity` helper for the four copies of the hole/overlap bookkeeping (sev:minor)
 
 load.go:364-376, :380-391, reader.go:326-340, :363-376. Why owner: unifying the text changes one
@@ -124,6 +114,16 @@ docs/userguide.md, docs/architecture.md and scope.md describe it. Regression tes
 cmd/quill/offline_policy_test.go (policy byte-identical after append, roll, recover and prune; a
 9 MiB active segment is not rotated under a 1 GiB policy, is under a 64 KiB one; no policy, no
 file created) and policy_nomaintenance_test.go.
+
+### correctness-27: a Reader returned a raw `*fs.PathError` when a listed segment was deleted between listing and opening (applied)
+
+Decision taken: approved, the mapping only, no retry loop (decision 101). In reader.go the sealed
+segment's `open` closure, on `fs.ErrNotExist`, forgets the cached entry and returns a
+`*GapError` over the segment's range; `scanSource` (read.go) sets `From` to the requested
+sequence, so `Read`, `Follow`, `Seek` and `Archive` report a gap. The marker's own segment
+missing stays an error. Regression tests in reader_vanished_test.go delete the segment from the
+simulator's `Inject` hook on `OpOpen` for each of the four callers. Not changed: `Log`'s own
+`view` has the same shape for its own sealed segments (read.go); the audit named reader.go only.
 
 ## Deferred (one issue)
 
