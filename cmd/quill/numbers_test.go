@@ -39,20 +39,8 @@ func snapshot(t *testing.T, dir string) map[string]string {
 // manySegments writes 40 records into 256-byte segments with a retention-off policy.
 func manySegments(t *testing.T) string {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), "orders")
-	l, err := quill.Open(quill.Config{Dir: dir, Retention: -1, SegmentBytes: 256, FlushInterval: time.Hour, NoMaintenance: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < 40; i++ {
-		if _, err := l.Append([]byte(fmt.Sprintf("record %02d", i))); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return dir
+	return buildLog(t, quill.Config{Retention: -1, SegmentBytes: 256, FlushInterval: time.Hour, NoMaintenance: true}, 40,
+		func(i int) []byte { return []byte(fmt.Sprintf("record %02d", i)) })
 }
 
 var refusedNumbers = []string{"1e6", "1e3", "1M", "1K", "0x10", "-1", "+1", "1_000", "12abc", "10 ", " 10", "1.5", "", "99999999999999999999"}

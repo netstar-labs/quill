@@ -33,11 +33,12 @@ func mustRun(t *testing.T, stdin string, args ...string) string {
 	return out
 }
 
-// newLog writes n records with a library writer and closes it.
-func newLog(t *testing.T, n int, payload func(i int) []byte) string {
+// buildLog opens a log under a fresh temporary directory with cfg (Dir is set here), appends n
+// records with payload(i), closes it and returns the directory.
+func buildLog(t *testing.T, cfg quill.Config, n int, payload func(i int) []byte) string {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), "orders")
-	l, err := quill.Open(quill.Config{Dir: dir, Retention: -1, SegmentBytes: 4096, FlushInterval: time.Hour})
+	cfg.Dir = filepath.Join(t.TempDir(), "orders")
+	l, err := quill.Open(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +50,13 @@ func newLog(t *testing.T, n int, payload func(i int) []byte) string {
 	if err := l.Close(); err != nil {
 		t.Fatal(err)
 	}
-	return dir
+	return cfg.Dir
+}
+
+// newLog writes n records with a library writer and closes it.
+func newLog(t *testing.T, n int, payload func(i int) []byte) string {
+	t.Helper()
+	return buildLog(t, quill.Config{Retention: -1, SegmentBytes: 4096, FlushInterval: time.Hour}, n, payload)
 }
 
 func TestEveryDocumentedVerbExistsAndTheReferenceIsCurrent(t *testing.T) {

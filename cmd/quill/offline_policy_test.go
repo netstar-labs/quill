@@ -16,22 +16,10 @@ import (
 // consumer so a rewrite of the policy would be visible.
 func bigActive(t *testing.T) string {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), "orders")
-	l, err := quill.Open(quill.Config{Dir: dir, Retention: time.Hour, SegmentBytes: quill.MaxSegmentBytes,
-		MaxBytes: 4 << 30, MaxRecords: 1000, ProtectedConsumers: []string{"billing"}, FlushInterval: time.Hour})
-	if err != nil {
-		t.Fatal(err)
-	}
 	rec := bytes.Repeat([]byte("x"), 1<<20)
-	for i := 0; i < 9; i++ {
-		if _, err := l.Append(rec); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := l.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return dir
+	return buildLog(t, quill.Config{Retention: time.Hour, SegmentBytes: quill.MaxSegmentBytes,
+		MaxBytes: 4 << 30, MaxRecords: 1000, ProtectedConsumers: []string{"billing"}, FlushInterval: time.Hour}, 9,
+		func(int) []byte { return rec })
 }
 
 func segmentFiles(t *testing.T, dir string) int {
