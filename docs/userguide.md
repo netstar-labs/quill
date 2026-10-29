@@ -170,7 +170,10 @@ future or earlier than their predecessor.
 | `commit`, `register`, `unregister`, `archive` | the consumer's | yes |
 | `append`, `roll`, `prune`, `recover` | the writer's | no: `ErrLocked` |
 
-Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. Offline verbs run with
+Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. `append` exits 1 when closing
+the log fails (with `-sync=false` that close is the only flush that can report an error); with
+`-sync=true` the records were already durable, so it still prints the last sequence to stdout
+beside the error on stderr. Offline verbs run with
 background maintenance off and never rewrite `quill.policy`; `append`, `roll` and `recover` take
 the segment size from it (the 1 GiB ceiling when it cannot be read), so they do not seal a large
 active segment; `roll` seals regardless. `prune` uses `quill.policy` or the retention flags and

@@ -12,6 +12,9 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 - Fixed: the offline verbs (`append`, `roll`, `prune`, `recover`) no longer rewrite `quill.policy`
   (`Open` skips it under `NoMaintenance`), and `append`, `roll` and `recover` take the segment size
   from it instead of the 8 MiB default, so they do not seal a larger active segment.
+- Fixed: `quill append` closes the log before printing and exits 1 when `Close` fails (it exited 0
+  after a failed final flush with `-sync=false`); with `-sync=true` it still prints the last
+  sequence, which was already durable.
 
 ## v0.1.0
 

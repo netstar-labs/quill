@@ -31,15 +31,6 @@ reader.go:204-206 calls `reason(ferr)` with `ferr == nil` when the frame is CRC-
 Reader returns `GapError{1,1}` as decisions 11/38 and guarantee 14 require. Why owner: flagged
 semantic (panic becomes a gap). Recommended: approve; test from the probe.
 
-### correctness-28: `quill append -sync=false` exits 0 when the deferred `Close`, its only flush, fails (sev:minor)
-
-verbs.go:478 discards `Close`'s error; reproduced on the simulator (prints the sequence, exit
-0, record never written). Why owner: it changes a documented verb's exit-code contract
-(decision 53) and has a real choice for `-sync=true`, where a Close failure after a successful
-Sync (decision 60 classes d/e) leaves the records durable (decision 78). Recommended: explicit
-`Close` before printing; exit 1 on failure; when Sync had succeeded, still print the sequence to
-stdout and the error to stderr.
-
 ### correctness-27: a Reader returns a raw `*fs.PathError` when a listed segment is deleted between listing and opening (sev:minor)
 
 reader.go:280-283 and :343-347; read.go:181-187 passes the raw error up once the segment's
@@ -70,6 +61,15 @@ userguide.md:152 and decision 69, and say at scope.md:119 / append.go:17-18 that
 is bounded by `MaxPayloadBytes` alone.
 
 ## Applied
+
+### correctness-28: `quill append` ignored `Close`'s error (applied)
+
+Decision taken: approved as recommended (decision 100). `append` calls `Close` before printing
+and exits 1 when it fails. Under `-sync=true`, where `Sync` had made the records durable, it
+still prints the last sequence to stdout and the error to stderr; without `-sync` it prints
+nothing on failure. Regression tests in cmd/quill/append_close_test.go drive the real verb with
+a stdin that removes write permission on the log directory once read, so `Close` cannot publish
+`quill.tail`.
 
 ### correctness-22: `Close` nils the active descriptor under a pinned reader (applied)
 

@@ -41,7 +41,7 @@ func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 }
 
 // withWriter opens the log writable, runs fn, and closes the log, discarding Close's
-// error; cmdRecover reports it and so uses openWriter directly.
+// error; cmdAppend and cmdRecover report it and so use openWriter directly.
 func (c *cli) withWriter(cfg quill.Config, fn func(l *quill.Log) int) int {
 	l, code := c.openWriter(cfg)
 	if code != exitOK {
@@ -51,39 +51,68 @@ func (c *cli) withWriter(cfg quill.Config, fn func(l *quill.Log) int) int {
 	return fn(l)
 }
 
+// cmdAppend closes the log itself rather than deferring: Close is the only flush that
+// reports an error when -sync=false, so its failure must reach the exit code (decision 100).
 func cmdAppend(c *cli, args []string) int {
-	return c.withWriter(quill.Config{Retention: -1}, func(l *quill.Log) int {
-		var payloads [][]byte
-		if len(args) > 0 {
-			for _, a := range args {
-				payloads = append(payloads, []byte(a))
-			}
-		} else {
-			sc := bufio.NewScanner(c.in)
-			sc.Buffer(make([]byte, 1<<20), quill.MaxPayloadBytes)
-			for sc.Scan() {
-				payloads = append(payloads, append([]byte(nil), sc.Bytes()...))
-			}
-			if err := sc.Err(); err != nil {
-				return c.errorf("stdin: %v", err)
-			}
+	l, code := c.openWriter(quill.Config{Retention: -1})
+	if code != exitOK {
+		return code
+	}
+	last, durable, code := c.appendRecords(l, args)
+	cerr := l.Close()
+	if code != exitOK {
+		return code
+	}
+	return c.finishAppend(last, durable, cerr)
+}
+
+// finishAppend turns Close's result into the verb's output and exit code. A Close failure
+// exits 1; when Sync had already made the records durable the sequence is still printed to
+// stdout, beside the error on stderr, because an error means unknown, not lost.
+func (c *cli) finishAppend(last uint64, durable bool, cerr error) int {
+	if cerr != nil {
+		if durable {
+			fmt.Fprintf(c.out, "%d\n", last)
 		}
-		if len(payloads) == 0 {
-			return c.usage("append: nothing to append")
+		return c.errorf("%v", cerr)
+	}
+	fmt.Fprintf(c.out, "%d\n", last)
+	return exitOK
+}
+
+// appendRecords appends the arguments, or each line of stdin, and syncs when -sync is set.
+// durable reports that Sync succeeded.
+func (c *cli) appendRecords(l *quill.Log, args []string) (last uint64, durable bool, code int) {
+	var payloads [][]byte
+	if len(args) > 0 {
+		for _, a := range args {
+			payloads = append(payloads, []byte(a))
 		}
-		first, err := l.AppendBatch(payloads)
-		if err != nil {
-			return c.errorf("%v", err)
+	} else {
+		sc := bufio.NewScanner(c.in)
+		sc.Buffer(make([]byte, 1<<20), quill.MaxPayloadBytes)
+		for sc.Scan() {
+			payloads = append(payloads, append([]byte(nil), sc.Bytes()...))
 		}
-		last := first + uint64(len(payloads)) - 1
-		if c.sync {
-			if err := l.Sync(context.Background(), last); err != nil {
-				return c.errorf("%v", err)
-			}
+		if err := sc.Err(); err != nil {
+			return 0, false, c.errorf("stdin: %v", err)
 		}
-		fmt.Fprintf(c.out, "%d\n", last)
-		return exitOK
-	})
+	}
+	if len(payloads) == 0 {
+		return 0, false, c.usage("append: nothing to append")
+	}
+	first, err := l.AppendBatch(payloads)
+	if err != nil {
+		return 0, false, c.errorf("%v", err)
+	}
+	last = first + uint64(len(payloads)) - 1
+	if c.sync {
+		if err := l.Sync(context.Background(), last); err != nil {
+			return 0, false, c.errorf("%v", err)
+		}
+		durable = true
+	}
+	return last, durable, exitOK
 }
 
 func cmdPrune(c *cli, args []string) int {

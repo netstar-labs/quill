@@ -165,7 +165,8 @@ beside a live writer without its lock and show only durable records; they print 
 **Locks and exit codes** (decision 53). `append`, `roll`, `prune` and `recover` open the log writable and fail with
 `ErrLocked` beside a live writer. `commit`, `register`, `unregister` and `archive` take only the consumer's lock.
 `cat`, `read`, `tail`, `stat`, `ls`, `consumers` and `check` take no lock. Exit codes: 0 ok, 1 error, 2 usage,
-3 `check` found the log UNHEALTHY. `recover` is `Open` (which performs recovery) followed by `Close`. `register -protect` creates a protected
+3 `check` found the log UNHEALTHY. `append` closes the log before it prints and exits 1 when `Close` fails; under
+`-sync=true`, where the records were already durable, it still prints the last sequence to stdout (decision 100). `recover` is `Open` (which performs recovery) followed by `Close`. `register -protect` creates a protected
 consumer; `read`, `cat` and `tail` take `-since <time>` and `commit` takes `-time <time>` (decision 59).
 
 #### Readable output: `-json`
