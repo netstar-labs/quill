@@ -244,8 +244,8 @@ bounded separately by `MaxBufferBytes`. Defaults leave `MaxBytes` and `MinFreeBy
 configured with only `Retention` can fill a disk; `quill check` and `quill ls` mark such a log UNBOUNDED.
 
 **Knowing the size.** Disk use is measured, not estimated: `Stat().Bytes` is the sum of the log's segment sizes
-and `Stat().Records` is `Head − first retained sequence + 1`, exact because sequences are contiguous
-(decision 10). **Verified** in quill's tests (T17): the byte count equals the bytes of the segment files on
+and `Stat().Records` is `Head − first retained sequence + 1` minus the records inside holes, exact because sequences are contiguous
+(decisions 10, 32). **Verified** in quill's tests (T17): the byte count equals the bytes of the segment files on
 disk across rotations, deletions and a crash. Framing is the length prefix, three varints and the CRC: about
 14 to 18 bytes per record (the baselines' 128-byte records cost 145 bytes each). So for planning, `bytes ≈ records × (average payload + about 16)`, and
 `MaxBytes ≈ target records × (average payload + 16)`; the overhead creeps up a few bytes as sequence numbers
