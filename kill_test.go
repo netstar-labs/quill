@@ -4,11 +4,8 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 )
@@ -19,28 +16,16 @@ import (
 
 func killWriter(t *testing.T, dir string, sync bool, after int) (acked uint64) {
 	t.Helper()
-	cmd := exec.Command(os.Args[0], "-test.run=^$")
-	cmd.Env = append(os.Environ(), "QUILL_HELPER=writer", "QUILL_HELPER_DIR="+dir, "QUILL_HELPER_SEGBYTES=2048")
+	env := []string{"QUILL_HELPER_DIR=" + dir, "QUILL_HELPER_SEGBYTES=2048"}
 	if sync {
-		cmd.Env = append(cmd.Env, "QUILL_HELPER_SYNC=1")
+		env = append(env, "QUILL_HELPER_SYNC=1")
 	}
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
+	cmd, out := startHelper(t, "writer", env...)
 	sc := bufio.NewScanner(out)
 	for i := 0; i < after && sc.Scan(); i++ {
-		line := sc.Text()
-		if !strings.HasPrefix(line, "ack ") {
-			t.Fatalf("helper said %q", line)
-		}
-		n, err := strconv.ParseUint(line[4:], 10, 64)
-		if err != nil {
-			t.Fatal(err)
+		n, ok := parseAck(sc.Text())
+		if !ok {
+			t.Fatalf("helper said %q", sc.Text())
 		}
 		acked = n
 	}
@@ -85,5 +70,18 @@ func TestAKilledWriterLosesNoAcknowledgedRecordAndRecoversAContiguousPrefix(t *t
 		if !errors.Is(err, nil) {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestAHelperIsKilledAndReapedWhenTheTestEndsBeforeItKillsIt(t *testing.T) {
+	var cmd *exec.Cmd
+	t.Run("ends early", func(t *testing.T) {
+		cmd, _ = startHelper(t, "holder", "QUILL_HELPER_DIR="+filepath.Join(t.TempDir(), "log"))
+		t.SkipNow() // leaves the way t.Fatal does: the test function exits, cleanups run
+	})
+	if cmd.ProcessState == nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal("the helper was still running after its test ended")
 	}
 }

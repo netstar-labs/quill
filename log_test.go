@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -261,16 +260,7 @@ func TestASecondWritableOpenFailsFastWithErrLocked(t *testing.T) {
 
 func TestTheLockIsReleasedWhenTheHolderIsKilled(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "log")
-	cmd := exec.Command(os.Args[0], "-test.run=^$")
-	cmd.Env = append(os.Environ(), "QUILL_HELPER=holder", "QUILL_HELPER_DIR="+dir)
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
+	cmd, out := startHelper(t, "holder", "QUILL_HELPER_DIR="+dir)
 	buf := make([]byte, 16)
 	n, _ := out.Read(buf)
 	if string(buf[:n]) != "locked\n" {

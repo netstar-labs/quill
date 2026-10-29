@@ -3,7 +3,9 @@ package quill
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -233,6 +235,40 @@ func helperHolder() {
 	fmt.Println("locked")
 	_ = l
 	select {}
+}
+
+// startHelper runs this test binary as the helper process for role (see the QUILL_HELPER
+// dispatch) with the extra KEY=VALUE environment entries, and returns the child and its
+// stdout. The child is killed and reaped when the test ends, however it ends, so a test that
+// fails before its own Kill leaves nothing running. A test that needs the kill at a chosen
+// moment still calls cmd.Process.Kill itself.
+func startHelper(t *testing.T, role string, env ...string) (*exec.Cmd, io.ReadCloser) {
+	t.Helper()
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	cmd.Env = append(append(os.Environ(), "QUILL_HELPER="+role), env...)
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+	return cmd, out
+}
+
+// parseAck parses a helper acknowledgement line, "ack N".
+func parseAck(line string) (uint64, bool) {
+	rest, ok := strings.CutPrefix(line, "ack ")
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.ParseUint(rest, 10, 64)
+	return n, err == nil
 }
 
 // isGap reports whether err is a *GapError with the given bounds.

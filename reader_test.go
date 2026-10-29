@@ -6,11 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -383,16 +379,8 @@ func TestAReaderRefusesANewerFormat(t *testing.T) {
 // T6: a writer in another process, a reader following it, the writer killed.
 func TestAReaderFollowingAWriterInAnotherProcessNeverOutrunsTheMarkerOrRecovery(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "log")
-	cmd := exec.Command(os.Args[0], "-test.run=^$")
-	cmd.Env = append(os.Environ(), "QUILL_HELPER=writer", "QUILL_HELPER_DIR="+dir, "QUILL_HELPER_SEGBYTES=4096")
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
+	cmd, out := startHelper(t, "writer", "QUILL_HELPER_DIR="+dir, "QUILL_HELPER_SEGBYTES=4096")
+	var err error
 	// Wait for the log to exist.
 	var r *Reader
 	for i := 0; i < 500; i++ {
@@ -416,9 +404,7 @@ func TestAReaderFollowingAWriterInAnotherProcessNeverOutrunsTheMarkerOrRecovery(
 	defer cancel()
 	go func() {
 		for sc.Scan() {
-			line := sc.Text()
-			if strings.HasPrefix(line, "ack ") {
-				n, _ := strconv.ParseUint(line[4:], 10, 64)
+			if n, ok := parseAck(sc.Text()); ok {
 				acked = n
 			}
 		}
