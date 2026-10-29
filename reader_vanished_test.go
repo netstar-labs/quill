@@ -124,3 +124,34 @@ func TestTheMarkersOwnSegmentMissingStaysAnError(t *testing.T) {
 		t.Fatalf("the marker's segment missing: %v", err)
 	}
 }
+
+// A segment that retention deleted between two calls is never listed again, so the Reader's
+// cache must not keep it: memory would otherwise grow with every rotation for the life of a
+// long-lived Reader or Follow (decision 63: invalidated if the file disappears).
+func TestAReaderForgetsCachedSegmentsThatLeftTheDirectory(t *testing.T) {
+	s, r, _, _ := vanishingLog(t)
+	cached := func() int {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return len(r.segs)
+	}
+	if _, err := r.Read(1, 12); err != nil { // scans all three sealed segments
+		t.Fatalf("Read: %v", err)
+	}
+	if n := cached(); n != 3 {
+		t.Fatalf("cached %d sealed segments before the delete, want 3", n)
+	}
+	ids := segmentFiles(t, s, "/log")
+	if err := s.Remove("/log/" + segmentName(ids[0])); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Read(5, 8); err != nil {
+		t.Fatalf("Read after the delete: %v", err)
+	}
+	r.mu.Lock()
+	_, kept := r.segs[ids[0]]
+	r.mu.Unlock()
+	if n := cached(); n != 2 || kept {
+		t.Fatalf("cached %d entries after the delete (deleted segment kept: %v), want 2 and false", n, kept)
+	}
+}

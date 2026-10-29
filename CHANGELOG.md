@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a long-lived `Reader` (or `Follow`) kept a cache entry, and the index of every segment it had
+  scanned, for each sealed segment it ever listed, including ones retention had deleted, so its memory
+  grew with every rotation; it now drops the entries of segments that are no longer in the directory.
+
 - Fixed: `Archive` (and `quill archive`) accepted the source log itself, or a directory with a live writer,
   as the destination and overwrote that writer's `quill.tail` with a marker naming the last sealed segment,
   hiding the newest records from every `Reader` until the writer's next flush that changed the marker; it

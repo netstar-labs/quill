@@ -200,7 +200,7 @@ func (r *Reader) wait(ctx context.Context, offset uint64) error {
 
 // segment returns the cached entry for a sealed segment, reading its first frame on the
 // first call. A cached entry costs no file operation; it is dropped when a read finds the
-// file gone or changed in size, and rebuilt on the next view (decision 63). A segment that
+// file gone or changed in size or a view no longer lists it, and rebuilt on the next view (decision 63). A segment that
 // is damaged (not a regular file, oversize, a bad first frame) is cached as bad; one that
 // could not be opened for an I/O reason is not, so the next view re-examines it (decision 94).
 func (r *Reader) segment(id uint64) *readerSegment {
@@ -251,6 +251,26 @@ func (r *Reader) forget(id uint64) {
 	r.mu.Lock()
 	delete(r.segs, id)
 	r.mu.Unlock()
+}
+
+// prune drops every cached segment that the latest listing no longer holds: retention deleted
+// it, and nothing would ever look it up again (decision 63). It is a no-op while the cache is
+// no larger than the listing, which is the case on every view of a log that is not rotating.
+func (r *Reader) prune(listed []*readerSegment) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.segs) <= len(listed) {
+		return
+	}
+	live := make(map[uint64]struct{}, len(listed))
+	for _, s := range listed {
+		live[s.id] = struct{}{}
+	}
+	for id := range r.segs {
+		if _, ok := live[id]; !ok {
+			delete(r.segs, id)
+		}
+	}
 }
 
 // scan builds a sealed segment's index by one full scan. Success and damage are final; an
@@ -306,6 +326,7 @@ func (r *Reader) view() (*segView, func(), error) {
 			sealed = append(sealed, r.segment(id))
 		}
 	}
+	r.prune(sealed)
 	// The active segment: its first frame, if the marker covers one.
 	var activeFirst uint64
 	var activeAt int64
