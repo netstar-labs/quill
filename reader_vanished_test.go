@@ -111,7 +111,7 @@ func TestASealedSegmentDeletedBetweenListingAndOpeningIsAGapOverItsRange(t *test
 			t.Fatal(err)
 		}
 		removeOnOpen(s, victim, 1) // the first open reads the segment's first frame
-		if err := archive(s, "/log", "/arch", 0o600); !isGap(err, 5, 8) {
+		if err := archive(s, "/log", "/arch"); !isGap(err, 5, 8) {
 			t.Fatalf("archive: %v", err)
 		}
 	})

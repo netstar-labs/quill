@@ -22,10 +22,10 @@ import (
 // The archiver is a protected consumer, so retention keeps a segment until it is copied;
 // the caps still win, so an archive can fall behind under disk pressure.
 func Archive(srcDir, dstDir string) error {
-	return archive(fsx.OS{}, srcDir, dstDir, 0o600)
+	return archive(fsx.OS{}, srcDir, dstDir)
 }
 
-func archive(fsys fsx.FS, srcDir, dstDir string, perm fs.FileMode) error {
+func archive(fsys fsx.FS, srcDir, dstDir string) error {
 	r, err := OpenReader(srcDir, ReaderOptions{fs: fsys})
 	if err != nil {
 		return err
@@ -37,7 +37,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string, perm fs.FileMode) error {
 	}
 	defer c.Close()
 	dstDir = filepath.Clean(dstDir)
-	if err := archiveDest(fsys, dstDir, r.id, perm); err != nil {
+	if err := archiveDest(fsys, dstDir, r.id); err != nil {
 		return err
 	}
 	v, release, err := r.view()
@@ -58,7 +58,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string, perm fs.FileMode) error {
 		if s.active || s.last < offset {
 			continue
 		}
-		size, last, err := copySegment(fsys, s, dstDir, perm)
+		size, last, err := copySegment(fsys, s, dstDir)
 		if err != nil {
 			copyErr = err
 			break
@@ -71,7 +71,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string, perm fs.FileMode) error {
 	}
 	if copied > 0 {
 		tl := tail{Seq: lastSeq, Seg: lastID, Off: uint64(lastSize), MaxSeg: lastID}
-		if err := writeState(fsys, filepath.Join(dstDir, tailName), encodeTail(tl), perm); err != nil {
+		if err := writeState(fsys, filepath.Join(dstDir, tailName), encodeTail(tl), DefaultPerm); err != nil {
 			return err
 		}
 		if err := fsys.SyncDir(dstDir); err != nil {
@@ -91,15 +91,15 @@ func archive(fsys fsx.FS, srcDir, dstDir string, perm fs.FileMode) error {
 }
 
 // archiveDest creates the destination if needed and checks or writes its format marker.
-func archiveDest(fsys fsx.FS, dstDir string, id logID, perm fs.FileMode) error {
-	dirPerm := perm | (perm&0o444)>>2
+func archiveDest(fsys fsx.FS, dstDir string, id logID) error {
+	dirPerm := Config{Perm: DefaultPerm}.dirPerm()
 	if err := fsys.Mkdir(dstDir, dirPerm); err != nil && !errors.Is(err, fs.ErrExist) {
 		return err
 	}
 	data, err := readState(fsys, filepath.Join(dstDir, formatName))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		if err := writeState(fsys, filepath.Join(dstDir, formatName), encodeFormat(id), perm); err != nil {
+		if err := writeState(fsys, filepath.Join(dstDir, formatName), encodeFormat(id), DefaultPerm); err != nil {
 			return err
 		}
 	case err != nil:
@@ -117,7 +117,7 @@ func archiveDest(fsys fsx.FS, dstDir string, id logID, perm fs.FileMode) error {
 		return err
 	}
 	if _, err := fsys.Lstat(filepath.Join(dstDir, tailName)); errors.Is(err, fs.ErrNotExist) {
-		if err := writeState(fsys, filepath.Join(dstDir, tailName), encodeTail(tail{}), perm); err != nil {
+		if err := writeState(fsys, filepath.Join(dstDir, tailName), encodeTail(tail{}), DefaultPerm); err != nil {
 			return err
 		}
 	} else if err != nil {
@@ -129,7 +129,7 @@ func archiveDest(fsys fsx.FS, dstDir string, id logID, perm fs.FileMode) error {
 // copySegment verifies a sealed segment whole, then copies it to the destination under its
 // own name through atomicfile.WriteFrom (temp file, fsync, rename). A destination file of the same size is kept. It
 // returns the size and the segment's last sequence.
-func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64, uint64, error) {
+func copySegment(fsys fsx.FS, s *segRef, dstDir string) (int64, uint64, error) {
 	r, size, closer, err := s.open()
 	if err != nil {
 		return 0, 0, err
@@ -143,7 +143,7 @@ func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64
 	if di, err := fsys.Lstat(dst); err == nil && di.Mode().IsRegular() && di.Size() == size {
 		return size, info.last.Seq, nil
 	}
-	err = atomicfile.WriteFrom(fsys, dst, perm, func(f fsx.File) error {
+	err = atomicfile.WriteFrom(fsys, dst, DefaultPerm, func(f fsx.File) error {
 		n, err := io.CopyBuffer(io.NewOffsetWriter(f, 0), io.NewSectionReader(r, 0, size), make([]byte, windowChunk))
 		if err == nil && n < size {
 			err = io.ErrUnexpectedEOF

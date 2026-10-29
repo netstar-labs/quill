@@ -24,7 +24,7 @@ func TestArchiveCopiesSealedSegmentsVerifiedIdempotentlyAndTheDestinationReadsTh
 	fillSegments(t, l, clk, 5)
 	appendN(t, l, 1) // in the active segment: not archived
 	mustFlush(t, l)
-	if err := archive(s, "/log", "/arch", 0o600); err != nil {
+	if err := archive(s, "/log", "/arch"); err != nil {
 		t.Fatal(err)
 	}
 	if ids := segmentFiles(t, s, "/arch"); len(ids) != 5 {
@@ -48,7 +48,7 @@ func TestArchiveCopiesSealedSegmentsVerifiedIdempotentlyAndTheDestinationReadsTh
 	}
 	// A second run copies nothing.
 	before := s.Ops()
-	if err := archive(s, "/log", "/arch", 0o600); err != nil {
+	if err := archive(s, "/log", "/arch"); err != nil {
 		t.Fatal(err)
 	}
 	if ops := s.Ops() - before; ops > 60 {
@@ -58,7 +58,7 @@ func TestArchiveCopiesSealedSegmentsVerifiedIdempotentlyAndTheDestinationReadsTh
 	if err := l.Roll(); err != nil {
 		t.Fatal(err)
 	}
-	if err := archive(s, "/log", "/arch", 0o600); err != nil {
+	if err := archive(s, "/log", "/arch"); err != nil {
 		t.Fatal(err)
 	}
 	recs, err = readerAll(ar)
@@ -79,7 +79,7 @@ func TestArchiveCopiesSealedSegmentsVerifiedIdempotentlyAndTheDestinationReadsTh
 	appendN(t, other, 1)
 	_ = other.Roll()
 	defer other.Close()
-	if err := archive(s, "/other", "/arch", 0o600); !errors.Is(err, ErrWrongLog) {
+	if err := archive(s, "/other", "/arch"); !errors.Is(err, ErrWrongLog) {
 		t.Fatalf("%v", err)
 	}
 }
@@ -114,7 +114,7 @@ func TestArchiveCopiesEverySegmentByteForByteIncludingOneSpanningSeveralCopyChun
 		l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
 		defer l.Close()
 		fillSegments(t, l, clk, 5)
-		if err := archive(s, "/log", "/arch", 0o600); err != nil {
+		if err := archive(s, "/log", "/arch"); err != nil {
 			t.Fatal(err)
 		}
 		compare(t, s, "/log", "/arch", 5)
@@ -130,7 +130,7 @@ func TestArchiveCopiesEverySegmentByteForByteIncludingOneSpanningSeveralCopyChun
 		if err := l.Roll(); err != nil {
 			t.Fatal(err)
 		}
-		if err := archive(s, "/log", "/arch", 0o600); err != nil {
+		if err := archive(s, "/log", "/arch"); err != nil {
 			t.Fatal(err)
 		}
 		compare(t, s, "/log", "/arch", 1)
@@ -152,7 +152,7 @@ func TestArchiveFailsOnAShortWriteAndLeavesNoTempFileInTheDestination(t *testing
 		}
 		return nil
 	}
-	err := archive(s, "/log", "/arch", 0o600)
+	err := archive(s, "/log", "/arch")
 	s.Inject = nil
 	if !errors.Is(err, io.ErrShortWrite) {
 		t.Fatalf("archive with a short write: %v", err)
@@ -170,7 +170,7 @@ func TestArchiveFailsOnAShortWriteAndLeavesNoTempFileInTheDestination(t *testing
 		t.Fatalf("a segment was published after a failed copy: %v", ids)
 	}
 	// With the fault gone the same archive completes.
-	if err := archive(s, "/log", "/arch", 0o600); err != nil {
+	if err := archive(s, "/log", "/arch"); err != nil {
 		t.Fatalf("retry: %v", err)
 	}
 	if ids := segmentFiles(t, s, "/arch"); len(ids) != 3 {
@@ -193,7 +193,7 @@ func TestArchiveFailsWhenTheDestinationCannotSyncAndLeavesNoTempFile(t *testing.
 		}
 		return nil
 	}
-	err := archive(s, "/log", "/arch", 0o600)
+	err := archive(s, "/log", "/arch")
 	s.Inject = nil
 	if !errors.Is(err, syscall.ENOSPC) {
 		t.Fatalf("archive with a failing fsync: %v", err)
@@ -217,7 +217,7 @@ func TestArchiveStopsAtACorruptSegmentAndReportsASourceHole(t *testing.T) {
 	data := fileBytes(t, s, seg2)
 	data[len(data)-2] ^= 1
 	writeFile(t, s, seg2, data)
-	err := archive(s, "/log", "/arch", 0o600)
+	err := archive(s, "/log", "/arch")
 	if !errors.Is(err, ErrCorrupt) {
 		t.Fatalf("%v", err)
 	}
@@ -231,7 +231,7 @@ func TestArchiveStopsAtACorruptSegmentAndReportsASourceHole(t *testing.T) {
 	// Restoring the file lets it continue.
 	data[len(data)-2] ^= 1
 	writeFile(t, s, seg2, data)
-	if err := archive(s, "/log", "/arch", 0o600); err != nil {
+	if err := archive(s, "/log", "/arch"); err != nil {
 		t.Fatal(err)
 	}
 	if ids := segmentFiles(t, s, "/arch"); len(ids) != 6 {
@@ -245,7 +245,7 @@ func TestArchiveStopsAtACorruptSegmentAndReportsASourceHole(t *testing.T) {
 	if err := s2.Remove("/log/" + segmentName(2)); err != nil {
 		t.Fatal(err)
 	}
-	err = archive(s2, "/log", "/arch", 0o600)
+	err = archive(s2, "/log", "/arch")
 	if !isGap(err, 9, 12) {
 		t.Fatalf("%v", err)
 	}
@@ -273,7 +273,7 @@ func TestArchiveStopsAtACorruptSegmentAndReportsASourceHole(t *testing.T) {
 	if err != nil || len(st.Holes) != 1 || st.Holes[0] != (Hole{9, 12}) || st.Head != 20 {
 		t.Fatalf("%+v %v", st, err)
 	}
-	if err := archive(s2, "/log", "/arch", 0o600); err != nil {
+	if err := archive(s2, "/log", "/arch"); err != nil {
 		t.Fatalf("a second run after the hole: %v", err)
 	}
 	// Retention lost the first segments before the archiver ran: a gap below the offset.
@@ -281,7 +281,7 @@ func TestArchiveStopsAtACorruptSegmentAndReportsASourceHole(t *testing.T) {
 	l3 := openRetention(t, s3, clk, nil)
 	defer l3.Close()
 	fillSegments(t, l3, clk, 3)
-	if err := archive(s3, "/log", "/arch", 0o600); err != nil {
+	if err := archive(s3, "/log", "/arch"); err != nil {
 		t.Fatal(err)
 	}
 	fillSegments(t, l3, clk, 3)
@@ -292,7 +292,7 @@ func TestArchiveStopsAtACorruptSegmentAndReportsASourceHole(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The archiver's offset is 13; segments 3 and 4 (13..20) are gone by hand.
-	if err := archive(s3, "/log", "/arch", 0o600); !isGap(err, 13, 20) {
+	if err := archive(s3, "/log", "/arch"); !isGap(err, 13, 20) {
 		t.Fatalf("%v", err)
 	}
 }
@@ -303,7 +303,7 @@ func TestTheArchiverIsAProtectedConsumerUntilACapOverridesIt(t *testing.T) {
 	l := openRetention(t, s, clk, nil)
 	defer l.Close()
 	fillSegments(t, l, clk, 4)
-	if err := archive(s, "/log", "/arch", 0o600); err != nil {
+	if err := archive(s, "/log", "/arch"); err != nil {
 		t.Fatal(err)
 	}
 	fillSegments(t, l, clk, 4) // not yet archived
