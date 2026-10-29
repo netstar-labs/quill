@@ -54,10 +54,10 @@ func (e *SegmentError) Error() string {
 // Is makes a *SegmentError match ErrCorrupt.
 func (e *SegmentError) Is(target error) bool { return target == ErrCorrupt }
 
-// openSegment opens a segment file for reading: never through a symbolic link, a regular
-// file only (checked before the open, so a FIFO cannot block it, and after, so the open
-// file is what was checked), and at most maxSegmentBytes (guarantee 7).
-func openSegment(fsys fsx.FS, path string) (fsx.File, int64, error) {
+// openSegmentFlag opens a segment file with the given open flag: never through a symbolic
+// link, a regular file only (checked before the open, so a FIFO cannot block it, and
+// after, so the open file is what was checked), and at most maxSegmentBytes (guarantee 7).
+func openSegmentFlag(fsys fsx.FS, path string, flag int) (fsx.File, int64, error) {
 	info, err := fsys.Lstat(path)
 	if err != nil {
 		return nil, 0, err
@@ -65,7 +65,7 @@ func openSegment(fsys fsx.FS, path string) (fsx.File, int64, error) {
 	if !info.Mode().IsRegular() {
 		return nil, 0, &SegmentError{Path: path, Reason: "not a regular file"}
 	}
-	f, err := fsys.OpenFile(path, fsx.O_RDONLY, 0)
+	f, err := fsys.OpenFile(path, flag, 0)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -81,6 +81,11 @@ func openSegment(fsys fsx.FS, path string) (fsx.File, int64, error) {
 		return nil, 0, err
 	}
 	return f, info.Size(), nil
+}
+
+// openSegment opens a segment file for reading with the checks of openSegmentFlag.
+func openSegment(fsys fsx.FS, path string) (fsx.File, int64, error) {
+	return openSegmentFlag(fsys, path, fsx.O_RDONLY)
 }
 
 // window reads a segment through an io.ReaderAt in chunks, handing out slices of frames.
@@ -459,27 +464,5 @@ func (l *Log) loadSealed(id uint64) *segment {
 
 // openActive opens the newest segment read-write with the checks of openSegment.
 func openActive(fsys fsx.FS, path string) (fsx.File, int64, error) {
-	info, err := fsys.Lstat(path)
-	if err != nil {
-		return nil, 0, err
-	}
-	if !info.Mode().IsRegular() {
-		return nil, 0, &SegmentError{Path: path, Reason: "not a regular file"}
-	}
-	f, err := fsys.OpenFile(path, fsx.O_RDWR, 0)
-	if err != nil {
-		return nil, 0, err
-	}
-	info, err = f.Stat()
-	if err == nil && !info.Mode().IsRegular() {
-		err = &SegmentError{Path: path, Reason: "not a regular file"}
-	}
-	if err == nil && info.Size() > maxSegmentBytes {
-		err = &SegmentError{Path: path, Reason: fmt.Sprintf("%d bytes, over the %d limit", info.Size(), maxSegmentBytes)}
-	}
-	if err != nil {
-		_ = f.Close()
-		return nil, 0, err
-	}
-	return f, info.Size(), nil
+	return openSegmentFlag(fsys, path, fsx.O_RDWR)
 }
