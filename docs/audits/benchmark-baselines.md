@@ -139,3 +139,6 @@ Wall time is dominated by `F_FULLFSYNC` and did not move beyond noise.
 | read-7: `Log.view` reuses the sealed `segRef`s cached in `Log.sealedRefs` (decision 103) instead of building one `segRef` and one `open` closure per sealed segment on every call | `BenchmarkReadStart` | 27,971–28,278 | 136 | 26,976–27,011 | 121 |
 | read-7 (same change) | `BenchmarkReadTail` | 27,655–27,787 | 129 | 26,162–26,253 | 114 |
 | read-7 (same change; 1,000 sealed segments on `fsx.Sim`, `Read(1, 1)`; ns/op 36,762–38,573 before, 2,171–2,436 after) | `BenchmarkReadStartThousandSegments` | 177,925–179,073 | 2,041 | 11,437–11,481 | 31 |
+| read-9: `readFrom` sizes its result slice once, from the view, when the first record is delivered (`scanSource`'s `expect` hook, decision 104), instead of growing it by `append` from nil | `BenchmarkReadStart` | 26,935–27,323 | 121 | 18,532–18,678 | 114 |
+| read-9 (same change; ns/op 26,484–27,413 before, 24,826–24,905 after) | `BenchmarkReadTail` | 26,064–26,460 | 114 | 17,956–18,229 | 107 |
+| read-9 (same change; ns/op 38,948–40,402 before, 35,523–37,895 after) | `BenchmarkReadSealed` | 26,673–26,906 | 121 | 18,542–18,644 | 114 |

@@ -92,6 +92,10 @@ func (v *segView) locate(seq uint64) (*segRef, error) {
 	return nil, &GapError{From: seq, To: seq} // between segments with no hole recorded: cannot happen
 }
 
+// maxExpect bounds the slice a Read reserves up front, in records: a larger result grows by
+// append past it.
+const maxExpect = 4096
+
 // cursor remembers where a scan ended, so the next one starts there without a seek.
 type cursor struct {
 	seq   uint64 // the next sequence to read
@@ -102,7 +106,9 @@ type cursor struct {
 
 func readFrom(src source, offset uint64, limit int) ([]Record, error) {
 	var out []Record
-	_, err := scanSource(src, cursor{seq: max(offset, 1)}, limit, src.maxReadBytes(), true, false, func(rec Record) bool {
+	_, err := scanSource(src, cursor{seq: max(offset, 1)}, limit, src.maxReadBytes(), true, false, func(n int) {
+		out = make([]Record, 0, n)
+	}, func(rec Record) bool {
 		out = append(out, rec)
 		return true
 	})
@@ -111,7 +117,7 @@ func readFrom(src source, offset uint64, limit int) ([]Record, error) {
 
 // scanFrom scans from offset; offset 0 means the first retained sequence.
 func scanFrom(src source, offset uint64, limit int, fn func(Record) bool) error {
-	_, err := scanSource(src, cursor{seq: offset}, limit, 0, false, true, fn)
+	_, err := scanSource(src, cursor{seq: offset}, limit, 0, false, true, nil, fn)
 	return err
 }
 
@@ -132,8 +138,11 @@ func readWait(ctx context.Context, src source, offset uint64, limit int) ([]Reco
 // A gap met after records were delivered is returned at once when gapAfter is set (Scan:
 // the callback already has the records) and otherwise left for the next call (Read: the
 // records are the result). A from.seq of 0 means the first retained sequence. It returns
-// where it stopped, for the next scan to continue from.
-func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, gapAfter bool, fn func(Record) bool) (cursor, error) {
+// where it stopped, for the next scan to continue from. expect, when not nil, is called once,
+// just before the first record is delivered, with how many records the scan may deliver at
+// most (at least 1, at most maxExpect), so a caller collecting them can size its slice
+// once; it is not called when no record is delivered (an empty poll, a gap, an error).
+func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, gapAfter bool, expect func(n int), fn func(Record) bool) (cursor, error) {
 	v, release, err := src.view()
 	if err != nil {
 		return from, err
@@ -214,6 +223,13 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 			}
 			if copyPayloads {
 				rec.Payload = slices.Clone(rec.Payload)
+			}
+			if count == 0 && expect != nil {
+				n := v.head - rec.Seq + 1
+				if limit > 0 {
+					n = min(n, uint64(limit))
+				}
+				expect(int(min(n, maxExpect)))
 			}
 			count++
 			bytes += len(rec.Payload)

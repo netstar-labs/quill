@@ -54,7 +54,7 @@ func records(ctx context.Context, src source, offset uint64, follow bool) iter.S
 				return
 			}
 			var batch []Record
-			next, err := scanSource(src, cur, 0, src.maxReadBytes(), true, false, func(rec Record) bool {
+			next, err := scanSource(src, cur, 0, src.maxReadBytes(), true, false, nil, func(rec Record) bool {
 				batch = append(batch, rec)
 				return true
 			})
