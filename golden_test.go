@@ -123,7 +123,7 @@ func TestFrameGolden(t *testing.T) {
 	if !bytes.Equal(image, bytes.Join(frames, nil)) {
 		failGolden(t, "segment image", "segment.log", hex.EncodeToString(image), hex.EncodeToString(bytes.Join(frames, nil)))
 	}
-	info, cut, err := recoverSegment(bytes.NewReader(image), int64(len(image)), 0)
+	info, cut, err := recoverSegment(bytes.NewReader(image), int64(len(image)), 0, "")
 	if err != nil || !cut || info.frames != 1 || info.end != int64(len(frames[0])) {
 		t.Fatalf("recovery of the golden image: %+v %v %v", info, cut, err)
 	}

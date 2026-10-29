@@ -202,18 +202,19 @@ func walk(w *window, start int64, prev uint64, havePrev bool, fn func(rec Record
 
 // verifySegment checks a sealed segment whole: every byte is durable, so every frame must be
 // intact and contiguous, the last must end exactly at size, and there must be at least one.
-// Anything else is a *SegmentError (decision 39, decision 43).
-func verifySegment(r io.ReaderAt, size int64) (segInfo, error) {
+// Anything else is a *SegmentError (decision 39, decision 43) carrying path, which names the
+// segment for the caller's message.
+func verifySegment(r io.ReaderAt, size int64, path string) (segInfo, error) {
 	w := &window{r: r, size: size, chunk: windowChunk}
 	info, err := walk(w, 0, 0, false, nil)
 	if err != nil {
 		if !isFrameError(err) {
 			return info, err // I/O
 		}
-		return info, &SegmentError{Offset: info.end, Intact: info.end, Reason: reason(err)}
+		return info, &SegmentError{Path: path, Offset: info.end, Intact: info.end, Reason: reason(err)}
 	}
 	if info.frames == 0 {
-		return info, &SegmentError{Reason: "a sealed segment with no frames"}
+		return info, &SegmentError{Path: path, Reason: "a sealed segment with no frames"}
 	}
 	return info, nil
 }
@@ -223,10 +224,10 @@ func verifySegment(r io.ReaderAt, size int64) (segInfo, error) {
 // damage there is a *SegmentError (corruption). From durable it parses forward, accepting
 // each frame that is intact and contiguous, and stops at the first that is not: the returned
 // info.end is where the caller truncates, and cut reports whether anything was cut. Nothing
-// after the first bad frame is trusted, whatever it contains.
-func recoverSegment(r io.ReaderAt, size int64, durable int64) (info segInfo, cut bool, err error) {
+// after the first bad frame is trusted, whatever it contains. A *SegmentError carries path.
+func recoverSegment(r io.ReaderAt, size int64, durable int64, path string) (info segInfo, cut bool, err error) {
 	if durable > size {
-		return segInfo{}, false, &SegmentError{Offset: size, Intact: size, Reason: fmt.Sprintf("the file holds %d bytes but the marker says %d are durable", size, durable)}
+		return segInfo{}, false, &SegmentError{Path: path, Offset: size, Intact: size, Reason: fmt.Sprintf("the file holds %d bytes but the marker says %d are durable", size, durable)}
 	}
 	w := &window{r: r, size: durable, chunk: windowChunk}
 	info, err = walk(w, 0, 0, false, nil)
@@ -234,7 +235,7 @@ func recoverSegment(r io.ReaderAt, size int64, durable int64) (info segInfo, cut
 		if !isFrameError(err) {
 			return info, false, err // I/O
 		}
-		return info, false, &SegmentError{Offset: info.end, Intact: info.end, Reason: reason(err) + " below the durable offset"}
+		return info, false, &SegmentError{Path: path, Offset: info.end, Intact: info.end, Reason: reason(err) + " below the durable offset"}
 	}
 	w.size = size
 	tail, err := walk(w, durable, info.last.Seq, info.frames > 0, nil)
@@ -328,13 +329,9 @@ func (l *Log) load() error {
 	if tl.Seg == newest {
 		durable = int64(tl.Off)
 	}
-	info, cut, err := recoverSegment(f, size, durable)
+	info, cut, err := recoverSegment(f, size, durable, a.path)
 	if err != nil {
 		_ = f.Close()
-		var se *SegmentError
-		if errors.As(err, &se) {
-			se.Path = a.path // a *SegmentError matches ErrCorrupt
-		}
 		return err
 	}
 	if cut {
@@ -449,12 +446,8 @@ func (l *Log) loadSealed(id uint64) *segment {
 		return s
 	}
 	defer f.Close()
-	info, err := verifySegment(f, size)
+	info, err := verifySegment(f, size, s.path)
 	if err != nil {
-		var se *SegmentError
-		if errors.As(err, &se) {
-			se.Path = s.path
-		}
 		s.bad = err
 		return s
 	}

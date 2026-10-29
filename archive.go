@@ -136,12 +136,8 @@ func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64
 		return 0, 0, err
 	}
 	defer closer()
-	info, err := verifySegment(r, size)
+	info, err := verifySegment(r, size, fmt.Sprintf("segment %d", s.id))
 	if err != nil {
-		var se *SegmentError
-		if errors.As(err, &se) {
-			se.Path = fmt.Sprintf("segment %d", s.id)
-		}
 		return 0, 0, err
 	}
 	dst := filepath.Join(dstDir, segmentName(s.id))

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -16,11 +17,11 @@ import (
 func crcChecksum(b []byte) uint32 { return crc32.Checksum(b, crcTable) }
 
 func verify(data []byte) (segInfo, error) {
-	return verifySegment(bytes.NewReader(data), int64(len(data)))
+	return verifySegment(bytes.NewReader(data), int64(len(data)), "")
 }
 
 func recover_(data []byte, durable int64) (segInfo, bool, error) {
-	return recoverSegment(bytes.NewReader(data), int64(len(data)), durable)
+	return recoverSegment(bytes.NewReader(data), int64(len(data)), durable, "")
 }
 
 // frameEnds returns the byte offset after each frame of a well-formed image.
@@ -263,7 +264,7 @@ func TestACraftedTailCostsOnePassAndStopsAtTheFirstBadFrame(t *testing.T) {
 	head := image(1, 3, 0, smallPayload)
 	data := append(bytes.Clone(head), bytes.Repeat([]byte{0x01, 0x00}, 1<<20)...)
 	counting := &countingReader{r: bytes.NewReader(data)}
-	info, cut, err := recoverSegment(counting, int64(len(data)), 0)
+	info, cut, err := recoverSegment(counting, int64(len(data)), 0, "")
 	if err != nil || !cut || info.end != int64(len(head)) {
 		t.Fatalf("%+v %v %v", info, cut, err)
 	}
@@ -285,11 +286,11 @@ func (c *countingReader) ReadAt(p []byte, off int64) (int, error) {
 
 func TestAReaderShorterThanItsStatedSizeIsAnError(t *testing.T) {
 	data := image(1, 3, 0, smallPayload)
-	_, err := verifySegment(bytes.NewReader(data), int64(len(data))+10)
+	_, err := verifySegment(bytes.NewReader(data), int64(len(data))+10, "")
 	if !errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, ErrCorrupt) {
 		t.Fatalf("a short read is an I/O error, not corruption: %v", err)
 	}
-	_, _, err = recoverSegment(bytes.NewReader(data), int64(len(data))+10, 0)
+	_, _, err = recoverSegment(bytes.NewReader(data), int64(len(data))+10, 0, "")
 	if err == nil {
 		t.Fatal("short reader accepted")
 	}
@@ -337,5 +338,37 @@ func TestOpenSegmentRefusesSymlinksFIFOsAndOversizeFiles(t *testing.T) {
 	}
 	if _, _, err := openSegment(fsx.OS{}, filepath.Join(dir, "missing.log")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("missing: %v", err)
+	}
+}
+
+func TestSegmentErrorsFromVerifyAndRecoverNameTheSegmentPassedIn(t *testing.T) {
+	const path = "0000000007.log"
+	data := image(1, 3, 0, smallPayload)
+	torn := data[:len(data)-1]
+	flipped := bytes.Clone(data)
+	flipped[len(flipped)-1] ^= 0x01
+	for _, tc := range []struct {
+		name string
+		call func() error
+	}{
+		{"verify torn", func() error { _, err := verifySegment(bytes.NewReader(torn), int64(len(torn)), path); return err }},
+		{"verify no frames", func() error { _, err := verifySegment(bytes.NewReader(nil), 0, path); return err }},
+		{"recover below durable", func() error {
+			_, _, err := recoverSegment(bytes.NewReader(flipped), int64(len(flipped)), int64(len(flipped)), path)
+			return err
+		}},
+		{"recover durable past size", func() error {
+			_, _, err := recoverSegment(bytes.NewReader(data), int64(len(data)), int64(len(data))+1, path)
+			return err
+		}},
+	} {
+		var se *SegmentError
+		err := tc.call()
+		if !errors.As(err, &se) {
+			t.Fatalf("%s: want a *SegmentError, got %v", tc.name, err)
+		}
+		if se.Path != path || !strings.Contains(se.Error(), path) {
+			t.Fatalf("%s: path %q, message %q; want the path %q named", tc.name, se.Path, se.Error(), path)
+		}
 	}
 }

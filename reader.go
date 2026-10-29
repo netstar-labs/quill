@@ -238,12 +238,8 @@ func (s *readerSegment) scan(fsys fsx.FS) error {
 			return
 		}
 		defer f.Close()
-		info, err := verifySegment(f, size)
+		info, err := verifySegment(f, size, s.path)
 		if err != nil {
-			var se *SegmentError
-			if errors.As(err, &se) {
-				se.Path = s.path
-			}
 			s.scanErr = err
 			return
 		}
