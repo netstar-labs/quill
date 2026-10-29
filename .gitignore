@@ -29,3 +29,4 @@ build/host
 # profiles, coverage and fuzz output that is not a regression corpus
 *.prof
 coverage.out
+/build/quill.version

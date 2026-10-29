@@ -33,9 +33,11 @@ sockets, no dependencies. Closer to "the SQLite of commit logs" than to a lightw
   tests.
 - **Audits**: [docs/audits/](docs/audits/), what the tests cannot show and why, the test ledger,
   and the benchmark baselines.
-- Written in phase 4 of the build: `docs/introduction.md`, `docs/executive-summary.md`,
-  `docs/architecture.md`, `docs/userguide.md`, the generated `docs/reference.md`, and
-  `examples/`.
+- **Start here**: [introduction](docs/introduction.md), [executive summary](docs/executive-summary.md).
+- **Deep dive**: [architecture](docs/architecture.md).
+- **Operations**: [user guide](docs/userguide.md), the generated [command reference](docs/reference.md).
+- **Examples**: [examples/](examples/README.md).
+- [CONTRIBUTING](CONTRIBUTING.md), [CHANGELOG](CHANGELOG.md), [SECURITY](SECURITY.md).
 
 ## Layout
 
@@ -67,14 +69,18 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `internal/strictjson/` | State-file parsing that refuses damaged values and unknown fields |
 | `testdata/` | Golden fixtures that freeze the format |
 | `hack/gate.sh`, `hack/fuzz.sh` | The commit gate: gofmt, vet, build, `test -race`, staticcheck, deadcode, every fuzz target for 20 s, tidy |
-| `.github/workflows/` | CI on Linux and macOS, the same gate as separate steps, and the PR-issue-link check |
+| `cmd/quill/` | The command: `main.go`, `verbs.go` (the verb table drives help and the reference), `print.go` |
+| `examples/` | `log/`, `topics/`, `pipeline/` |
+| `build/quill` | The release build: version stamping, cross-compilation, archives, checksums, SBOM |
+| `.github/workflows/` | CI on Linux and macOS, the same gate as separate steps, the full-disk job, and the PR-issue-link check |
 
-Phase 4 adds `cmd/quill/`, `examples/` and `build/quill`.
 
-## Building
+## Building and the Go version
 
-Standard library only; `go.mod` has no `require` line. Go is the toolchain named in `go.mod`
-(the iterator API needs Go 1.23 or later). Always run Go with `GOWORK=off`:
+Standard library only; `go.mod` has no `require` line. **Go-version policy:** the toolchain
+named in `go.mod` is the one supported version; quill tracks the latest stable Go release and
+moves to the next one deliberately, together with the tool pins in `hack/gate.sh` and CI. The
+iterator API needs Go 1.23 or later. Always run Go with `GOWORK=off`:
 
 ```
 GOWORK=off go test -race ./...

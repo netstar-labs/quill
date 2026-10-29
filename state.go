@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -279,4 +280,27 @@ func readState(fsys fsx.FS, path string) ([]byte, error) {
 // writeState replaces a state file atomically, with no directory fsync (decision 40).
 func writeState(fsys fsx.FS, path string, data []byte, perm fs.FileMode) error {
 	return atomicfile.Write(fsys, path, data, perm)
+}
+
+// ReadPolicy reads quill.policy, the settings the writer last opened the log with, as a
+// Config with only those fields set (Retention, SegmentBytes, SegmentMaxAge, MaxBytes,
+// MinFreeBytes, MaxRecords, MaxPayloadBytes, ConsumerTTL, ProtectedConsumers). ok is false
+// when the file is missing or cannot be parsed; an offline tool then refuses to act on it
+// (decision 68).
+func ReadPolicy(dir string) (cfg Config, ok bool) {
+	data, err := readState(fsx.OS{}, filepath.Join(dir, policyName))
+	if err != nil {
+		return Config{}, false
+	}
+	p, ok := decodePolicy(data)
+	if !ok {
+		return Config{}, false
+	}
+	dur := func(s string) time.Duration {
+		d, _ := time.ParseDuration(s)
+		return d
+	}
+	return Config{Retention: dur(p.Retention), SegmentBytes: p.SegmentBytes, SegmentMaxAge: dur(p.SegmentMaxAge),
+		MaxBytes: p.MaxBytes, MinFreeBytes: p.MinFreeBytes, MaxRecords: p.MaxRecords, MaxPayloadBytes: int(p.MaxPayloadBytes),
+		ConsumerTTL: dur(p.ConsumerTTL), ProtectedConsumers: p.ProtectedConsumers}, true
 }

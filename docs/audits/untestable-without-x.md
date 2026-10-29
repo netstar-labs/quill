@@ -41,3 +41,36 @@ The phase-4 benchmark and the T14 full-disk job run on a real filesystem but nev
 The simulator has no symbolic links or special files. Every refusal of a link, a FIFO or an
 oversize file is tested against the real filesystem (`fsx.OS`) in a temporary directory, on
 the machine running the tests.
+
+## Phases 2 to 4
+
+### An OS crash on a real machine (needs: a machine you can cut power to)
+
+Everything above still holds. Phases 2 and 3 tested the crash property with a crash injected
+before every file operation of two scenarios, under every subset of surviving items when
+few are unsynced and a sample otherwise, and under a real `SIGKILL` of a writer process. The
+`SIGKILL` runs show that nothing the writer acknowledged is lost when the page cache survives;
+the simulator runs show the same when pages and directory entries are lost independently.
+What remains an assumption is that a real filesystem's power-loss behaviour is within the
+simulator's model (see phase 1).
+
+### A full disk (needs: a filesystem you can fill)
+
+T14 fills a small tmpfs in CI (`.github/workflows/ci.yml`, job `fulldisk`). The build machine
+had no container runtime, so the test has not run here; the short-write and `ENOSPC` paths it
+exercises are tested against the simulator (T3), and the test itself is type-checked by the
+gate.
+
+### A backlog larger than memory on a real disk (needs: hours and a large disk)
+
+`BenchmarkDrainBacklog` drains a backlog whose size `QUILL_BENCH_BACKLOG_BYTES` sets; the
+baselines used 256 MiB, which fits in memory. The decision-15 question (does `pread` with
+large chunks stay disk-bound on a backlog larger than memory?) is therefore inferred from
+the warm figures, not measured. Run the benchmark with the variable above the machine's
+memory to measure it.
+
+### Lock release on process death across machines (needs: nothing more; stated for clarity)
+
+`flock` release on `SIGKILL` is tested on the build machine (macOS) and in CI on Linux. A
+network filesystem can lose or ignore locks, which is why NFS, SMB and FUSE are unsupported
+rather than tested.

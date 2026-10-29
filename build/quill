@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# The release build (decisions 54, 70): refuses a dirty or untagged tree, cross-compiles the
+# quill command with the version stamped in, and writes release archives, checksums and an
+# SBOM into build/install/ (wiped each run, not tracked).
+#
+#   build/quill            a release build of the tag the tree sits on
+#   build/quill --dev      a development build of the working tree (version "dev-<sha>"), no refusal
+set -euo pipefail
+cd "$(dirname "$0")/.."
+export GOWORK=off CGO_ENABLED=0
+
+dev=0
+[ "${1:-}" = "--dev" ] && dev=1
+
+if [ "$dev" = 0 ]; then
+	if [ -n "$(git status --porcelain)" ]; then
+		echo "build/quill: the tree is dirty; commit or stash, or use --dev" >&2
+		exit 1
+	fi
+	version=$(git describe --tags --exact-match 2>/dev/null) || {
+		echo "build/quill: HEAD is not tagged; tag it (v0.y.z) or use --dev" >&2
+		exit 1
+	}
+else
+	version="dev-$(git rev-parse --short HEAD)$( [ -n "$(git status --porcelain)" ] && echo -dirty )"
+fi
+
+out=build/install
+rm -rf "$out"
+mkdir -p "$out"
+module=$(sed -n 's/^module //p' go.mod)
+gover=$(go version | awk '{print $3}')
+built=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+commit=$(git rev-parse HEAD)
+
+for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+	os=${target%/*}; arch=${target#*/}
+	name="quill_${version}_${os}_${arch}"
+	dir="$out/$name"
+	mkdir -p "$dir"
+	echo "==> $target"
+	GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$version" -o "$dir/quill" ./cmd/quill
+	cp README.md CHANGELOG.md SECURITY.md "$dir/"
+	[ -f LICENSE ] && cp LICENSE "$dir/"
+	tar -C "$out" -czf "$out/$name.tar.gz" "$name"
+	rm -r "$dir"
+done
+
+# The SBOM: CycloneDX 1.5 JSON. The module has no dependencies; the Go toolchain is the
+# only other component that reaches the binary.
+cat > "$out/quill_${version}.cdx.json" <<JSON
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "metadata": {
+    "timestamp": "$built",
+    "component": {
+      "type": "application",
+      "name": "quill",
+      "version": "$version",
+      "purl": "pkg:golang/$module@$version",
+      "properties": [
+        {"name": "vcs.commit", "value": "$commit"},
+        {"name": "go.version", "value": "$gover"}
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "go (standard library)",
+      "version": "$gover",
+      "purl": "pkg:golang/stdlib@${gover#go}"
+    }
+  ],
+  "dependencies": [
+    {"ref": "pkg:golang/$module@$version", "dependsOn": ["pkg:golang/stdlib@${gover#go}"]}
+  ]
+}
+JSON
+
+(cd "$out" && shasum -a 256 -- *.tar.gz *.cdx.json > SHA256SUMS)
+printf '%s %s %s\n' "$version" "$commit" "$built" >> build/quill.version 2>/dev/null || true
+echo "==> $out"
+ls -1 "$out"

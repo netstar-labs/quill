@@ -1,0 +1,272 @@
+# quill user guide
+
+*How to run a log: the library calls, the `quill` command, the files, and day-2 operations.
+The format itself is in [format.md](format.md); the design in [design/](design/).*
+
+## 1. The model
+
+A **log** is a directory holding one topic. `quill.Open(Config{Dir: dir})` creates it if
+needed and takes an exclusive lock: that process is the log's one writer until `Close`.
+Records are numbered from 1, contiguously. `Append` buffers a record; `Flush`, `Sync` or the
+background flush makes it durable; only durable records are ever visible. A **consumer** is
+a name plus a committed offset, the next sequence to read, stored in `consumers/<name>` and
+written only by the process holding that consumer's lock. A **Reader** in another process
+opens the same directory with `OpenReader`, takes no lock, and sees records up to
+`quill.tail`, the marker the writer publishes after each fsync. Retention deletes whole
+sealed segments, oldest first, by age and by caps; it does not wait for a consumer unless the
+consumer is **protected**, and the caps win even then.
+
+Several topics are several directories, in one process or in several. Each has its own lock,
+buffer, flush goroutine, retention and consumers, and shares nothing.
+
+## 2. Writing
+
+```go
+l, err := quill.Open(quill.Config{Dir: "/var/lib/app/orders"})
+seq, err := l.Append(payload)                 // buffered; durable after the next flush
+first, err := l.AppendBatch(payloads)         // consecutive sequences, one segment, one lock
+err = l.Flush()                               // write, fsync, publish quill.tail
+err = l.Sync(ctx, seq)                        // wait until seq is durable (group commit)
+err = l.Roll()                                // seal the active segment now
+err = l.Close()                               // flush, publish, fsync the directory, unlock
+```
+
+**Durability.** `Append` returns before the record is on disk. A caller that acknowledges a
+record upstream must `Flush` or `Sync` first: after a crash the unflushed suffix is lost and
+its sequence numbers are reassigned to the next records. Three ways to pay for durability:
+
+| Mode | Cost | Use |
+|---|---|---|
+| Buffered (the default): `Append`, background flush every `FlushInterval` or `FlushBytes` | One fsync per flush, shared by every record in it | Throughput; a window of `FlushInterval` can be lost |
+| `Append` then `Sync(ctx, seq)` | One fsync per flush, shared by every producer waiting (group commit) | A durable write per call with many producers |
+| `Config.SyncAppends` | Every `Append` returns durable | The simplest durable writer |
+
+A flush costs an fsync of the segment and the marker's temp file: milliseconds on Linux,
+about 20 ms on macOS (`F_FULLFSYNC`). Batch when you can.
+
+**When a write fails** (decisions 37, 60). A short write or `ENOSPC` truncates the file back
+to the durable offset and keeps the records buffered; the next flush retries from the same
+offset, and space exhaustion recovers by itself. An **fsync** error is fatal: every later
+`Append`, `Flush` and `Sync` returns an error wrapping `ErrFailed` until the log is closed and
+reopened, because a retried fsync can report success for data that never reached the disk. An
+error from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still
+become durable, so a producer that retries must tolerate duplicates. A failure to publish the
+marker or create the next segment after the data fsync is retried at the next flush, reported
+by `Err()`, and never rewrites durable data. While flushes fail the buffer is bounded by
+`MaxBufferBytes`; past it, appends fail fast with the flush error.
+
+## 3. Reading in the writer's process
+
+```go
+recs, err := l.Read(offset, limit)            // copies; at most limit records and MaxReadBytes
+recs, err := l.ReadWait(ctx, offset, limit)   // blocks at the head until a flush
+err = l.Scan(offset, limit, func(r quill.Record) bool { ... })   // zero-copy, payload valid in the callback
+for rec, err := range l.Records(ctx, offset) { ... }             // to the current end
+for rec, err := range l.Follow(ctx, offset) { ... }              // and then wait for more
+```
+
+Reads return records with `Seq >= offset` in order. Where records are unavailable they return
+a `*quill.GapError{From, To}`: `From` is the offset asked for, `To` the last missing sequence.
+Two causes: retention deleted them (the offset is below `Stat().First`), or a hole in the
+middle (a damaged or deleted segment). Nothing is skipped silently; resume from `To + 1`
+deliberately. An iterator yields an error once and ends; a gap is resumed by iterating again
+from `To + 1`.
+
+## 4. Consumers
+
+```go
+c, err := l.Consumer("billing", quill.ConsumerOptions{})         // or r.Consumer on a Reader
+recs, err := c.Read(100)                                          // from c.Offset()
+err = c.Commit(recs[len(recs)-1].Seq + 1)                         // the next sequence to read
+for rec, err := range c.Follow(ctx) { process(rec); c.Commit(rec.Seq + 1) }
+lag, err := c.Lag()                                               // Head + 1 − offset
+err = c.SeekToTime(t)                                             // Commit(OffsetForTime(t))
+err = c.Close()
+```
+
+- A consumer's offset is the **next sequence to read**; the idiom is `Commit(lastRead + 1)`.
+  `Commit` accepts values from the first retained sequence to `Head + 1` and refuses others
+  with `ErrOffsetRange`; a rewind is allowed.
+- Opening a handle creates the file at the first retained sequence if absent, and takes
+  `consumers/<name>.lock`; a second open of the same name, in any process, fails with
+  `ErrLocked`. Names are `[a-z0-9_-]`, 1 to 200 characters; a leading underscore is reserved.
+- **Commit once per batch, not per record**: each commit is a file write and an fsync.
+- Delivery is at-least-once: commit after processing. Commit before processing for
+  at-most-once. Exactly-once needs processing that is idempotent on `Seq`.
+- `ErrWrongLog`: the consumer file belongs to another log (the log was recreated).
+  `ErrAhead`: the offset is above `Head + 1` (the log was restored to an older state); rewind
+  it deliberately with `quill commit`.
+- `DeleteConsumer(name)` removes the offset file; the lock file stays for good.
+
+**Protection.** A consumer opened with `Protect: quill.ProtectOn` (or `quill register
+-protect`) keeps its unread sealed segments from the age sweep. The caps (`MaxBytes`,
+`MinFreeBytes`, `MaxRecords`) still win, and `Stat().Dropped` counts segments deleted under a
+consumer. Unprotected is the default, so `Retention` must be longer than the worst delay of an
+unprotected consumer, or negative. `Config.ProtectedConsumers` names consumers the writer
+creates, protected, when it opens the log, so a lazy consumer is protected before its process
+starts. `ConsumerTTL` lets a protected consumer that has been behind and silent for the TTL
+stop protecting segments; its file is kept and `Stat().StaleConsumers` lists it.
+
+## 5. Reading from another process
+
+```go
+r, err := quill.OpenReader(dir, quill.ReaderOptions{PollInterval: 50 * time.Millisecond})
+head, err := r.Head()                 // the marker's sequence
+recs, err := r.Read(offset, limit)    // Read, ReadWait, Scan, ScanAll, Records, Follow, OffsetForTime
+c, err := r.Consumer("billing", quill.ConsumerOptions{})
+st, err := r.Stat()                   // first, head, segments, bytes, records, holes, marker age
+res, err := r.Check()                 // every byte verified, up to the marker
+```
+
+A `Reader` takes no lock and never decides whether a writer is alive; `Stat().MarkerAge` is
+the only liveness hint. It re-reads the marker on every call and sees a new record within
+one poll interval of its flush. It needs read access to the directory; a consumer needs
+write access to `consumers/`. `ErrNoLog` means the directory is not a log yet (a reader that
+arrives during creation retries).
+
+## 6. Configuration
+
+| Field | Default | Notes |
+|---|---|---|
+| `Dir` | required | Created if missing; its base name is the topic name |
+| `Retention` | 24 h | Sealed segments whose newest record is older are deleted; negative never |
+| `PruneInterval` | min(Retention, 1 m), ≥ 1 s | The sweep period |
+| `FlushBytes`, `FlushInterval` | 64 KiB, 250 ms | Inline flush size; background flush period |
+| `SyncAppends` | off | Every append returns durable |
+| `MaxBufferBytes` | 16 × `FlushBytes` | The buffer bound while flushes are failing |
+| `SegmentBytes` | 8 MiB (≤ 1 GiB) | Rotation size; a segment passes it by the flush that seals it |
+| `SegmentMaxAge` | `Retention` | Rotates a quiet active segment so retention can reach it |
+| `MaxBytes` | off | Cap on segment bytes, checked at every seal and pass; ≥ 2 × `SegmentBytes` |
+| `MinFreeBytes` | off | Free-space floor (`statfs`); below it the log deletes its own oldest segments, then refuses appends with `ENOSPC` |
+| `MaxRecords` | off | Keep roughly the newest N records |
+| `MaxPayloadBytes` | 64 MiB − 32 (the ceiling) | Largest record |
+| `MaxBatchBytes` | 16 MiB | Largest encoded batch |
+| `MaxReadBytes` | 16 MiB | Payload bytes per `Read`, at least one record |
+| `ProtectedConsumers` | none | Created, protected, at open |
+| `ConsumerTTL` | off | See §4 |
+| `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures |
+| `Perm` | 0600 (dirs 0700) | File mode |
+| `NoMaintenance` | off | For offline tools: no background prune or age rotation |
+
+**Bounded disk.** With `MaxBytes` set, segment bytes stay within
+`MaxBytes + SegmentBytes + MaxBufferBytes + MaxBatchBytes`. Defaults leave `MaxBytes` and
+`MinFreeBytes` off, so a log with only `Retention` can fill a disk; `quill check` and
+`quill ls` mark it UNBOUNDED. For planning, `bytes ≈ records × (average payload + about 16)`.
+Several logs on one disk share no budget: size them so the sum of every log's
+`MaxBytes + SegmentBytes` leaves headroom, and use `MinFreeBytes` as the backstop.
+
+**A wrong clock.** `At` is the writer's clock. A prune pass deletes at most a quarter of the
+sealed segments by age (at least one) and warns through the logger when it would delete more;
+`quill prune -force` lifts the limit; `quill check` flags records dated more than a day in the
+future or earlier than their predecessor.
+
+## 7. The `quill` command
+
+`quill [-dir DIR] <verb> [flags]`; the flags of every verb are in [reference.md](reference.md).
+
+| Verb | Lock | Beside a live writer |
+|---|---|---|
+| `cat`, `read`, `tail`, `stat`, `ls`, `consumers`, `check` | none | yes; shows records up to `quill.tail` |
+| `commit`, `register`, `unregister`, `archive` | the consumer's | yes |
+| `append`, `roll`, `prune`, `recover` | the writer's | no: `ErrLocked` |
+
+Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. Offline verbs run with
+background maintenance off; `prune` uses `quill.policy` or the retention flags and refuses a
+log whose policy it cannot read.
+
+```
+quill cat -dir orders -json | jq .seq          # newline-delimited JSON, lossless
+quill tail -dir orders -n 20 -follow           # like tail -f
+quill read -dir orders -since 2h -limit 100    # RFC 3339, @unix, or a duration ago
+quill commit -dir orders -name billing -time 2026-10-28T14:00:00Z
+quill check -dir orders && echo healthy
+quill archive -dir orders -to /backup/orders
+```
+
+**Output.** Text lines are `seq`, the RFC 3339 time, and the payload quoted with control
+characters escaped (binary payloads as `b64:…`). `-json` prints one object per record:
+`seq`, `at`, `time`, `len`, and exactly one of `payload` (valid UTF-8) or `payload_b64`;
+`-b64` forces base64. Both forms are lossless and never pass a raw control character or
+invalid UTF-8 to the terminal.
+
+## 8. The files
+
+```
+orders/
+├── 0000000000.log      segments: ascending ids, never reused; the newest is active
+├── quill.tail          {"seq","seg","off","maxseg"}: the durable position
+├── quill.format        "quill/1 <log id>"
+├── quill.policy        the writer's settings, for tools
+├── quill.lock          the writer's flock
+└── consumers/
+    ├── billing         "<log id> <next> <protect>"
+    └── billing.lock    held while a process has the consumer open
+```
+
+Segment files are binary: inspect them with `quill cat`, never with `cat`. Every other file
+is one line of text or JSON. Temp files are `.tmp-*`; the writer removes those older than an
+hour when it opens the log.
+
+## 9. Operations
+
+**Backup.** Copy `quill.tail` first, then the segments in id order, then `consumers/`. A
+restored log keeps its log ID; a consumer ahead of the restored head fails with `ErrAhead`
+and must be rewound with `quill commit`. A naive copy that takes the marker after the
+segments can name data the copy lacks.
+
+**Archiving.** `quill archive -dir <log> -to <dest>` copies each sealed segment not yet
+copied, verifying every CRC, and commits the `_archive` consumer, which is protected. The
+destination is itself a log that `OpenReader` opens. To archive the newest records, `quill
+roll` first (or `Roll()` in the writer). Under disk pressure the caps still win, so an
+archive can fall behind; `Stat().Dropped` counts the loss. A source that lost segments gives
+an archive with the same hole, and the verb says so.
+
+**Moving, renaming, deleting a log** are directory operations done while no writer holds it.
+
+**Filesystems.** Supported: a local POSIX filesystem with working `flock`, atomic `rename` and
+honest `fsync` (ext4, xfs, btrfs, APFS). Not supported: NFS, SMB, FUSE; bind mounts and overlay
+filesystems at the operator's risk. Linux and macOS only.
+
+**Checking.** `quill check` verifies every sealed segment whole and the active one up to the
+marker, finds holes, unparseable consumer files and clock anomalies, and reports UNBOUNDED
+when neither cap is set. Exit 3 means UNHEALTHY.
+
+## 10. Recovery and the manual corruption procedure
+
+A writable open (`Open`, or `quill recover`) performs recovery: it verifies every sealed
+segment, parses the newest segment forward from the marker's offset, truncates a torn tail,
+and republishes `quill.tail`. A torn tail after a crash needs nothing else.
+
+`Open` fails with **`ErrCorrupt`** when damage lies *below* the durable marker: in a sealed
+segment that is the newest's predecessor, or in the newest segment below `quill.tail.off`, or
+when the marker names a sequence above the last valid frame. Damage in an older sealed
+segment does not fail `Open`: the segment becomes a hole, `Err()` names it, and reads stop
+before it with a gap. There is no `repair` verb in v0.1.0 (decision 64). The procedure:
+
+1. Stop every process that holds the log.
+2. `quill check -dir <log>`: for the damaged file it prints the byte where the damage starts
+   and the end of the last valid frame.
+3. Decide. For the **newest** segment, truncating it at the end of the last valid frame drops
+   every record after that point; those sequences are lost for good and will be reassigned to
+   new records, so any consumer that acknowledged them upstream has duplicates ahead. For a
+   **sealed** segment, truncation is not an option (its range would then overlap nothing and
+   the records behind the damage are intact): restore the file from a backup or an archive,
+   or accept the hole and move the consumers past it with `quill commit`.
+4. For the newest segment: `truncate -s <end of last valid frame> <log>/<segment>.log`.
+5. `quill recover -dir <log>`, which reopens the log, verifies, and republishes the marker.
+6. `quill check -dir <log>` again, then restart the writer.
+
+A damaged `quill.tail` or `quill.format` is refused outright; restore them from a backup (the
+marker can be rebuilt by hand from the format in [format.md](format.md): `seq` is the last
+valid sequence, `seg` the newest segment, `off` its length, `maxseg` the highest id on disk).
+
+## 11. Limits
+
+| Limit | Value |
+|---|---|
+| Payload | 64 MiB − 32 bytes |
+| Batch | `MaxBatchBytes`, 16 MiB by default |
+| Segment file | 1.5 GiB (`SegmentBytes` at most 1 GiB) |
+| Consumer name | `[a-z0-9_-]`, 1 to 200 characters |
+| Sequence | 2^64 − 1, then `ErrSeqExhausted` |
+| Timestamps | whole seconds, the writer's clock |

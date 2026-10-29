@@ -101,24 +101,30 @@ func (l *Log) indexBuffer(a *activeSegment, off int64) {
 // the next flush retries (decision 60 d).
 func (l *Log) publishLocked() error {
 	var rotErr error
-	sealed := false
 	if l.active.durable >= l.cfg.SegmentBytes && l.active.frames > 0 {
 		if rotErr = l.rotateLocked(); rotErr != nil {
 			if l.failed != nil {
 				return l.failed
 			}
 			l.bgErr = rotErr
-		} else {
-			sealed = true
 		}
 	}
+	sealed := l.justSealed
 	m := tail{Seq: l.head, Seg: l.active.id, Off: uint64(l.active.durable), MaxSeg: l.maxSeg}
-	if m != l.marker || l.pendingPublish {
+	if m != l.marker || l.pendingPublish || sealed {
 		if err := writeState(l.fs, l.path(tailName), encodeTail(m), l.cfg.Perm); err != nil {
 			l.pendingPublish, l.bgErr = true, err
 			return err
 		}
 		l.marker, l.markerAt = m, l.cfg.clock()
+		if sealed {
+			// The marker naming the new segment is made durable at rotation (decision 65).
+			if err := l.fs.SyncDir(l.dir); err != nil {
+				l.fail(err)
+				return l.failed
+			}
+			l.justSealed = false
+		}
 	}
 	l.pendingPublish = rotErr != nil
 	if sealed && rotErr == nil {
@@ -163,6 +169,7 @@ func (l *Log) rotateLocked() error {
 	}
 	l.maxSeg = id
 	l.active = &activeSegment{id: id, path: path, f: f, first: l.head + 1}
+	l.justSealed = true
 	return nil
 }
 

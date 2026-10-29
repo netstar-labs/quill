@@ -474,6 +474,30 @@ func TestRollDoesNothingOnAnEmptySegmentAndSealsOtherwise(t *testing.T) {
 	s := fsx.NewSim()
 	l := openSim(t, s, nil)
 	defer l.Close()
+	// The marker naming a new segment is durable at rotation (decision 65): a crash right
+	// after Roll keeps it.
+	appendN(t, l, 1)
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := s.Durable("/log/" + tailName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tl, err := decodeTail(data); err != nil || tl.Seg != 1 || tl.Seq != 1 {
+		t.Fatalf("durable marker after rotation: %+v %v", tl, err)
+	}
+	_ = l.Close()
+	s.Crash(nil)
+	l = openSim(t, s, nil)
+	defer l.Close()
+	if ids := segmentFiles(t, s, "/log"); len(ids) != 2 || readTail(t, s, "/log").Seg != 1 {
+		t.Fatalf("after a crash: %v %+v", ids, readTail(t, s, "/log"))
+	}
+	_ = l.Close()
+	s = fsx.NewSim()
+	l = openSim(t, s, nil)
+	defer l.Close()
 	if err := l.Roll(); err != nil {
 		t.Fatal(err)
 	}

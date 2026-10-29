@@ -180,7 +180,7 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		}
 		r, size, closer, err := s.open()
 		if err != nil {
-			if count > 0 {
+			if count > 0 && !gapAfter {
 				return next, nil
 			}
 			return next, err
@@ -227,7 +227,7 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		*bufp = w.buf[:0]
 		closer()
 		if err != nil {
-			if count > 0 {
+			if count > 0 && !gapAfter {
 				return next, nil
 			}
 			if s.active {

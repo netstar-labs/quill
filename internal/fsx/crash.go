@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"slices"
 	"sort"
@@ -389,17 +390,9 @@ func (s *Sim) SyncDir(name string) error {
 		}
 		d = e.dir
 	}
-	d.durable = cloneEntries(d.volatile)
+	d.durable = maps.Clone(d.volatile)
 	d.ops = nil
 	return nil
-}
-
-func cloneEntries(m map[string]entry) map[string]entry {
-	out := make(map[string]entry, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
 }
 
 // Unsynced counts the items a crash would decide independently: unsynced pages and sizes
@@ -583,7 +576,7 @@ func (s *Sim) crashLocked(keep func(i, n int) bool) {
 	// Reboot: volatile = durable everywhere, nothing dirty, no locks, every handle dead.
 	var reset func(d *simDir)
 	reset = func(d *simDir) {
-		d.volatile = cloneEntries(d.durable)
+		d.volatile = maps.Clone(d.durable)
 		for _, e := range d.volatile {
 			if e.file != nil {
 				e.file.volatile = slices.Clone(e.file.durable)

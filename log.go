@@ -215,6 +215,9 @@ type Log struct {
 	flushErr error // the last flush's error, while flushes are failing; nil once one succeeds
 	loadErr  error // a sticky load error (a sealed segment that failed), for Err()
 	closed   bool
+	// justSealed is set by a rotation until the marker naming the new segment has been
+	// published and fsynced into the directory (decision 65).
+	justSealed bool
 	// pendingPublish is set when the data is durable but the marker could not be published
 	// (or the next segment created); the next flush retries (decision 60 d).
 	pendingPublish bool

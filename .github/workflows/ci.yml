@@ -67,11 +67,36 @@ jobs:
       # from go.mod's toolchain line; raise it when this reports a fix.
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
+  # T14: a full disk, for real, on a small tmpfs. Not part of the default gate.
+  fulldisk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - name: mount a 4 MiB tmpfs
+        run: sudo mkdir -p /mnt/quill-small && sudo mount -t tmpfs -o size=4m tmpfs /mnt/quill-small && sudo chmod 1777 /mnt/quill-small
+      - name: fill it
+        run: QUILL_FULLDISK_DIR=/mnt/quill-small go test -run FullDisk -count=1 -v .
+
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - run: go run ./examples/log && go run ./examples/topics
+      - run: go test -count=1 ./examples/...
+      - name: the release build script runs
+        run: build/quill --dev && test -s build/install/SHA256SUMS
+
   # The one check name the branch-protection ruleset requires. `if: always()` keeps it
   # from being skipped (a skipped required check counts as passed) when a job fails, and
   # it fails unless every job succeeded.
   ci:
-    needs: [test, fuzz, static]
+    needs: [test, fuzz, static, fulldisk, examples]
     if: always()
     runs-on: ubuntu-latest
     steps:
