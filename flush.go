@@ -113,7 +113,7 @@ func (l *Log) publishLocked() error {
 	m := tail{Seq: l.head, Seg: l.active.id, Off: uint64(l.active.durable), MaxSeg: l.maxSeg}
 	if m != l.marker || l.pendingPublish || sealed {
 		l.tailBuf = appendTail(l.tailBuf[:0], m)
-		if err := writeState(l.fs, l.path(tailName), l.tailBuf, l.cfg.Perm); err != nil {
+		if err := writeState(l.fs, l.tailPath, l.tailBuf, l.cfg.Perm); err != nil {
 			l.pendingPublish, l.bgErr = true, err
 			return err
 		}

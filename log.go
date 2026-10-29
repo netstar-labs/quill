@@ -193,11 +193,13 @@ func validName(name string) error {
 
 // Log is one topic in one directory, held by its one writer.
 type Log struct {
-	cfg  Config
-	fs   fsx.FS
-	dir  string
-	id   logID
-	lock fsx.File
+	cfg Config
+	fs  fsx.FS
+	dir string
+	// tailPath is the marker's path, joined once in Open: publishLocked writes it on every flush.
+	tailPath string
+	id       logID
+	lock     fsx.File
 
 	mu sync.Mutex // the log's lock: everything below
 	// The buffer of encoded frames not yet written, and the sequences it holds.
@@ -286,6 +288,7 @@ func Open(cfg Config) (*Log, error) {
 	}
 	l := &Log{cfg: cfg, fs: cfg.fs, dir: filepath.Clean(cfg.Dir), flushed: make(chan struct{}),
 		flushReq: make(chan struct{}, 1), stop: make(chan struct{}), done: make(chan struct{})}
+	l.tailPath = l.path(tailName)
 	l.bufPool.New = func() any { b := make([]byte, 0, windowChunk); return &b }
 	if err := l.mkdirAll(l.dir); err != nil {
 		return nil, err

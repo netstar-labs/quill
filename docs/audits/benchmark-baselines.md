@@ -131,3 +131,5 @@ Wall time is dominated by `F_FULLFSYNC` and did not move beyond noise.
 | write-2 (same change) | `BenchmarkParallelLogsFlush` | 5,296–5,407 | 55 | 4,042–4,153 | 47 |
 | write-3: `atomicfile.WriteFrom` builds the temp name with `hex.Encode` into a stack array and one concatenation (`tempName`) instead of `filepath.Join` plus `hex.EncodeToString` | `BenchmarkAppendFlushEach` | 857 | 9 | 833–836 | 8 |
 | write-3 (same change) | `BenchmarkParallelLogsFlush` | 3,977–4,213 | 47 | 3,869–4,280 | 43–44 |
+| write-4: `Log.tailPath` joined once in `Open` instead of `filepath.Join` in `publishLocked` on every flush | `BenchmarkAppendFlushEach` | 833–837 | 8 | 721–725 | 7 |
+| write-4 (same change) | `BenchmarkParallelLogsFlush` | 3,845–4,113 | 43 | 3,486–3,626 | 39 |
