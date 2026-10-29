@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"syscall"
 	"time"
@@ -241,7 +242,12 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 	}
 	for i := 0; i < n; i++ {
 		s := l.sealed[i]
-		if err := l.fs.Remove(s.path); err != nil {
+		err := l.fs.Remove(s.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			// Already gone (removed by hand under a live writer): the goal is met. Failing
+			// here would block every segment behind this one, and the caps with it.
+			l.logf(slog.LevelWarn, "segment was already gone", "segment", s.path)
+		} else if err != nil {
 			l.bgErr = err
 			l.logf(slog.LevelWarn, "cannot delete segment", "segment", s.path, "err", err)
 			n = i

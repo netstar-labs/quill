@@ -5,6 +5,9 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a sealed segment file removed by hand while the writer was live made every later deletion
+  fail on it, so the age sweep and the `MaxBytes` and `MinFreeBytes` caps stopped until the process
+  restarted; a segment that is already gone is now counted as deleted and retention goes on.
 - Fixed: the manual corruption procedure in the user guide (section 10) failed at `quill recover`
   after truncating the newest segment, because `quill.tail` still named the old length; it now
   says to rewrite `quill.tail` (and to read the last valid sequence first).

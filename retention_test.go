@@ -613,3 +613,48 @@ func TestTheBackgroundPassRunsUnlessMaintenanceIsOff(t *testing.T) {
 	_ = context.Background
 	_ = bytes.Equal
 }
+
+// A sealed segment removed behind a live writer's back must not stop retention: its removal
+// is already done, and the segments behind it still have to go.
+func TestASealedSegmentRemovedBehindTheWritersBackDoesNotStopRetention(t *testing.T) {
+	t.Run("age sweep", func(t *testing.T) {
+		s := fsx.NewSim()
+		clk := newClock()
+		l := openRetention(t, s, clk, nil)
+		defer l.Close()
+		fillSegments(t, l, clk, 6) // segments 0..5 sealed, 6 active and empty
+		if err := s.Remove("/log/" + segmentName(0)); err != nil {
+			t.Fatal(err)
+		}
+		clk.Advance(2 * time.Hour)
+		if err := l.Prune(true); err != nil {
+			t.Fatal(err)
+		}
+		if ids := segmentFiles(t, s, "/log"); len(ids) != 1 || ids[0] != 6 {
+			t.Fatalf("segments left %v", ids)
+		}
+		if st, _ := l.Stat(); st.Segments != 1 {
+			t.Fatalf("%+v", st)
+		}
+	})
+	t.Run("MaxBytes", func(t *testing.T) {
+		s := fsx.NewSim()
+		clk := newClock()
+		l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1; c.MaxBytes = 400 })
+		defer l.Close()
+		fillSegments(t, l, clk, 3) // under the cap, so nothing is deleted yet
+		if err := s.Remove("/log/" + segmentName(0)); err != nil {
+			t.Fatal(err)
+		}
+		fillSegments(t, l, clk, 30)
+		if err := l.Err(); err != nil {
+			t.Fatalf("Err %v", err)
+		}
+		if st, _ := l.Stat(); st.Bytes > 400+60 {
+			t.Fatalf("%d bytes kept under MaxBytes 400: %v", st.Bytes, segmentFiles(t, s, "/log"))
+		}
+		if ids := segmentFiles(t, s, "/log"); len(ids) > 8 {
+			t.Fatalf("%d files kept under MaxBytes 400: %v", len(ids), ids)
+		}
+	})
+}
