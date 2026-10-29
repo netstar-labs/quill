@@ -320,7 +320,7 @@ func (l *Log) wait(ctx context.Context, offset uint64) error {
 		l.mu.Unlock()
 		return nil
 	}
-	ch := l.flushed
+	ch := l.waitChanLocked()
 	l.mu.Unlock()
 	select {
 	case <-ch:

@@ -133,3 +133,6 @@ Wall time is dominated by `F_FULLFSYNC` and did not move beyond noise.
 | write-3 (same change) | `BenchmarkParallelLogsFlush` | 3,977–4,213 | 47 | 3,869–4,280 | 43–44 |
 | write-4: `Log.tailPath` joined once in `Open` instead of `filepath.Join` in `publishLocked` on every flush | `BenchmarkAppendFlushEach` | 833–837 | 8 | 721–725 | 7 |
 | write-4 (same change) | `BenchmarkParallelLogsFlush` | 3,845–4,113 | 43 | 3,486–3,626 | 39 |
+| write-5: the `Log.flushed` broadcast channel is made by the first waiter (`waitChanLocked`, called by `Sync` and `ReadWait`) and closed and set to nil by `broadcastLocked`, instead of a new channel made after every flush attempt | `BenchmarkAppendFlushEach` | 721–725 | 7 | 608–611 | 6 |
+| write-5 (same change; a waiter is present each flush, so the channel is still made, and B/op is dominated by the batch buffer) | `BenchmarkAppendBatchSync` | 3,225–3,290 | 7 | 3,176–3,615 | 6 |
+| write-5 (same change; B/op varies run to run with the reader's buffers) | `BenchmarkReadWait` | 10,394–27,506 | 18–19 | 19,269–36,712 | 17 |

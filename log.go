@@ -225,8 +225,8 @@ type Log struct {
 	// pendingPublish is set when the data is durable but the marker could not be published
 	// (or the next segment created); the next flush retries (decision 60 d).
 	pendingPublish bool
-	// flushed is closed and replaced after every flush attempt; waiters block on it without
-	// the lock (Sync, ReadWait).
+	// flushed is made by the first waiter (waitChanLocked) and closed and set to nil by the next
+	// flush attempt; waiters block on it without the lock (Sync, ReadWait).
 	flushed  chan struct{}
 	flushGen uint64
 
@@ -286,7 +286,7 @@ func Open(cfg Config) (*Log, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	l := &Log{cfg: cfg, fs: cfg.fs, dir: filepath.Clean(cfg.Dir), flushed: make(chan struct{}),
+	l := &Log{cfg: cfg, fs: cfg.fs, dir: filepath.Clean(cfg.Dir),
 		flushReq: make(chan struct{}, 1), stop: make(chan struct{}), done: make(chan struct{})}
 	l.tailPath = l.path(tailName)
 	l.bufPool.New = func() any { b := make([]byte, 0, windowChunk); return &b }
