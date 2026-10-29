@@ -1,7 +1,7 @@
 # Examples
 
-One runnable program per way quill is used. Each takes a directory to work in and cleans
-up after itself unless told otherwise.
+One runnable program per way quill is used. `log` and `topics` work under the system temp directory and remove it when they finish;
+`pipeline` takes `-dir` and leaves it in place for inspection.
 
 | Example | Shows | Run |
 |---|---|---|
