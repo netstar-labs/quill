@@ -2,8 +2,6 @@ package quill
 
 import (
 	"bufio"
-	"errors"
-	"fmt"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -66,10 +64,6 @@ func TestAKilledWriterLosesNoAcknowledgedRecordAndRecoversAContiguousPrefix(t *t
 			t.Fatal(err)
 		}
 		t.Logf("round %d (sync %v): acked %d, recovered %d", round, sync, acked, last)
-		_ = fmt.Sprint
-		if !errors.Is(err, nil) {
-			t.Fatal(err)
-		}
 	}
 }
 
