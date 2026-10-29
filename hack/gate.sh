@@ -16,7 +16,9 @@ export GOTOOLCHAIN="$toolchain"
 # Pinned, not @latest: a gate that starts failing with no change in the repo is not a gate.
 STATICCHECK=v0.8.2
 DEADCODE=v0.52.0
-: "${FUZZTIME:=20s}"   # FUZZTIME=0 skips the fuzz step; the gate then says so, in red letters
+: "${FUZZTIME:=20s}"   # FUZZTIME=0 skips the fuzz step; the gate then says so, in red letters, and
+                       # ends PARTIAL, not OK. The exit status stays 0 so it is still a quick local run.
+fuzz_skipped=0
 
 step() { printf '==> %s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
@@ -46,6 +48,7 @@ else
 	dead=$(go run golang.org/x/tools/cmd/deadcode@"$DEADCODE" -test ./...)
 	[ -z "$dead" ] || fail "dead code:"$'\n'"$dead"
 	if [ "$FUZZTIME" = 0 ]; then
+		fuzz_skipped=1
 		printf '\033[31mfuzz SKIPPED (FUZZTIME=0): this is not a green gate\033[0m\n'
 	else
 		step "fuzz ($FUZZTIME per target)"; FUZZTIME="$FUZZTIME" hack/fuzz.sh
@@ -56,4 +59,8 @@ step "go mod tidy (no diff)"
 go mod tidy
 git diff --quiet -- go.mod go.sum || { git --no-pager diff -- go.mod go.sum; fail "go.mod/go.sum not tidy"; }
 
-echo "OK: gate green"
+if [ "$fuzz_skipped" = 1 ]; then
+	printf '\033[31mPARTIAL: fuzz skipped (FUZZTIME=0), not a green gate\033[0m\n'
+else
+	echo "OK: gate green"
+fi

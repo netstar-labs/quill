@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `hack/gate.sh` printed `OK: gate green` even when `FUZZTIME=0` had skipped the fuzz step. It now ends with
+  `PARTIAL: fuzz skipped`; the exit status is unchanged (0). The README gate summary now lists the no-require and
+  unsupported-platform steps.
+
 - Fixed: `SECURITY.md` said every state file is parsed strictly. `quill.policy` is informational and parsed
   tolerantly (decisions 29 and 48); the other state files are strict. Documentation only; behaviour is
   unchanged.

@@ -68,7 +68,7 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `internal/atomicfile/` | Temp file, fsync, rename, optional directory fsync, through `fsx` |
 | `internal/strictjson/` | State-file parsing that refuses damaged values and unknown fields |
 | `testdata/` | Golden fixtures that freeze the format |
-| `hack/gate.sh`, `hack/fuzz.sh` | The commit gate: gofmt, vet, build, `test -race`, staticcheck, deadcode, every fuzz target for 20 s, tidy |
+| `hack/gate.sh`, `hack/fuzz.sh` | The commit gate: no-require check, gofmt, vet, build, the unsupported-platform check, `test -race`, staticcheck, deadcode, every fuzz target for 20 s, tidy |
 | `hack/powertest/` | The real power-loss harness behind docs/audits/power-loss.md (decision 92); run by hand, not in the gate |
 | `cmd/quill/` | The command: `main.go`, `verbs.go` (the verb table drives help and the reference), `read.go`, `consumers.go`, `write.go` (the verbs, grouped by what they touch), `print.go` |
 | `examples/` | `log/`, `topics/`, `pipeline/` |
@@ -85,7 +85,7 @@ iterator API needs Go 1.23 or later. Always run Go with `GOWORK=off`:
 
 ```
 GOWORK=off go test -race ./...
-hack/gate.sh            # the commit gate; FUZZTIME=0 skips the fuzz step (and says so)
+hack/gate.sh            # the commit gate; FUZZTIME=0 skips the fuzz step and ends PARTIAL, not OK
 ```
 
 Linux and darwin only (arm64, amd64); other platforms fail to build on purpose.
