@@ -85,8 +85,59 @@ func appendTail(dst []byte, t tail) []byte {
 func encodeTail(t tail) []byte { return appendTail(nil, t) }
 
 // decodeTail parses quill.tail strictly: exactly the four fields, every one present, and
-// seg at most maxseg.
+// seg at most maxseg. The bytes encodeTail writes take decodeTailFast; every other input,
+// valid or not, takes decodeTailSlow, so its verdict and message are the strict decoder's
+// (decision 105).
 func decodeTail(data []byte) (tail, error) {
+	if t, ok := decodeTailFast(data); ok {
+		return t, nil
+	}
+	return decodeTailSlow(data)
+}
+
+// tailDigits reads a plain decimal number of one to 19 digits with no leading zero (a lone
+// "0" is allowed) from the front of b: 19 digits always fit a uint64.
+func tailDigits(b []byte) (v uint64, n int, ok bool) {
+	for n < len(b) && b[n] >= '0' && b[n] <= '9' {
+		if n == 19 {
+			return 0, 0, false
+		}
+		v = v*10 + uint64(b[n]-'0')
+		n++
+	}
+	if n == 0 || (b[0] == '0' && n > 1) {
+		return 0, 0, false
+	}
+	return v, n, true
+}
+
+// decodeTailFast accepts only the exact bytes appendTail writes, with seg at most maxseg,
+// and reports ok=false for anything else without saying why. It allocates nothing.
+func decodeTailFast(data []byte) (t tail, ok bool) {
+	rest := data
+	for _, f := range [...]struct {
+		key string
+		dst *uint64
+	}{{`{"seq":`, &t.Seq}, {`,"seg":`, &t.Seg}, {`,"off":`, &t.Off}, {`,"maxseg":`, &t.MaxSeg}} {
+		if len(rest) < len(f.key) || string(rest[:len(f.key)]) != f.key {
+			return tail{}, false
+		}
+		v, n, ok := tailDigits(rest[len(f.key):])
+		if !ok {
+			return tail{}, false
+		}
+		*f.dst = v
+		rest = rest[len(f.key)+n:]
+	}
+	if string(rest) != "}\n" || t.Seg > t.MaxSeg {
+		return tail{}, false
+	}
+	return t, true
+}
+
+// decodeTailSlow is the strict JSON path: it gives the verdict and the error for every input
+// decodeTailFast does not accept.
+func decodeTailSlow(data []byte) (tail, error) {
 	var t struct {
 		Seq    *uint64 `json:"seq"`
 		Seg    *uint64 `json:"seg"`
