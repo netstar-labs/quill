@@ -121,7 +121,8 @@ One JSON object, fixed field order, trailing newline:
 | `off` | The durable length of that segment in bytes |
 | `maxseg` | The highest segment id ever created; a new segment's id is above it and above every id on disk |
 
-`seg` is at most `maxseg`. The writer rewrites the file after each flush that changed it and
+`seg` is at most `maxseg` and `off` at most the 1.5 GiB segment limit; a marker outside either is
+corrupt. The writer rewrites the file after each flush that changed it and
 before any segment is deleted. A reader trusts the marker alone: it never reads past `off` in
 segment `seg`, never past `seq`, and treats segments above `seg` as not yet published.
 

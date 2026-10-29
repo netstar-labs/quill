@@ -343,6 +343,33 @@ func TestReaderReadWaitWakesWithinThePollIntervalAndMarkerAgeIsExposed(t *testin
 	}
 }
 
+// A marker whose off no segment could reach (and one that does not fit an int64) is refused
+// as corruption by every reader call; it must never reach a slice bound.
+func TestAReaderRefusesAMarkerOffsetBeyondAnyPossibleSegment(t *testing.T) {
+	for _, off := range []string{"9300000000000000000", "9223372036854775808", "18446744073709551615", "1610612737"} {
+		s := fsx.NewSim()
+		l := openSim(t, s, nil)
+		appendN(t, l, 3)
+		mustFlush(t, l)
+		_ = l.Close()
+		writeFile(t, s, "/log/quill.tail", []byte(`{"seq":3,"seg":0,"off":`+off+`,"maxseg":0}`+"\n"))
+		r, err := OpenReader("/log", ReaderOptions{fs: s, PollInterval: 5 * time.Millisecond})
+		if err != nil {
+			if !errors.Is(err, ErrCorrupt) {
+				t.Errorf("off %s: open: %v", off, err)
+			}
+			continue
+		}
+		if _, err := r.Stat(); !errors.Is(err, ErrCorrupt) {
+			t.Errorf("off %s: Stat: %v", off, err)
+		}
+		if _, err := r.Read(1, 10); !errors.Is(err, ErrCorrupt) {
+			t.Errorf("off %s: Read: %v", off, err)
+		}
+		r.Close()
+	}
+}
+
 func TestAReaderRefusesANewerFormat(t *testing.T) {
 	s := fsx.NewSim()
 	l := openSim(t, s, nil)

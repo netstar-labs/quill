@@ -5,6 +5,9 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a `quill.tail` whose `off` was 2^63 or more made every reader call panic with a
+  slice-bounds error (exit status 2 from the command line tool); an `off` above the 1.5 GiB
+  segment limit is now refused as corrupt.
 - Fixed: `quill tail -follow` held its output in a 4 KiB buffer, so to a pipe or file nothing
   appeared until the buffer filled or the command was interrupted; each record is now written
   as it is read.

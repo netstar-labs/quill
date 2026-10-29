@@ -63,10 +63,15 @@ func FuzzRecoverSegment(f *testing.F) {
 func FuzzDecodeTail(f *testing.F) {
 	f.Add(encodeTail(tail{Seq: 1, Seg: 2, Off: 3, MaxSeg: 4}))
 	f.Add([]byte(`{"seq":1}`))
+	f.Add([]byte(`{"seq":41,"seg":0,"off":9223372036854775808,"maxseg":1}` + "\n"))
+	f.Add([]byte(`{"seq":41,"seg":0,"off":18446744073709551615,"maxseg":1}` + "\n"))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		tl, err := decodeTail(data)
 		if err != nil {
 			return
+		}
+		if tl.Off > maxSegmentBytes {
+			t.Fatalf("accepted off %d above the largest segment", tl.Off)
 		}
 		again, err := decodeTail(encodeTail(tl))
 		if err != nil || again != tl {

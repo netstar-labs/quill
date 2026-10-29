@@ -84,8 +84,9 @@ func appendTail(dst []byte, t tail) []byte {
 // encodeTail is appendTail into a new slice, for the callers that write the marker once.
 func encodeTail(t tail) []byte { return appendTail(nil, t) }
 
-// decodeTail parses quill.tail strictly: exactly the four fields, every one present, and
-// seg at most maxseg. The bytes encodeTail writes take decodeTailFast; every other input,
+// decodeTail parses quill.tail strictly: exactly the four fields, every one present, seg at
+// most maxseg and off at most maxSegmentBytes (no segment is longer, and a reader would
+// otherwise carry a value beyond an int64 into a slice bound). The bytes encodeTail writes take decodeTailFast; every other input,
 // valid or not, takes decodeTailSlow, so its verdict and message are the strict decoder's
 // (decision 105).
 func decodeTail(data []byte) (tail, error) {
@@ -111,7 +112,8 @@ func tailDigits(b []byte) (v uint64, n int, ok bool) {
 	return v, n, true
 }
 
-// decodeTailFast accepts only the exact bytes appendTail writes, with seg at most maxseg,
+// decodeTailFast accepts only the exact bytes appendTail writes, with seg at most maxseg and
+// off at most maxSegmentBytes,
 // and reports ok=false for anything else without saying why. It allocates nothing.
 func decodeTailFast(data []byte) (t tail, ok bool) {
 	rest := data
@@ -129,7 +131,7 @@ func decodeTailFast(data []byte) (t tail, ok bool) {
 		*f.dst = v
 		rest = rest[len(f.key)+n:]
 	}
-	if string(rest) != "}\n" || t.Seg > t.MaxSeg {
+	if string(rest) != "}\n" || t.Seg > t.MaxSeg || t.Off > maxSegmentBytes {
 		return tail{}, false
 	}
 	return t, true
@@ -153,6 +155,9 @@ func decodeTailSlow(data []byte) (tail, error) {
 	out := tail{Seq: *t.Seq, Seg: *t.Seg, Off: *t.Off, MaxSeg: *t.MaxSeg}
 	if out.Seg > out.MaxSeg {
 		return tail{}, fmt.Errorf("%w: %s: seg %d above maxseg %d", errBadState, tailName, out.Seg, out.MaxSeg)
+	}
+	if out.Off > maxSegmentBytes {
+		return tail{}, fmt.Errorf("%w: %s: off %d above the largest segment, %d bytes", errBadState, tailName, out.Off, maxSegmentBytes)
 	}
 	return out, nil
 }
