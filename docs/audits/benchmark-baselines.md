@@ -151,3 +151,6 @@ Wall time is dominated by `F_FULLFSYNC` and did not move beyond noise.
 | reader-19 (same change; ns/op 383.6-393.0 before, 55.8-57.2 after) | `BenchmarkPrintJSONBin` | 304 | 6 | 0 | 0 |
 | reader-19 (same change; ns/op 533.0-535.7 before, 155.9-156.5 after) | `BenchmarkPrintTextText` | 368 | 7 | 0 | 0 |
 | reader-19 (same change; ns/op 161.0-161.3 before, 42.4-43.5 after) | `BenchmarkPrintTextBin` | 120 | 6 | 0 | 0 |
+| reader-20: `scanSource`'s window sets `noIndex`, so `walk` no longer appends an anchor every 64 KiB (`indexStride`) into a `segInfo.index` that the scan path discards; `verifySegment`, `recoverSegment` and `verifyBounded` still build the index (ns/op 106.0-114.5 ms before, 112.4-113.6 ms after: the first run's spread covers it, so within noise; B/op varies with the pooled buffers) | `BenchmarkDrainBacklog` | 705,070-833,891 | 134-137 | 522,328-522,976 | 88-89 |
+| reader-20 (same change; ns/op 18.80-19.34 ms before, 18.69-18.98 ms after) | `BenchmarkScanAll` | 71,412-72,017 | 104 | 22,093-22,984 | 47 |
+| reader-20 (same change; ns/op 1,924,933-1,946,905 before, 1,935,879-2,045,463 after) | `BenchmarkReaderReadActive` | 15,097-15,197 | 80 | 9,081-13,353 | 72 |

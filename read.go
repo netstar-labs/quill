@@ -211,7 +211,7 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		}); i > 0 {
 			start = index[i-1].pos
 		}
-		w := &window{r: r, size: size, buf: (*bufp)[:0]}
+		w := &window{r: r, size: size, buf: (*bufp)[:0], noIndex: true}
 		done := false
 		_, err = walk(w, start, 0, false, func(rec Record, pos int64) bool {
 			if rec.Seq < cur {
