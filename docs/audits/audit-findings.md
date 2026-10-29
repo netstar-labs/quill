@@ -43,6 +43,19 @@ By recommendation (over the 40 survivors, duplicates counted once):
 5. simplify-1: a lock-free Reader panics on a sealed segment whose first frame carries seq 0
    (reader.go:206).
 
+## Provenance of the verdicts
+
+In the verdict list handed to the synthesis step, 19 items carried the verdict REFUTED with no
+recorded votes: correctness-27, -29, -30, -31, -32 and docs-33 to docs-46. A REFUTED verdict with
+an empty vote list is the absence of a skeptic result, not a refutation. These items are
+classified in this report from the code as re-read at synthesis (spot-checked again afterwards:
+load.go:418, load.go:453-456, stat.go:53, retention.go:182, errors.go:10-13, doc.go:22-23,
+docs/userguide.md:240-244, append.go:31, docs/format.md:103, :193, docs/introduction.md:13,
+README.md:45 and :71, scope.md:247 and :274 all read as the findings describe). The skeptic
+attributions printed for those items in the per-dimension reports could not be matched to votes in
+the supplied list; treat their verdicts as the synthesis's own reading of the code until a skeptic
+pass is recorded. The one item refuted with votes, simplify-11, stays refuted.
+
 ## How items were classified
 
 - **apply now**: CONFIRMED or PLAUSIBLE, low risk, and either behaviour-preserving (a dedup, a
