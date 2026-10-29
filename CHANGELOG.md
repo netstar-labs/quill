@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: one transient I/O error (such as too many open files) while a `Reader` scanned a sealed
+  segment was remembered for the life of the `Reader`, so every later read of that segment's
+  range returned a `GapError` although the file was intact; only damage is remembered now, and
+  an I/O error is retried on the next read.
 - Fixed: a sealed segment file removed by hand while the writer was live made every later deletion
   fail on it, so the age sweep and the `MaxBytes` and `MinFreeBytes` caps stopped until the process
   restarted; a segment that is already gone is now counted as deleted and retention goes on.

@@ -56,9 +56,11 @@ type readerSegment struct {
 	bad   error // the first frame could not be read: the segment's range is a hole
 	// From one full scan, built when the segment is first read (decision 63). The result is
 	// published by one atomic store, so view can look at it while another call is scanning.
-	result  atomic.Pointer[scanResult]
+	result atomic.Pointer[scanResult]
+	// scanMu serialises scans; scanErr holds damage only (a *SegmentError), which is a fact
+	// about the file. An I/O error is a fact about the moment and is not kept (decision 94).
+	scanMu  sync.Mutex
 	scanErr error
-	once    sync.Once
 }
 
 // scanResult is what one full scan of a sealed segment learned; it is never modified after
@@ -246,23 +248,28 @@ func (r *Reader) forget(id uint64) {
 	r.mu.Unlock()
 }
 
-// scan builds a sealed segment's index by one full scan, once.
+// scan builds a sealed segment's index by one full scan. Success and damage are final; an
+// I/O error is returned but not kept, so the next call scans again (decision 94).
 func (s *readerSegment) scan(fsys fsx.FS) error {
-	s.once.Do(func() {
-		f, size, err := openSegment(fsys, s.path)
-		if err != nil {
-			s.scanErr = err
-			return
-		}
+	s.scanMu.Lock()
+	defer s.scanMu.Unlock()
+	if s.result.Load() != nil || s.scanErr != nil {
+		return s.scanErr
+	}
+	f, size, err := openSegment(fsys, s.path)
+	if err == nil {
 		defer f.Close()
-		info, err := verifySegment(f, size, s.path)
-		if err != nil {
-			s.scanErr = err
-			return
+		var info segInfo
+		if info, err = verifySegment(f, size, s.path); err == nil {
+			s.result.Store(&scanResult{index: info.index, last: info.last.Seq, frames: info.frames, lastAt: info.last.At})
+			return nil
 		}
-		s.result.Store(&scanResult{index: info.index, last: info.last.Seq, frames: info.frames, lastAt: info.last.At})
-	})
-	return s.scanErr
+	}
+	var se *SegmentError
+	if errors.As(err, &se) {
+		s.scanErr = err
+	}
+	return err
 }
 
 // firstFrameChunk is the read size of the active segment's first-frame probe: a frame's
@@ -403,6 +410,9 @@ func (r *Reader) view() (*segView, func(), error) {
 		if c.index == nil {
 			ref.ensureIndex = func() ([]anchor, uint64, error) {
 				if err := s.scan(r.fs); err != nil {
+					if errors.Is(err, fs.ErrNotExist) {
+						r.forget(s.id) // retention deleted it: the next view lists without it
+					}
 					return nil, 0, err
 				}
 				res := s.result.Load()

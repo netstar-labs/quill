@@ -599,6 +599,48 @@ func TestATransientOpenErrorIsNotCachedByTheReader(t *testing.T) {
 	}
 }
 
+// A transient I/O error during the full scan of a sealed segment is a fact about the moment,
+// not about the file (decision 94): the Reader must scan it again on the next read.
+func TestATransientScanErrorIsNotCachedByTheReader(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 200 })
+	defer l.Close()
+	appendN(t, l, 30)
+	mustFlush(t, l)
+	if st, err := l.Stat(); err != nil || st.Segments < 2 {
+		t.Fatalf("want a sealed segment: %+v %v", st, err)
+	}
+	r := openReaderSim(t, s)
+	defer r.Close()
+	seg0 := "/log/" + segmentName(0)
+	opens := 0
+	armed := true
+	s.Inject = func(op fsx.Op, name string) error {
+		if armed && op == fsx.OpOpen && name == seg0 {
+			opens++
+			if opens == 2 { // the first open is the first-frame probe, the second is the scan
+				return errors.New("too many open files")
+			}
+		}
+		return nil
+	}
+	_, err := r.Read(1, 5)
+	var ge *GapError
+	if !errors.As(err, &ge) {
+		t.Fatalf("first read: want a GapError, got %v", err)
+	}
+	if opens != 2 {
+		t.Fatalf("the injected error did not hit the scan: %d opens", opens)
+	}
+	armed = false
+	for i := 0; i < 3; i++ {
+		recs, err := r.Read(1, 5)
+		if err != nil || len(recs) != 5 || recs[0].Seq != 1 {
+			t.Fatalf("read %d after the error cleared: %v %v", i+2, seqsOf(recs), err)
+		}
+	}
+}
+
 func TestADamagedSegmentStaysCachedAsBadAcrossReaderCalls(t *testing.T) {
 	s := fsx.NewSim()
 	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 200 })
