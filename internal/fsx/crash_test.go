@@ -390,6 +390,27 @@ func TestInjectCanCrashBeforeAnOperationAndOpsCountsEveryOperation(t *testing.T)
 	}
 }
 
+// A handle opened before a crash is dead for every method, including the two that do not go
+// through begin(): Chmod and TryLock. A stale TryLock must not take a lock a fresh handle needs.
+func TestAStaleHandleIsDeadForChmodAndTryLock(t *testing.T) {
+	s := NewSim()
+	stale := mustOpen(t, s, "/quill.lock", O_RDWR|O_CREATE)
+	if err := s.SyncDir("/"); err != nil {
+		t.Fatal(err)
+	}
+	s.Crash(func(int, int) bool { return true })
+	if err := stale.Chmod(0o600); !errors.Is(err, ErrDead) {
+		t.Fatalf("Chmod on a stale handle: %v, want ErrDead", err)
+	}
+	if err := stale.TryLock(); !errors.Is(err, ErrDead) {
+		t.Fatalf("TryLock on a stale handle: %v, want ErrDead", err)
+	}
+	fresh := mustOpen(t, s, "/quill.lock", O_RDWR)
+	if err := fresh.TryLock(); err != nil {
+		t.Fatalf("fresh handle after a stale TryLock attempt: %v", err)
+	}
+}
+
 func TestLocksAreExclusiveReleasedByCloseAndByACrash(t *testing.T) {
 	s := NewSim()
 	a := mustOpen(t, s, "/quill.lock", O_RDWR|O_CREATE)

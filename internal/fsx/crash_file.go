@@ -135,8 +135,8 @@ func (f *simFile) Stat() (fs.FileInfo, error) {
 func (f *simFile) Chmod(mode fs.FileMode) error {
 	f.s.mu.Lock()
 	defer f.s.mu.Unlock()
-	if f.closed || f.dead {
-		return ErrDead
+	if err := f.alive(OpOpen); err != nil {
+		return err
 	}
 	f.ino.mode = mode
 	return nil
@@ -145,8 +145,8 @@ func (f *simFile) Chmod(mode fs.FileMode) error {
 func (f *simFile) TryLock() error {
 	f.s.mu.Lock()
 	defer f.s.mu.Unlock()
-	if f.closed || f.dead {
-		return ErrDead
+	if err := f.alive(OpOpen); err != nil {
+		return err
 	}
 	if holder, ok := f.s.locks[f.ino]; ok && holder != f {
 		return ErrLocked
