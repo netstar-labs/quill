@@ -255,7 +255,10 @@ v0.1.0 (decision 64). The procedure:
 
 1. Stop every process that holds the log.
 2. `quill check -dir <log>`: for the damaged file it prints the byte where the damage starts
-   and the end of the last valid frame.
+   and the end of the last valid frame. For a damaged newest segment, also note the last
+   valid sequence now, before you change anything: `quill cat -dir <log> 2>/dev/null | tail -n 1`
+   prints the last record before the damage, and the number on its line is the sequence.
+   (After step 4 `quill cat` refuses the log, so it can no longer tell you.)
 3. Decide. For the **newest** segment, truncating it at the end of the last valid frame drops
    every record after that point; those sequences are lost for good and will be reassigned to
    new records, so any consumer that acknowledged them upstream has duplicates ahead. For a
@@ -263,12 +266,19 @@ v0.1.0 (decision 64). The procedure:
    the records behind the damage are intact): restore the file from a backup or an archive,
    or accept the hole and move the consumers past it with `quill commit`.
 4. For the newest segment: `truncate -s <end of last valid frame> <log>/<segment>.log`.
-5. `quill recover -dir <log>`, which reopens the log, verifies, and republishes the marker.
-6. `quill check -dir <log>` again, then restart the writer.
+5. Rewrite `quill.tail` by hand. It still names the old, longer length, and `Open` refuses a
+   newest segment shorter than the marker's `off`, so `quill recover` fails until you do.
+   Keep `seg` and `maxseg` as they are, set `off` to the length you truncated to and `seq` to
+   the last valid sequence from step 2 (`0` if no frame is left), keeping the one-line form
+   and the trailing newline:
+   `{"seq":<last valid sequence>,"seg":<newest segment id>,"off":<truncation length>,"maxseg":<highest id on disk>}`.
+6. `quill recover -dir <log>`, which reopens the log, verifies, and republishes the marker.
+7. `quill check -dir <log>` again, then restart the writer.
 
 A damaged `quill.tail` or `quill.format` is refused outright; restore them from a backup (the
-marker can be rebuilt by hand from the format in [format.md](format.md): `seq` is the last
-valid sequence, `seg` the newest segment, `off` its length, `maxseg` the highest id on disk).
+marker can be rebuilt by hand from the format in [format.md](format.md), with the fields as in
+step 5: `seq` is the last valid sequence, `seg` the newest segment, `off` its length, `maxseg`
+the highest id on disk).
 
 ## 11. Limits
 

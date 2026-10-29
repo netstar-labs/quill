@@ -5,6 +5,9 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the manual corruption procedure in the user guide (section 10) failed at `quill recover`
+  after truncating the newest segment, because `quill.tail` still named the old length; it now
+  says to rewrite `quill.tail` (and to read the last valid sequence first).
 - Fixed: a `quill.tail` whose `off` was 2^63 or more made every reader call panic with a
   slice-bounds error (exit status 2 from the command line tool); an `off` above the 1.5 GiB
   segment limit is now refused as corrupt.

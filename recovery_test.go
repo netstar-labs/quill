@@ -3,6 +3,7 @@ package quill
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"syscall"
 	"testing"
 
@@ -585,5 +586,39 @@ func TestAFailedOpenLeaksNoDescriptor(t *testing.T) {
 		if n := s.OpenFiles(); n != 0 {
 			t.Fatalf("attempt %d: %d handles left open after a failed Open", i, n)
 		}
+	}
+}
+
+// The manual procedure in docs/userguide.md section 10: truncating the newest segment below
+// quill.tail.off is refused until quill.tail is rewritten to the truncation point and the last
+// valid sequence, after which Open succeeds and the next sequence follows on.
+func TestManualProcedureNeedsTheMarkerRewrittenAfterTruncatingTheNewestSegment(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	appendN(t, l, 4)
+	mustFlush(t, l)
+	seg := "/log/" + segmentName(0)
+	end := len(fileBytes(t, s, seg)) // the end of the last valid frame
+	appendN(t, l, 1)
+	mustFlush(t, l)
+	_ = l.Close()
+	damaged := fileBytes(t, s, seg)
+	damaged[end] ^= 0xff // a byte of the fifth frame: damage below the marker
+	writeFile(t, s, seg, damaged[:end])
+	_, err := Open(simConfig(s, "/log"))
+	var se *SegmentError
+	if !errors.Is(err, ErrCorrupt) || !errors.As(err, &se) || se.Path != seg {
+		t.Fatalf("open after truncating only: %v, want ErrCorrupt naming %s", err, seg)
+	}
+	tl := readTail(t, s, "/log")
+	writeFile(t, s, "/log/"+tailName, []byte(fmt.Sprintf("{\"seq\":%d,\"seg\":%d,\"off\":%d,\"maxseg\":%d}\n", 4, tl.Seg, end, tl.MaxSeg)))
+	l = openSim(t, s, nil)
+	defer l.Close()
+	recs, err := readAll(l)
+	if err != nil || checkContiguous(t, recs, 1) != 4 || l.Head() != 4 {
+		t.Fatalf("%v %v head %d", seqsOf(recs), err, l.Head())
+	}
+	if seq, _ := l.Append(payloadFor(5)); seq != 5 {
+		t.Fatalf("next sequence %d", seq)
 	}
 }
