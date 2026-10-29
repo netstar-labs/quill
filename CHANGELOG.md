@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `Sync` of a sequence that had not been assigned read the last assigned sequence for its `ErrBadSeq`
+  message after releasing the log's lock, a data race with concurrent appends that the race detector
+  reported; the number is now read under the lock.
+
 - Fixed: a long-lived `Reader` (or `Follow`) kept a cache entry, and the index of every segment it had
   scanned, for each sealed segment it ever listed, including ones retention had deleted, so its memory
   grew with every rotation; it now drops the entries of segments that are no longer in the directory.

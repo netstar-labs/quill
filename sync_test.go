@@ -238,3 +238,36 @@ func TestASlowFsyncOnOneLogNeverDelaysAnother(t *testing.T) {
 	}
 	<-done
 }
+
+// Sync of an unassigned sequence reads the last assigned number under the log's lock: with
+// appends racing it, the race detector must stay quiet.
+func TestSyncBadSeqReadsLastAssignedUnderLock(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.FlushInterval = time.Hour })
+	defer l.Close()
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			if _, err := l.Append([]byte("x")); err != nil {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+	for i := 0; i < 2000; i++ {
+		if err := l.Sync(context.Background(), 1<<40); !errors.Is(err, ErrBadSeq) {
+			t.Errorf("Sync(1<<40) = %v, want ErrBadSeq", err)
+			break
+		}
+	}
+	close(stop)
+	wg.Wait()
+}

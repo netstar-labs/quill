@@ -221,8 +221,9 @@ func (l *Log) waitChanLocked() chan struct{} {
 func (l *Log) Sync(ctx context.Context, seq uint64) error {
 	l.mu.Lock()
 	if seq >= l.nextSeq {
+		last := l.nextSeq - 1
 		l.mu.Unlock()
-		return fmt.Errorf("%w: %d (last assigned %d)", ErrBadSeq, seq, l.nextSeq-1)
+		return fmt.Errorf("%w: %d (last assigned %d)", ErrBadSeq, seq, last)
 	}
 	gen := l.flushGen
 	for {
