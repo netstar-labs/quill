@@ -309,7 +309,7 @@ func (l *Log) load() error {
 	// Sealed segments are verified whole, in parallel.
 	sealed := make([]*segment, len(ids)-1)
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, max(runtime.GOMAXPROCS(0), 1))
+	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
 	for i, id := range ids[:len(ids)-1] {
 		wg.Add(1)
 		go func() {

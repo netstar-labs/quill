@@ -281,7 +281,6 @@ func (l *Log) sealedRefsLocked() []*segRef {
 		if s.bad != nil {
 			continue
 		}
-		s := s
 		refs = append(refs, &segRef{id: s.id, first: s.first, last: s.last, at: s.at, index: s.index,
 			open: func() (io.ReaderAt, int64, func(), error) {
 				f, size, err := openSegment(l.fs, s.path)

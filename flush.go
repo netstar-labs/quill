@@ -266,11 +266,11 @@ func (l *Log) flusher() {
 	defer close(l.done)
 	t := time.NewTicker(l.cfg.FlushInterval)
 	defer t.Stop()
-	prune := time.NewTicker(l.cfg.PruneInterval)
-	defer prune.Stop()
-	if l.cfg.NoMaintenance {
-		prune.Stop()
-		prune.C = nil
+	var pruneC <-chan time.Time // nil with NoMaintenance: that case never fires
+	if !l.cfg.NoMaintenance {
+		prune := time.NewTicker(l.cfg.PruneInterval)
+		defer prune.Stop()
+		pruneC = prune.C
 	}
 	for {
 		select {
@@ -278,7 +278,7 @@ func (l *Log) flusher() {
 			return
 		case <-t.C:
 		case <-l.flushReq:
-		case <-prune.C:
+		case <-pruneC:
 			now := l.cfg.clock()
 			cv := l.consumers(now)
 			l.mu.Lock()
