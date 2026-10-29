@@ -24,15 +24,6 @@ func (c *cli) writer(cfg quill.Config) (*quill.Log, int) {
 	return l, exitOK
 }
 
-// policyConfig turns quill.policy into a Config, so offline tools use the writer's settings.
-func (c *cli) policyConfig() (quill.Config, bool) {
-	p, ok := quill.ReadPolicy(c.dir)
-	if !ok {
-		return quill.Config{}, false
-	}
-	return p, true
-}
-
 func cmdAppend(c *cli, args []string) int {
 	l, code := c.writer(quill.Config{Retention: -1})
 	if code != exitOK {
@@ -72,7 +63,7 @@ func cmdAppend(c *cli, args []string) int {
 }
 
 func cmdPrune(c *cli, args []string) int {
-	cfg, ok := c.policyConfig()
+	cfg, ok := quill.ReadPolicy(c.dir)
 	explicit := c.retention != "" || c.maxBytes != "" || c.minFree != "" || c.maxRecords != "" || c.ttl != ""
 	if !ok && !explicit {
 		return c.errorf("quill.policy cannot be read; pass the retention flags explicitly")

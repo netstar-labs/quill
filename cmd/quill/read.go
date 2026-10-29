@@ -110,11 +110,9 @@ func (c *cli) start(r *quill.Reader) (uint64, int) {
 	return st.First, exitOK
 }
 
-func cmdRead(c *cli, args []string) int { return printFrom(c, false) }
+func cmdRead(c *cli, args []string) int { return printFrom(c) }
 
-func cmdCat(c *cli, args []string) int { return printFrom(c, false) }
-
-func printFrom(c *cli, follow bool) int {
+func printFrom(c *cli) int {
 	r, code := c.reader()
 	if code != exitOK {
 		return code
@@ -124,7 +122,7 @@ func printFrom(c *cli, follow bool) int {
 	if code != exitOK {
 		return code
 	}
-	return printRecords(c, r, from, follow)
+	return printRecords(c, r, from, false)
 }
 
 // printRecords prints from `from`, stopping at the limit, a gap, or the end (or never with

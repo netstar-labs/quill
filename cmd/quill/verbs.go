@@ -63,7 +63,7 @@ func init() {
 		{name: "read", summary: "print records from an offset (default the first retained)", lock: "none",
 			flags: readFlags, run: cmdRead},
 		{name: "cat", summary: "print every retained record, from the first", lock: "none",
-			flags: readFlags, run: cmdCat},
+			flags: readFlags, run: cmdRead},
 		{name: "tail", summary: "print the last records, and keep following with -follow", lock: "none",
 			flags: func(fs *flag.FlagSet, c *cli) {
 				readFlags(fs, c)
