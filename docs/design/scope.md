@@ -116,7 +116,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | `MaxBytes` | 0 (off) | Cap on this log's segment bytes, enforced at every segment seal and every prune pass: oldest sealed segments go first, the active segment is never deleted, and it overrides consumer protection. `Open` refuses a value below twice `SegmentBytes` |
 | `MinFreeBytes` | 0 (off) | Free-space floor on the log's filesystem, measured with `statfs`: below it, the log deletes its own oldest sealed segments, and appends fail with an error wrapping `ENOSPC` if nothing is left to delete |
 | `MaxPayloadBytes` | 64 MiB − 32 B (the ceiling) | Largest accepted record; lower it to bound a single record. An empty buffer accepts any single record up to this, whatever `MaxBufferBytes` says |
-| `MaxBatchBytes` | 16 MiB | Largest encoded `AppendBatch`; a larger one is refused (decision 46) |
+| `MaxBatchBytes` | 16 MiB | Largest encoded `AppendBatch` of more than one record; a larger one is refused (decision 46). A single record is bounded by `MaxPayloadBytes` alone, so it may exceed this |
 | `MaxReadBytes` | 16 MiB | Payload bytes returned by one `Read`, at least one record |
 | `ProtectedConsumers` | none | Names the writer creates, protected, at the first retained sequence when it opens the log, so a lazy consumer is protected before its process starts (decision 67) |
 | `Logger` | nil (silent) | A `*slog.Logger` for retention deletions, stale consumers, bulk-expiry warnings and failures |
@@ -237,10 +237,13 @@ Consumers matter only when protected, and even then the caps win.
 | Keep the newest N records | `MaxRecords` | For uniform records, where "the last million events" is the natural unit. `MaxBytes` stays the hard disk guarantee |
 | Bound one record | `MaxPayloadBytes` | Optional |
 
-**Bound.** With `MaxBytes` set, a log's segment bytes stay within `MaxBytes + SegmentBytes + MaxBufferBytes + MaxBatchBytes`:
+**Bound.** With `MaxBytes` set, a log's segment bytes stay within `MaxBytes + SegmentBytes + MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes + 34)`:
 the cap is checked at every seal (an in-memory sum), where the reference checks only on a timer and so can
 overshoot by a whole interval of arrivals (**reported**), and a segment passes `SegmentBytes` by the flush
-that seals it, and a batch lands in one segment. The state files and consumer files are small and extra. Memory held while flushes fail is
+that seals it, and a batch lands in one segment. The last term is the largest single append: a batch of more than one record is
+refused above `MaxBatchBytes`, a single record is bounded by `MaxPayloadBytes` alone, and its encoded frame is at most
+`MaxPayloadBytes + 34` bytes (the payload, three varints of at most 10 bytes, and the 4-byte CRC), so with the defaults the
+second term is the larger. The state files and consumer files are small and extra. Memory held while flushes fail is
 bounded separately by `MaxBufferBytes`. Defaults leave `MaxBytes` and `MinFreeBytes` **off**, so a log
 configured with only `Retention` can fill a disk; `quill check` and `quill ls` mark such a log UNBOUNDED.
 
@@ -347,7 +350,7 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
 10. **A stale marker hides, it never exposes.** After a process crash up to one flush of durable records can
     stay invisible to readers, and after an OS crash the marker can be older by any number of flushes, until the
     writer reopens or `quill recover` runs; readers do not guess.
-11. **Bounded disk.** With `MaxBytes` set, a log's segment bytes stay within `MaxBytes + SegmentBytes + MaxBufferBytes + MaxBatchBytes`; with `MinFreeBytes` set, a log deletes its own oldest sealed segments before it lets the filesystem
+11. **Bounded disk.** With `MaxBytes` set, a log's segment bytes stay within `MaxBytes + SegmentBytes + MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes + 34)`; with `MinFreeBytes` set, a log deletes its own oldest sealed segments before it lets the filesystem
     fall below the floor. A full disk never corrupts a log: appends fail with an error, and flushed records
     stay intact.
 12. **A stale consumer cannot pin the disk.** With `ConsumerTTL` set, a protected consumer that is behind and silent for

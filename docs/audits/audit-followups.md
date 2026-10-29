@@ -31,17 +31,16 @@ reader.go:204-206 calls `reason(ferr)` with `ferr == nil` when the frame is CRC-
 Reader returns `GapError{1,1}` as decisions 11/38 and guarantee 14 require. Why owner: flagged
 semantic (panic becomes a gap). Recommended: approve; test from the probe.
 
-### docs-39: the disk bound understates the single-record case by up to `MaxPayloadBytes + 34 − MaxBatchBytes` (sev:minor)
-
-append.go:31 applies `MaxBatchBytes` only to batches of more than one record; decisions 26/46
-admit a single 64 MiB record while decision 69's arithmetic assumes `MaxBatchBytes`. Inferred
-from the code path, not executed. Why owner: either fix rewrites the text of guarantee 11 or
-contradicts decision 46. Recommended: restate the bound as `MaxBytes + SegmentBytes +
-MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes + 34)` at scope.md:239, :347,
-userguide.md:152 and decision 69, and say at scope.md:119 / append.go:17-18 that a single record
-is bounded by `MaxPayloadBytes` alone.
-
 ## Applied
+
+### docs-39: the disk bound omitted the single-record case (applied)
+
+Decision taken: approved as recommended, docs only plus one comment. The bound is now
+`MaxBytes + SegmentBytes + MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes + 34)` in scope.md
+(the Bound paragraph and guarantee 11) and userguide.md; decision 69 is amended in place with a
+dated note (no new row). scope.md's `MaxBatchBytes` row and the `AppendBatch` comment say a single
+record is bounded by `MaxPayloadBytes` alone. Admission and validation are unchanged, so no test
+was added.
 
 ### dedup-19: one `contiguity` helper for the hole/overlap bookkeeping (applied)
 

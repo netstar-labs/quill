@@ -141,7 +141,7 @@ arrives during creation retries).
 | `MinFreeBytes` | off | Free-space floor (`statfs`); below it the log deletes its own oldest segments, then refuses appends with `ENOSPC` |
 | `MaxRecords` | off | Keep roughly the newest N records |
 | `MaxPayloadBytes` | 64 MiB − 32 (the ceiling) | Largest record |
-| `MaxBatchBytes` | 16 MiB | Largest encoded batch |
+| `MaxBatchBytes` | 16 MiB | Largest encoded batch of more than one record; a single record is bounded by `MaxPayloadBytes` alone |
 | `MaxReadBytes` | 16 MiB | Payload bytes per `Read`, at least one record |
 | `ProtectedConsumers` | none | Created, protected, at open |
 | `ConsumerTTL` | off | See §4 |
@@ -150,7 +150,8 @@ arrives during creation retries).
 | `NoMaintenance` | off | For offline tools: no background prune or age rotation, and `quill.policy` is not written |
 
 **Bounded disk.** With `MaxBytes` set, segment bytes stay within
-`MaxBytes + SegmentBytes + MaxBufferBytes + MaxBatchBytes`. Defaults leave `MaxBytes` and
+`MaxBytes + SegmentBytes + MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes + 34)`: the last term is the largest single
+append, and a single record is bounded by `MaxPayloadBytes` alone, so with the defaults it is the larger. Defaults leave `MaxBytes` and
 `MinFreeBytes` off, so a log with only `Retention` can fill a disk; `quill check` and
 `quill ls` mark it UNBOUNDED. For planning, `bytes ≈ records × (average payload + about 16)`.
 Several logs on one disk share no budget: size them so the sum of every log's
@@ -274,7 +275,7 @@ valid sequence, `seg` the newest segment, `off` its length, `maxseg` the highest
 | Limit | Value |
 |---|---|
 | Payload | 64 MiB − 32 bytes |
-| Batch | `MaxBatchBytes`, 16 MiB by default |
+| Batch of more than one record | `MaxBatchBytes`, 16 MiB by default |
 | Segment file | 1.5 GiB (`SegmentBytes` at most 1 GiB) |
 | Consumer name | `[a-z0-9_-]`, 1 to 200 characters |
 | Sequence | 2^64 − 1, then `ErrSeqExhausted` |
