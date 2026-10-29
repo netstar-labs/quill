@@ -58,7 +58,8 @@ type File interface {
 // ErrLocked is returned by TryLock when another holder has the lock.
 var ErrLocked = errors.New("fsx: file is locked by another holder")
 
-// Flags, with the values of the os package.
+// Portable flags. The values are the Linux ones, not the os package's on every platform
+// (macOS differs for O_CREATE and O_EXCL); OS translates them in osFlags.
 const (
 	O_RDONLY = 0x0
 	O_WRONLY = 0x1

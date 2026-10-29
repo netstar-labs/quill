@@ -13,8 +13,9 @@ type OS struct{}
 
 var _ FS = OS{}
 
-// osFlags maps the portable flags of this package to the os package's. The values are
-// equal on every supported platform; the mapping keeps that an assertion, not a hope.
+// osFlags maps the portable flags of this package to the os package's. The values here are
+// the Linux ones; macOS differs (O_CREATE and O_EXCL), which is why the translation is
+// required and must not be dropped.
 func osFlags(flag int) int {
 	out := 0
 	if flag&O_WRONLY != 0 {
