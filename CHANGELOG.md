@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `build/quill --dev` exited 1 with no output on a clean working tree, so the development
+  build (and the CI step that runs it) produced nothing unless the tree was dirty; the version
+  string is now computed without a failing command under errexit.
+
 - Fixed: `quill check` (and `Reader.Check`) reported a healthy log UNHEALTHY when retention deleted a
   sealed segment after the check had listed the directory, as damage at byte 0 and, for a middle
   one, a hole; a sealed segment that vanishes mid-scan is now skipped and the hole test restarts

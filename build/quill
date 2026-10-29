@@ -22,7 +22,10 @@ if [ "$dev" = 0 ]; then
 		exit 1
 	}
 else
-	version="dev-$(git rev-parse --short HEAD)$( [ -n "$(git status --porcelain)" ] && echo -dirty )"
+	# errexit-safe: a `[ ... ] && echo` inside the substitution ends the script on a clean tree
+	dirty=""
+	[ -z "$(git status --porcelain)" ] || dirty=-dirty
+	version="dev-$(git rev-parse --short HEAD)$dirty"
 fi
 
 out=build/install
