@@ -69,7 +69,7 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `internal/strictjson/` | State-file parsing that refuses damaged values and unknown fields |
 | `testdata/` | Golden fixtures that freeze the format |
 | `hack/gate.sh`, `hack/fuzz.sh` | The commit gate: gofmt, vet, build, `test -race`, staticcheck, deadcode, every fuzz target for 20 s, tidy |
-| `cmd/quill/` | The command: `main.go`, `verbs.go` (the verb table drives help and the reference), `print.go` |
+| `cmd/quill/` | The command: `main.go`, `verbs.go` (the verb table drives help and the reference), `read.go`, `consumers.go`, `write.go` (the verbs, grouped by what they touch), `print.go` |
 | `examples/` | `log/`, `topics/`, `pipeline/` |
 | `build/quill` | The release build: version stamping, cross-compilation, archives, checksums, SBOM |
 | `.github/workflows/` | CI on Linux and macOS, the same gate as separate steps, the full-disk job, and the PR-issue-link check |
