@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -495,5 +497,41 @@ func TestReaderSealedSegmentWithSeqZeroFirstFrameIsAHole(t *testing.T) {
 	recs, err := r.Read(1, 10)
 	if !errors.As(err, &gap) || gap.From != 1 || gap.To != 1 {
 		t.Fatalf("got %v %v, want a gap at 1", seqsOf(recs), err)
+	}
+}
+
+func TestConcurrentReadsOnOneReaderAreRaceFree(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 60 })
+	defer l.Close()
+	for i := 0; i < 8; i++ {
+		appendN(t, l, 4)
+		mustFlush(t, l) // eight sealed segments, 4i+1 .. 4i+4
+	}
+	r := openReaderSim(t, s)
+	defer r.Close()
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				recs, err := r.Read(7, 3)
+				if err != nil {
+					errs <- err
+					return
+				}
+				if len(recs) != 3 || recs[0].Seq != 7 || recs[1].Seq != 8 || recs[2].Seq != 9 {
+					errs <- fmt.Errorf("Read(7, 3) = %v", seqsOf(recs))
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
 	}
 }

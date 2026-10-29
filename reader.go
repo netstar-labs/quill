@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/netstar-labs/quill/internal/fsx"
@@ -53,13 +54,20 @@ type readerSegment struct {
 	first uint64
 	at    int64
 	bad   error // the first frame could not be read: the segment's range is a hole
-	// From one full scan, built when the segment is first read (decision 63).
-	index   []anchor
-	last    uint64
-	frames  int
-	lastAt  int64
+	// From one full scan, built when the segment is first read (decision 63). The result is
+	// published by one atomic store, so view can look at it while another call is scanning.
+	result  atomic.Pointer[scanResult]
 	scanErr error
 	once    sync.Once
+}
+
+// scanResult is what one full scan of a sealed segment learned; it is never modified after
+// it is stored.
+type scanResult struct {
+	index  []anchor
+	last   uint64
+	frames int
+	lastAt int64
 }
 
 // OpenReader opens a log directory for reading. It returns ErrNoLog when the directory holds
@@ -243,7 +251,7 @@ func (s *readerSegment) scan(fsys fsx.FS) error {
 			s.scanErr = err
 			return
 		}
-		s.index, s.last, s.frames, s.lastAt = info.index, info.last.Seq, info.frames, info.last.At
+		s.result.Store(&scanResult{index: info.index, last: info.last.Seq, frames: info.frames, lastAt: info.last.At})
 	})
 	return s.scanErr
 }
@@ -319,8 +327,13 @@ func (r *Reader) view() (*segView, func(), error) {
 		if last < s.first {
 			continue // an empty range: the marker predates it (a stale marker after a rotation crash)
 		}
-		if s.index != nil && s.last < last {
-			last = s.last // scanned already: its real end is known; the next segment or the marker reports the hole
+		// One load: a scan may finish in another call while this loop runs.
+		var index []anchor
+		if res := s.result.Load(); res != nil && res.index != nil {
+			index = res.index
+			if res.last < last {
+				last = res.last // scanned already: its real end is known; the next segment or the marker reports the hole
+			}
 		}
 		if havePrev && s.first <= prevLast {
 			if activeFile != nil {
@@ -338,7 +351,7 @@ func (r *Reader) view() (*segView, func(), error) {
 		pendingHole = false
 		prevLast, havePrev = last, true
 		s := s
-		v.segs = append(v.segs, &segRef{id: s.id, first: s.first, last: last, at: s.at, index: s.index,
+		v.segs = append(v.segs, &segRef{id: s.id, first: s.first, last: last, at: s.at, index: index,
 			open: func() (io.ReaderAt, int64, func(), error) {
 				f, size, err := openSegment(r.fs, s.path)
 				if err != nil {
@@ -356,7 +369,8 @@ func (r *Reader) view() (*segView, func(), error) {
 				if err := s.scan(r.fs); err != nil {
 					return nil, 0, err
 				}
-				return s.index, s.last, nil
+				res := s.result.Load()
+				return res.index, res.last, nil
 			}})
 	}
 	if activeFile != nil {
