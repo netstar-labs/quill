@@ -41,15 +41,13 @@ func (s *Stats) count(v *segView) {
 
 // Stat returns the log's statistics from the writer's memory.
 func (l *Log) Stat() (Stats, error) {
-	v, release, err := l.view()
-	if err != nil {
-		return Stats{}, err
-	}
-	release()
-	var s Stats
-	s.count(v)
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.closed {
+		return Stats{}, ErrClosed
+	}
+	var s Stats
+	s.count(&segView{head: l.head, first: l.firstRetainedLocked(), holes: l.holes})
 	s.Segments = len(l.sealed) + 1
 	for _, seg := range l.sealed {
 		s.Bytes += seg.size
