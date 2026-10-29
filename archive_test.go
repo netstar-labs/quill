@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -356,5 +357,86 @@ func TestArchiveOnTheRealFileSystem(t *testing.T) {
 	}
 	if err := Archive(src, dst); err != nil {
 		t.Fatalf("second run: %v", err)
+	}
+}
+
+// An archive destination that is the live log itself, or a symbolic link to it, is refused
+// and quill.tail, which only the writer may write, is left as it was (decisions 8, 28).
+func TestArchiveRefusesTheSourceLogAsItsDestinationAndLeavesTheLiveMarker(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "log")
+	l := openDir(t, dir, func(c *Config) { c.SegmentBytes = 256 })
+	defer l.Close()
+	for i := 0; i < 3; i++ {
+		appendN(t, l, 8)
+		mustFlush(t, l)
+	}
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	appendN(t, l, 3) // flushed records in the active segment, past the last sealed one
+	mustFlush(t, l)
+	head := l.Head()
+	before, err := os.ReadFile(filepath.Join(dir, tailName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(dir, alias); err != nil {
+		t.Fatal(err)
+	}
+	for _, dst := range []string{dir, dir + "/", filepath.Join(dir, "..", "log"), alias} {
+		if err := Archive(dir, dst); err == nil {
+			t.Fatalf("Archive(dir, %q) returned nil", dst)
+		}
+		after, err := os.ReadFile(filepath.Join(dir, tailName))
+		if err != nil || !bytes.Equal(after, before) {
+			t.Fatalf("Archive(dir, %q) rewrote the live marker %q to %q (%v)", dst, before, after, err)
+		}
+		r, err := OpenReader(dir, ReaderOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if h, _ := r.Head(); h != head {
+			t.Fatalf("a reader sees head %d, the writer's is %d", h, head)
+		}
+		_ = r.Close()
+	}
+}
+
+// A destination that is another log directory with a live writer is refused too: its marker is
+// that writer's to write.
+func TestArchiveRefusesADestinationHeldByALiveWriter(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "log")
+	dst := filepath.Join(t.TempDir(), "arch")
+	l := openDir(t, src, func(c *Config) { c.SegmentBytes = 256 })
+	defer l.Close()
+	for i := 0; i < 3; i++ {
+		appendN(t, l, 8)
+		mustFlush(t, l)
+	}
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	if err := Archive(src, dst); err != nil {
+		t.Fatal(err)
+	}
+	aw := openDir(t, dst, func(c *Config) { c.SegmentBytes = 256 })
+	defer aw.Close()
+	appendN(t, aw, 2)
+	mustFlush(t, aw)
+	appendN(t, l, 8)
+	mustFlush(t, l)
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(filepath.Join(dst, tailName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Archive(src, dst); !errors.Is(err, ErrLocked) {
+		t.Fatalf("got %v, want ErrLocked", err)
+	}
+	if after, err := os.ReadFile(filepath.Join(dst, tailName)); err != nil || !bytes.Equal(after, before) {
+		t.Fatalf("the live destination's marker changed from %q to %q (%v)", before, after, err)
 	}
 }

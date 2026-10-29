@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path/filepath"
 
 	"github.com/netstar-labs/quill/internal/atomicfile"
@@ -17,7 +18,9 @@ import (
 // consumer (decisions 28, 67, 68). It is idempotent, runs beside a live writer (it reads
 // only sealed segments, through a Reader), and stops with an error at a corrupt sealed
 // segment. When the source has lost segments the destination holds the same hole, and
-// Archive returns a *GapError naming it after copying what exists.
+// Archive returns a *GapError naming it after copying what exists. It refuses, before
+// writing to it, a destination that is the source log itself and a destination whose
+// writer lock is held (ErrLocked): quill.tail is the writer's file.
 //
 // The archiver is a protected consumer, so retention keeps a segment until it is copied;
 // the caps still win, so an archive can fall behind under disk pressure.
@@ -37,7 +40,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 	}
 	defer c.Close()
 	dstDir = filepath.Clean(dstDir)
-	if err := archiveDest(fsys, dstDir, r.id); err != nil {
+	if err := archiveDest(fsys, srcDir, dstDir, r.id); err != nil {
 		return err
 	}
 	v, release, err := r.view()
@@ -90,8 +93,27 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 	return nil
 }
 
-// archiveDest creates the destination if needed and checks or writes its format marker.
-func archiveDest(fsys fsx.FS, dstDir string, id logID) error {
+// archiveDest refuses a destination that has a writer of its own, then creates the
+// destination if needed and checks or writes its format marker.
+func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID) error {
+	// quill.tail has one writer, the lock holder (decisions 8, 62), and Archive writes the
+	// destination's. The source is such a destination when the two paths name one directory
+	// (os.SameFile follows a symbolic link in the path, which comparing strings would not).
+	if si, err := fsys.Lstat(filepath.Join(srcDir, tailName)); err == nil {
+		if di, err := fsys.Lstat(filepath.Join(dstDir, tailName)); err == nil && os.SameFile(si, di) {
+			return fmt.Errorf("quill: archive destination %s is the source log", dstDir)
+		}
+	}
+	// A live writer on any other directory holds its lock; the lock file is not created here.
+	if f, err := fsys.OpenFile(filepath.Join(dstDir, lockName), fsx.O_RDWR, DefaultPerm); err == nil {
+		err = f.TryLock()
+		_ = f.Close()
+		if errors.Is(err, fsx.ErrLocked) {
+			return fmt.Errorf("%w: archive destination %s has a live writer", ErrLocked, dstDir)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
 	dirPerm := Config{Perm: DefaultPerm}.dirPerm()
 	if err := fsys.Mkdir(dstDir, dirPerm); err != nil && !errors.Is(err, fs.ErrExist) {
 		return err

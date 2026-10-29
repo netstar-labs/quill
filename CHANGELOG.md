@@ -5,6 +5,12 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `Archive` (and `quill archive`) accepted the source log itself, or a directory with a live writer,
+  as the destination and overwrote that writer's `quill.tail` with a marker naming the last sealed segment,
+  hiding the newest records from every `Reader` until the writer's next flush that changed the marker; it
+  now refuses the source log as its own destination, and a destination whose `quill.lock` is held with
+  `ErrLocked`, before writing to it.
+
 - Fixed: a writable `Open` that failed with `ErrCorrupt` could already have truncated and synced the
   newest segment, because the untrusted tail was cut before the overlap and last-sequence-below-the-marker
   checks ran; the cut is now made only after every check has passed, so a refused `Open` leaves the file
