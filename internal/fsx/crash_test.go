@@ -28,6 +28,20 @@ func mustWrite(t *testing.T, f File, data []byte, off int64) {
 	}
 }
 
+func mustSync(t *testing.T, f File) {
+	t.Helper()
+	if err := f.Sync(); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+}
+
+func mustSyncDir(t *testing.T, s *Sim) {
+	t.Helper()
+	if err := s.SyncDir("/"); err != nil {
+		t.Fatalf("syncdir /: %v", err)
+	}
+}
+
 func durable(t *testing.T, s *Sim, name string) []byte {
 	t.Helper()
 	b, err := s.Durable(name)
@@ -55,12 +69,8 @@ func TestAnUnsyncedWriteIsLostOrTornAtPageGranularityAndLostPagesReadAsZeros(t *
 	for mask := 0; mask < 1<<4; mask++ { // the size and three pages: four items
 		s := NewSim()
 		f := mustOpen(t, s, "/a", O_RDWR|O_CREATE)
-		if err := f.Sync(); err != nil {
-			t.Fatal(err)
-		}
-		if err := s.SyncDir("/"); err != nil {
-			t.Fatal(err)
-		}
+		mustSync(t, f)
+		mustSyncDir(t, s)
 		mustWrite(t, f, pattern(size, 0xab), 0)
 		if n := s.Unsynced(); n != 4 {
 			t.Fatalf("unsynced items = %d, want 4 (size + 3 pages)", n)
@@ -151,17 +161,11 @@ func TestARenameOverAnExistingNameYieldsTheOldOrTheNewContentUntilTheDirectoryIs
 		s := NewSim()
 		f := mustOpen(t, s, "/state", O_RDWR|O_CREATE)
 		mustWrite(t, f, []byte("old"), 0)
-		if err := f.Sync(); err != nil {
-			t.Fatal(err)
-		}
-		if err := s.SyncDir("/"); err != nil {
-			t.Fatal(err)
-		}
+		mustSync(t, f)
+		mustSyncDir(t, s)
 		tmp := mustOpen(t, s, "/.tmp-1", O_RDWR|O_CREATE)
 		mustWrite(t, tmp, []byte("new"), 0)
-		if err := tmp.Sync(); err != nil {
-			t.Fatal(err)
-		}
+		mustSync(t, tmp)
 		if err := s.Rename("/.tmp-1", "/state"); err != nil {
 			t.Fatal(err)
 		}
@@ -185,18 +189,12 @@ func TestARenameOverAnExistingNameYieldsTheOldOrTheNewContentUntilTheDirectoryIs
 	mustWrite(t, f, []byte("old"), 0)
 	tmp := mustOpen(t, s, "/.tmp-1", O_RDWR|O_CREATE)
 	mustWrite(t, tmp, []byte("new"), 0)
-	if err := f.Sync(); err != nil {
-		t.Fatal(err)
-	}
-	if err := tmp.Sync(); err != nil {
-		t.Fatal(err)
-	}
+	mustSync(t, f)
+	mustSync(t, tmp)
 	if err := s.Rename("/.tmp-1", "/state"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SyncDir("/"); err != nil {
-		t.Fatal(err)
-	}
+	mustSyncDir(t, s)
 	s.Crash(nil)
 	if got := durable(t, s, "/state"); string(got) != "new" {
 		t.Fatalf("durable after synced rename = %q", got)
@@ -210,12 +208,8 @@ func TestARenameThatPersistsBeforeTheDataIsTheHazardAtomicWritesAvoid(t *testing
 	s := NewSim()
 	f := mustOpen(t, s, "/state", O_RDWR|O_CREATE)
 	mustWrite(t, f, []byte("old"), 0)
-	if err := f.Sync(); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SyncDir("/"); err != nil {
-		t.Fatal(err)
-	}
+	mustSync(t, f)
+	mustSyncDir(t, s)
 	tmp := mustOpen(t, s, "/.tmp-1", O_RDWR|O_CREATE)
 	mustWrite(t, tmp, []byte("new"), 0)
 	if err := s.Rename("/.tmp-1", "/state"); err != nil {
@@ -232,12 +226,8 @@ func TestAnUnlinkAndATruncateMayBeUndone(t *testing.T) {
 	s := NewSim()
 	f := mustOpen(t, s, "/a", O_RDWR|O_CREATE)
 	mustWrite(t, f, []byte("hello"), 0)
-	if err := f.Sync(); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SyncDir("/"); err != nil {
-		t.Fatal(err)
-	}
+	mustSync(t, f)
+	mustSyncDir(t, s)
 	if err := s.Remove("/a"); err != nil {
 		t.Fatal(err)
 	}
@@ -296,9 +286,7 @@ func TestAMkdirIsLostWithEverythingInItUntilTheParentIsSynced(t *testing.T) {
 	}
 	f := mustOpen(t, s, "/log/a", O_RDWR|O_CREATE)
 	mustWrite(t, f, []byte("x"), 0)
-	if err := f.Sync(); err != nil {
-		t.Fatal(err)
-	}
+	mustSync(t, f)
 	if err := s.SyncDir("/log"); err != nil {
 		t.Fatal(err)
 	}
@@ -376,9 +364,7 @@ func TestInjectCanCrashBeforeAnOperationAndOpsCountsEveryOperation(t *testing.T)
 	s := NewSim()
 	f := mustOpen(t, s, "/a", O_RDWR|O_CREATE)
 	mustWrite(t, f, []byte("hello"), 0)
-	if err := f.Sync(); err != nil {
-		t.Fatal(err)
-	}
+	mustSync(t, f)
 	before := s.Ops()
 	if before != 3 {
 		t.Fatalf("ops = %d, want 3 (create, write, sync)", before)
