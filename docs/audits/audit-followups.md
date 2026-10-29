@@ -9,7 +9,7 @@ audit-dedup.md, audit-docs.md and audit-simplify.md; the classification rule is 
 audit-findings.md. Every owner decision below comes with a recommended answer; where that
 answer is "approve", the fix and its test are already written out in the dimension report.
 
-## Owner decisions (one issue each)
+## Owner decisions (one issue each; both approved and applied in the first fixer chain)
 
 ### correctness-21: `Prune` panics or over-deletes after a failed rotation when a cap is set (sev:major)
 
@@ -24,12 +24,16 @@ approve the snapshot variant (record the targets before `publishLocked`, delete 
 leading run of `l.sealed` still in the set); four regression tests in a new
 retention_reentrancy_test.go.
 
+*Applied as recommended (the snapshot variant), commit ad71017.*
+
 ### simplify-1: a Reader panics on a sealed segment whose first frame carries seq 0 (sev:major)
 
 reader.go:204-206 calls `reason(ferr)` with `ferr == nil` when the frame is CRC-valid and seq 0;
 `reason` (load.go:263) dereferences the nil error. Reproduced twice; with the one-line guard the
 Reader returns `GapError{1,1}` as decisions 11/38 and guarantee 14 require. Why owner: flagged
 semantic (panic becomes a gap). Recommended: approve; test from the probe.
+
+*Applied as recommended, commit cc9cad4.*
 
 ## Applied
 
@@ -130,7 +134,7 @@ missing stays an error. Regression tests in reader_vanished_test.go delete the s
 simulator's `Inject` hook on `OpOpen` for each of the four callers. Not changed: `Log`'s own
 `view` has the same shape for its own sealed segments (read.go); the audit named reader.go only.
 
-## Deferred (one issue)
+## Deferred, then applied in the allocation pass
 
 ### correctness-30: `Log.view` allocates ~2 objects per sealed segment per read, under the log mutex (sev:perf)
 
@@ -140,6 +144,49 @@ fix is a cache with invalidation on the hot read path, larger than a local chang
 `[]*segRef` for the sealed segments rebuilt where `l.sealed` changes (`rotateLocked`,
 flush.go:163; `deleteLocked`, retention.go:243), shared across views, landed with an allocation
 benchmark.
+
+*Applied in the allocation pass as alloc read-7 (decision 103), with
+`TestSealedSegmentRefsAreSharedByViewsAndRebuiltAfterARotationAndADeletion` and
+`BenchmarkReadStartThousandSegments` (2,041 to 31 allocs/op at 1,000 sealed segments).*
+
+## Allocation pass (A1 follow-up, 2026-10-29)
+
+Run as a workflow after the A1 fixes landed, before the tag: three finders (the write path, the
+read path, the `Reader` and the command) grounded in `-benchmem` and escape analysis, two
+skeptics per finding (one asking whether the site is hot and the saving above 5%, one whether the
+change preserves behaviour), and one fixer per survivor in its own worktree, each required to
+show allocs/op before and after and to record them in benchmark-baselines.md. 22 candidates, 9
+refuted, 13 survived, 12 applied (decisions 103 to 105 where a design choice was settled), 1
+deferred. Nothing was marked high risk.
+
+### Deferred: read-8, carve payload copies from shared blocks (sev:perf)
+
+`Read` and the iterators clone every payload separately (`slices.Clone` in `scanSource`), so
+`Read(offset, 100)` pays 100 allocations for its payloads. The fixer built the arena: allocs/op
+fell from 121 to 22 (`BenchmarkReadStart`) and from 114 to 15 (`BenchmarkReadTail`) and ns/op did
+not move, but B/op rose by 700 to 800 bytes on every read benchmark, because the one block
+(12,800 bytes of 128-byte payloads) rounds up to the 13,568-byte size class while a hundred
+128-byte clones had no slack. The pass's acceptance rule was that allocs/op and B/op both
+improve, so it was not committed. Open to the owner: relax the rule for this change (fewer,
+larger allocations are what the GC prefers), add a decision recording that a retained payload
+may pin up to 64 KiB of its batch, and land it with the full gate. The unapplied diff is in the
+session's scratchpad, not the repository.
+
+### Refuted
+
+Every refutation was measured in a scratch copy; none was refuted on the behaviour lens.
+
+| Finding | Why it was refuted (hot lens) |
+|---|---|
+| write-6: The write buffer grows by repeated `append` from nil, about 11 allocations once per log | Once per `Log`, not per call: the buffer keeps its capacity across flushes (`l.buf[:0]`), so steady-state appends already allocate nothing; the claimed B/op gain was benchmark setup amortised over the iteration count. |
+| read-10: `walk` builds a sparse index that `Read`, `Scan` and `OffsetForTime` discard | One allocation per 64 KiB walked, about 3% of a `Read`'s allocations: under the 5% bar for the point reads. The same site was found again as reader-20, whose skeptics confirmed it on `ScanAll` (104 to 47 allocs/op), and it was applied there. |
+| read-11: `records()` rebuilds its batch slice by growth every round | The slice is built once per round (once per `Records` call unless `MaxReadBytes` splits it), and hoisting it with a capacity hint saved about 3% of B/op and no wall time; the only large gain needed a 64 K-record hint the finding itself rejected. |
+| read-12: Each sealed segment opened allocates a closer closure | One closure per segment opened, about 24 bytes: 136 to 135 allocs/op on `BenchmarkReadStart`, under 1%. |
+| read-13: `Log.view` still makes five objects per call with a non-empty active segment | Hot but small: two allocations of 136 and about 150 bytes of 29 KB per `Read`; the finding's headline came from a benchmark that counted its own setup. The large-segment-count part of it is what read-7 (decision 103) fixed. |
+| read-14: The pooled window buffer is created at 1 MiB for every `Read`; start at `readChunk` and grow | The point-read saving is real, but the change made `BenchmarkScanAll` allocate about 22% more B/op (the buffer regrows on every scan), and the finding's `ScanAll` figure did not reproduce. |
+| reader-18: `fsx.OS.ReadDir` allocates a `DirEntry` per name and discards it | The microbenchmark gain reproduces, but the site is on no documented benchmark's path and the end-to-end saving is small; `os.ReadDir` is the simpler code. |
+| reader-21: `encodeConsumer` formats the offset file through `fmt.Sprintf` and a `[]byte` copy | Byte-identical and saves four allocations per `Commit`, but a `Commit` is an atomic file write (about 40 ms here), so the saving is under 5% of its B/op and not measurable in time. |
+| reader-22: The `Reader`'s buffer pool allocates 1 MiB on every miss where point reads need 64 KiB | A 64 KiB pool buffer gave no reproducible B/op change on `BenchmarkReaderFollow` (about 50 KB/op before and after, within noise) and the same allocs/op; the claimed baseline did not appear. |
 
 ## Deliberately not changed
 

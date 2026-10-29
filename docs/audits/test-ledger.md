@@ -17,7 +17,7 @@ were recorded from quill's encoder and equal the bytes the design specifies.
 | 6 | Corruption is never served silently | `TestDamageBelowTheMarkerFailsOpenAndLeavesTheFileUnchanged`, `TestAReaderReportsGapsForDeletedAndDamagedSegments…` (T7), `TestReaderCheckExaminesSealedSegmentsWhole…` |
 | 7 | Bounded allocation | `TestDecodeFrameRefusesEveryDamage`, `TestOpenSegmentRefusesSymlinksFIFOsAndOversizeFiles`, `TestStateFilesAreWrittenAtomicallyAndRead…`, `TestABatchOverMaxBatchBytes…` (T22) |
 | 8 | Retention deletes only whole sealed segments, never reuses an id | `TestTheAgeSweepDeletesExpiredSealedSegmentsNeverTheActiveOne…`, `TestAMarkerAboveTheLastValidFrame…` (ids after expiry) |
-| 9 | State files atomic and strict | `TestTailRoundTripsAndIsStrict`, `TestFormatMarkerRoundTrips…`, `TestConsumerFileRoundTrips…`, `TestACrashAtAnyPointLeavesTheOldOrTheWholeNewFile`, the fuzz targets (T12) |
+| 9 | State files atomic and strict | `TestTailRoundTripsAndIsStrict`, `TestAppendTailMatchesJSON`, `TestDecodeTailFastAgreesWithSlow` (decision 105), `TestFormatMarkerRoundTrips…`, `TestConsumerFileRoundTrips…`, `TestACrashAtAnyPointLeavesTheOldOrTheWholeNewFile`, the fuzz targets (T12) |
 | 10 | A stale marker hides, never exposes | `TestAStaleMarkerWithAcknowledgedRecordsAboveItKeepsAllOfThem`, `TestAReaderSeesOnlyWhatTheMarkerNames…`, T6 |
 | 11 | Bounded disk | `TestDiskBoundsMaxBytesHoldsUnderAFastWriter…` (T13), `TestAFullDiskFailsAppendsKeepsRecordsIntact…` (T14, CI only) |
 | 12 | A stale consumer cannot pin the disk | `TestConsumerAgingUnderConsumerTTL` (T16), `TestTheArchiverIsAProtectedConsumerUntilACapOverridesIt` |
@@ -46,12 +46,12 @@ were recorded from quill's encoder and equal the bytes the design specifies.
 | T16 | `TestConsumerAgingUnderConsumerTTL`, `TestConsumerFilesAreWrittenAtomicallyAndCommitsLeaveTheirMtime` (the premise) | done |
 | T17 | `TestSizeAccountingIsMeasured` | done |
 | T18 | `TestManyProducersSyncingConcurrentlyShareFsyncs`, `TestALoneSyncReturnsWellBefore…`, `TestPendingSyncWaitersGetErrClosed…`, `TestWithAFlushFailingSync…`, `TestAProducerWaitingInSyncHoldsNoLock`, `TestAKilledWriter…` (sync rounds) | done |
-| T19 | `TestAReadAtTheStartOfAThousandSegmentsCostsAboutWhatOneAtTheTailDoes` | done; cost measured in file operations on the simulator |
-| T20 | `TestReadableOutputIsLosslessInTextAndJSON`, `TestTheVerbsRunBesideALiveWriter…` | done |
+| T19 | `TestAReadAtTheStartOfAThousandSegmentsCostsAboutWhatOneAtTheTailDoes`, `TestReadAllocationsDoNotGrowWithTheSealedSegmentCount` (decision 103) | done; cost measured in file operations on the simulator |
+| T20 | `TestReadableOutputIsLosslessInTextAndJSON`, `TestPrintMatchesReference` (the printer's appenders against `encoding/json`, `strconv.Quote` and `fmt`, 20,000 random records per mode), `TestTheVerbsRunBesideALiveWriter…` | done |
 | T21 | `TestTheClockGuardDeletesAtMostAQuarter…`, `TestReaderCheckExamines…` (clock flags), CLI `prune -force` in `TestTheVerbsRunBesideALiveWriter…` | done |
 | T22 | `TestEveryConfigDefaultAndRefusal`, `TestARecordOfExactlyMaxPayloadBytes…`, `TestABatchOverMaxBatchBytes…`, `TestWhileFlushesFailAnAppendIsAccepted…`, `TestMaxReadBytesReturnsAtLeastOneRecord…` | done |
 | T23 | `TestASecondWritableOpenFailsFast…`, `TestTheLockIsReleasedWhenTheHolderIsKilled`, CLI `TestTheVerbsRunBesideALiveWriter…` | done |
-| T24 | `bench_test.go`, `benchmark-baselines.md` | done; the larger-than-memory drain was not run (see the baselines) |
+| T24 | `bench_test.go`, `benchmark-baselines.md` | done; the larger-than-memory drain was run on the Linux server, and the allocation pass's before/after rows are in the baselines |
 | T25 | `TestRecordsYieldsExactlyWhatReadReturns…`, `TestAnIteratorYieldsAnErrorOnce…`, `TestBreakingOutOfAnIteratorLeaksNoDescriptor…` | done |
 | T26 | `TestOffsetForTimeEqualsALinearScanForEverySecond`, `TestOffsetForTimeOnDamageEmptyLogsAndNonMonotonicTimes` | done |
 | T27 | `internal/fsx/crash_test.go` | done |
