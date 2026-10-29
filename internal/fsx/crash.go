@@ -7,6 +7,7 @@ import (
 	"path"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -40,8 +41,9 @@ type Sim struct {
 	generation uint64 // bumped by every crash; a File from an older generation is dead
 
 	// Inject, if non-nil, is called before every operation with its kind and path and may
-	// return an error to inject. It is called with the simulator's lock held: it must not
-	// call back into the Sim.
+	// return an error to inject. It runs without the simulator's lock, so it may sleep to
+	// model a slow device; it must not call back into the Sim. Set it only while no
+	// goroutine is using the simulator.
 	Inject func(op Op, name string) error
 	// CrashKeep chooses, when Inject returns ErrCrash, which unsynced items persist: it is
 	// called with the item index and the number of items. Nil keeps none.
@@ -129,15 +131,21 @@ func (s *Sim) now() time.Time {
 	return time.Now()
 }
 
-// inject runs the Inject hook, crashing if it asks to. Called with the lock held.
+// inject counts the operation and runs the Inject hook, crashing if it asks to. The hook
+// runs without the simulator's lock, so a hook that sleeps stalls only its caller.
 func (s *Sim) inject(op Op, name string) error {
+	s.mu.Lock()
 	s.ops++
-	if s.Inject == nil {
+	hook, keep := s.Inject, s.CrashKeep
+	s.mu.Unlock()
+	if hook == nil {
 		return nil
 	}
-	err := s.Inject(op, name)
+	err := hook(op, name)
 	if errors.Is(err, ErrCrash) {
-		s.crashLocked(s.CrashKeep)
+		s.mu.Lock()
+		s.crashLocked(keep)
+		s.mu.Unlock()
 	}
 	return err
 }
@@ -174,7 +182,7 @@ var errNotDir = errors.New("not a directory")
 
 func splitPath(p string) []string {
 	var parts []string
-	for _, part := range splitOnSlash(path.Clean("/" + p)) {
+	for _, part := range strings.Split(path.Clean("/"+p), "/") {
 		if part != "" {
 			parts = append(parts, part)
 		}
@@ -182,23 +190,9 @@ func splitPath(p string) []string {
 	return parts
 }
 
-func splitOnSlash(p string) []string {
-	var out []string
-	start := 0
-	for i := 0; i <= len(p); i++ {
-		if i == len(p) || p[i] == '/' {
-			out = append(out, p[start:i])
-			start = i + 1
-		}
-	}
-	return out
-}
-
 var nextID uint64
 
 func (s *Sim) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	op := OpOpen
 	if flag&O_CREATE != 0 {
 		op = OpCreate
@@ -206,6 +200,8 @@ func (s *Sim) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 	if err := s.inject(op, name); err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	d, base, err := s.walk(name)
 	if err != nil {
 		return nil, err
@@ -233,11 +229,11 @@ func (s *Sim) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 var errIsDir = errors.New("is a directory")
 
 func (s *Sim) Mkdir(name string, perm fs.FileMode) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.inject(OpMkdir, name); err != nil {
 		return err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	d, base, err := s.walk(name)
 	if err != nil {
 		return err
@@ -255,11 +251,11 @@ func (s *Sim) Mkdir(name string, perm fs.FileMode) error {
 }
 
 func (s *Sim) ReadDir(name string) ([]string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.inject(OpReadDir, name); err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	d, base, err := s.walk(name)
 	if err != nil {
 		return nil, err
@@ -283,11 +279,11 @@ func (s *Sim) ReadDir(name string) ([]string, error) {
 }
 
 func (s *Sim) Lstat(name string) (fs.FileInfo, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.inject(OpLstat, name); err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	d, base, err := s.walk(name)
 	if err != nil {
 		return nil, err
@@ -310,11 +306,11 @@ func (e entry) info(name string) fileInfo {
 }
 
 func (s *Sim) Rename(oldpath, newpath string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.inject(OpRename, oldpath); err != nil {
 		return err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	d, oldbase, err := s.walk(oldpath)
 	if err != nil {
 		return err
@@ -343,11 +339,11 @@ func (s *Sim) Rename(oldpath, newpath string) error {
 }
 
 func (s *Sim) Remove(name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.inject(OpRemove, name); err != nil {
 		return err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	d, base, err := s.walk(name)
 	if err != nil {
 		return err
@@ -365,11 +361,11 @@ func (s *Sim) Remove(name string) error {
 }
 
 func (s *Sim) SyncDir(name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.inject(OpSyncDir, name); err != nil {
 		return err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	d, base, err := s.walk(name)
 	if err != nil {
 		return err

@@ -20,22 +20,43 @@ type simFile struct {
 	gen      uint64
 }
 
-func (f *simFile) check(op Op) error {
+// begin checks the handle, runs the injection hook without the lock, then returns with the
+// simulator's lock held (the caller unlocks) unless it returns an error.
+func (f *simFile) begin(op Op) error {
+	f.s.mu.Lock()
+	if err := f.alive(op); err != nil {
+		f.s.mu.Unlock()
+		return err
+	}
+	f.s.mu.Unlock()
+	err := f.s.inject(op, f.name)
+	var short *ShortWrite
+	if err != nil && !errors.As(err, &short) {
+		return err
+	}
+	f.s.mu.Lock()
+	if aerr := f.alive(op); aerr != nil {
+		f.s.mu.Unlock()
+		return aerr
+	}
+	return err
+}
+
+func (f *simFile) alive(op Op) error {
 	if f.closed {
 		return &fs.PathError{Op: string(op), Path: f.name, Err: fs.ErrClosed}
 	}
 	if f.dead || f.gen != f.s.generation {
 		return ErrDead
 	}
-	return f.s.inject(op, f.name)
+	return nil
 }
 
 func (f *simFile) ReadAt(p []byte, off int64) (int, error) {
-	f.s.mu.Lock()
-	defer f.s.mu.Unlock()
-	if err := f.check(OpRead); err != nil {
+	if err := f.begin(OpRead); err != nil {
 		return 0, err
 	}
+	defer f.s.mu.Unlock()
 	if off < 0 {
 		return 0, &fs.PathError{Op: "read", Path: f.name, Err: fs.ErrInvalid}
 	}
@@ -50,15 +71,14 @@ func (f *simFile) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func (f *simFile) WriteAt(p []byte, off int64) (int, error) {
-	f.s.mu.Lock()
-	defer f.s.mu.Unlock()
-	err := f.check(OpWrite)
+	err := f.begin(OpWrite)
 	var short *ShortWrite
 	if errors.As(err, &short) {
 		p, err = p[:min(short.N, len(p))], io.ErrShortWrite
 	} else if err != nil {
 		return 0, err
 	}
+	defer f.s.mu.Unlock()
 	if !f.writable || off < 0 {
 		return 0, &fs.PathError{Op: "write", Path: f.name, Err: fs.ErrInvalid}
 	}
@@ -76,11 +96,10 @@ func (f *simFile) WriteAt(p []byte, off int64) (int, error) {
 }
 
 func (f *simFile) Sync() error {
-	f.s.mu.Lock()
-	defer f.s.mu.Unlock()
-	if err := f.check(OpSync); err != nil {
+	if err := f.begin(OpSync); err != nil {
 		return err
 	}
+	defer f.s.mu.Unlock()
 	f.ino.durable = slices.Clone(f.ino.volatile)
 	f.ino.dirty = map[int]bool{}
 	f.ino.sizeDirt = false
@@ -88,11 +107,10 @@ func (f *simFile) Sync() error {
 }
 
 func (f *simFile) Truncate(size int64) error {
-	f.s.mu.Lock()
-	defer f.s.mu.Unlock()
-	if err := f.check(OpTruncate); err != nil {
+	if err := f.begin(OpTruncate); err != nil {
 		return err
 	}
+	defer f.s.mu.Unlock()
 	if !f.writable || size < 0 {
 		return &fs.PathError{Op: "truncate", Path: f.name, Err: fs.ErrInvalid}
 	}
@@ -107,11 +125,10 @@ func (f *simFile) Truncate(size int64) error {
 }
 
 func (f *simFile) Stat() (fs.FileInfo, error) {
-	f.s.mu.Lock()
-	defer f.s.mu.Unlock()
-	if err := f.check(OpLstat); err != nil {
+	if err := f.begin(OpLstat); err != nil {
 		return nil, err
 	}
+	defer f.s.mu.Unlock()
 	return entry{file: f.ino}.info(path.Base(f.name)), nil
 }
 
