@@ -1,7 +1,9 @@
 package quill
 
 import (
+	"encoding/json"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -246,5 +248,24 @@ func TestStateFilesAreWrittenAtomicallyAndReadWithoutFollowingLinks(t *testing.T
 	_ = hf.Close()
 	if _, err := readState(fsx.OS{}, huge); err == nil || !errors.Is(err, errBadState) {
 		t.Fatalf("huge: %v", err)
+	}
+}
+
+// TestAppendTailMatchesJSON pins the hand-written encoder to json.Marshal of the struct
+// plus a newline, byte for byte, and checks that it appends to the buffer it is given.
+func TestAppendTailMatchesJSON(t *testing.T) {
+	max := uint64(math.MaxUint64)
+	for _, in := range []tail{{}, {Seq: 1, Seg: 2, Off: 3, MaxSeg: 4}, {Seq: max, Seg: max, Off: max, MaxSeg: max}, {Seq: 42, Seg: 3, Off: 1024, MaxSeg: 7}} {
+		want, err := json.Marshal(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, '\n')
+		if got := appendTail(nil, in); string(got) != string(want) {
+			t.Fatalf("%+v: got %q, want %q", in, got, want)
+		}
+		if got := appendTail([]byte("xy"), in); string(got) != "xy"+string(want) {
+			t.Fatalf("%+v: append to a prefix: %q", in, got)
+		}
 	}
 }

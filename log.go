@@ -210,11 +210,12 @@ type Log struct {
 	active   *activeSegment
 	sealed   []*segment // ascending by id
 	holes    []Hole
-	marker   tail  // the last published quill.tail
-	failed   error // sticky: an fsync error wrapping ErrFailed
-	bgErr    error // the last background or retryable error, for Err()
-	flushErr error // the last flush's error, while flushes are failing; nil once one succeeds
-	loadErr  error // a sticky load error (a sealed segment that failed), for Err()
+	marker   tail   // the last published quill.tail
+	tailBuf  []byte // scratch for encoding the marker; used only under mu
+	failed   error  // sticky: an fsync error wrapping ErrFailed
+	bgErr    error  // the last background or retryable error, for Err()
+	flushErr error  // the last flush's error, while flushes are failing; nil once one succeeds
+	loadErr  error  // a sticky load error (a sealed segment that failed), for Err()
 	closed   bool
 	// justSealed is set by a rotation until the marker naming the new segment has been
 	// published and fsynced into the directory (decision 65).

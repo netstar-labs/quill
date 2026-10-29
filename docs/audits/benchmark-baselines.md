@@ -116,3 +116,14 @@ chunks should be limited by the disk either way") holds only in the sense that `
 the limit; a drain from disk pays the disk and the decoder in series. Overlapping them (a
 read-ahead of the next chunk) is a measured candidate for the audit sequence's optimisation
 pass, with this table as the before.
+
+## Allocation pass (A1 follow-up)
+
+One row per change, on the macOS build machine, three runs each of
+`GOWORK=off go test -run '^$' -bench '^<Name>$' -benchmem -count 3 .`, before and after.
+Wall time is dominated by `F_FULLFSYNC` and did not move beyond noise.
+
+| Change | Benchmark | Before B/op | Before allocs/op | After B/op | After allocs/op |
+|---|---|---|---|---|---|
+| write-1: `quill.tail` encoded by `appendTail` into a reused `Log.tailBuf` instead of `json.Marshal` | `BenchmarkAppendFlushEach` | 1,291–1,295 | 14 | 1,177–1,182 | 11 |
+| write-1 (same change) | `BenchmarkParallelLogsFlush` | 5,727–6,108 | 66–68 | 5,317–5,442 | 55 |

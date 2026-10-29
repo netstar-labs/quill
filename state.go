@@ -66,10 +66,23 @@ type tail struct {
 	MaxSeg uint64 `json:"maxseg"` // the highest segment id ever created; never reused
 }
 
-func encodeTail(t tail) []byte {
-	b, _ := json.Marshal(t) // fixed field order: seq, seg, off, maxseg
-	return append(b, '\n')
+// appendTail appends quill.tail's bytes to dst: the same bytes json.Marshal gives the tail
+// struct (fixed field order: seq, seg, off, maxseg) followed by a newline, without the
+// reflection and the copies.
+func appendTail(dst []byte, t tail) []byte {
+	dst = append(dst, `{"seq":`...)
+	dst = strconv.AppendUint(dst, t.Seq, 10)
+	dst = append(dst, `,"seg":`...)
+	dst = strconv.AppendUint(dst, t.Seg, 10)
+	dst = append(dst, `,"off":`...)
+	dst = strconv.AppendUint(dst, t.Off, 10)
+	dst = append(dst, `,"maxseg":`...)
+	dst = strconv.AppendUint(dst, t.MaxSeg, 10)
+	return append(dst, '}', '\n')
 }
+
+// encodeTail is appendTail into a new slice, for the callers that write the marker once.
+func encodeTail(t tail) []byte { return appendTail(nil, t) }
 
 // decodeTail parses quill.tail strictly: exactly the four fields, every one present, and
 // seg at most maxseg.
