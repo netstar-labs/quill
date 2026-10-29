@@ -141,6 +141,26 @@ func BenchmarkReadTail(b *testing.B) {
 	}
 }
 
+// BenchmarkReaderReadActive: Reader.Read(limit 1) near the head of a log whose active segment
+// holds well over 64 KiB, so every call's view probes the active segment's first frame.
+func BenchmarkReaderReadActive(b *testing.B) {
+	l, dir := benchLog(b, nil)
+	defer l.Close()
+	fillBench(b, l, benchRecords)
+	r, err := OpenReader(dir, ReaderOptions{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer r.Close()
+	head := l.Head()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if recs, err := r.Read(head, 1); err != nil || len(recs) != 1 {
+			b.Fatal(err)
+		}
+	}
+}
+
 // BenchmarkReadSealed: Read(limit 100) at a random position in a sealed segment.
 func BenchmarkReadSealed(b *testing.B) {
 	l, _ := benchLog(b, nil)

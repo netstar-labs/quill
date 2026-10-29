@@ -265,6 +265,10 @@ func (s *readerSegment) scan(fsys fsx.FS) error {
 	return s.scanErr
 }
 
+// firstFrameChunk is the read size of the active segment's first-frame probe: a frame's
+// header and a small payload, not the 64 KiB a scan starts with.
+const firstFrameChunk = 4 << 10
+
 // view reads the marker, lists the directory, and builds the segment ranges from first
 // frames (decision 47): a sealed segment's range ends where the next one starts.
 func (r *Reader) view() (*segView, func(), error) {
@@ -301,8 +305,13 @@ func (r *Reader) view() (*segView, func(), error) {
 			_ = f.Close()
 			return nil, nil, fmt.Errorf("%w: segment %d holds %d bytes, the marker says %d", ErrCorrupt, tl.Seg, size, tl.Off)
 		}
-		w := &window{r: f, size: int64(tl.Off)}
+		// One frame is decoded and only its Seq and At are kept, so the pooled buffer is
+		// returned straight away and nothing aliases it afterwards.
+		bufp := r.bufPool.Get().(*[]byte)
+		w := &window{r: f, size: int64(tl.Off), buf: (*bufp)[:0], chunk: firstFrameChunk}
 		rec, _, ferr := w.frameAt(0)
+		*bufp = w.buf[:0]
+		r.bufPool.Put(bufp)
 		if ferr != nil || rec.Seq == 0 || rec.Seq > tl.Seq {
 			_ = f.Close()
 			return nil, nil, fmt.Errorf("%w: the active segment's first frame does not decode below the marker", ErrCorrupt)
