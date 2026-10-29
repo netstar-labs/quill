@@ -324,10 +324,7 @@ func (l *Log) view() (*segView, func(), error) {
 		l.mu.Lock()
 		defer l.mu.Unlock()
 		a.readers--
-		if a.retired && a.readers == 0 && a.f != nil {
-			_ = a.f.Close()
-			a.f = nil
-		}
+		_ = a.closeIfIdle()
 	}
 	return v, release, nil
 }

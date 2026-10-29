@@ -283,6 +283,18 @@ type activeSegment struct {
 	retired    bool  // rotated out or the log closed; closed when readers reaches 0
 }
 
+// closeIfIdle closes the descriptor, once, when the segment is retired and no read is in
+// flight (decisions 43 and 95), and reports the close error. It is the one home of that rule:
+// rotation, Close and the last read's release all call it. Call it with l.mu held.
+func (a *activeSegment) closeIfIdle() error {
+	if !a.retired || a.readers > 0 || a.f == nil {
+		return nil
+	}
+	err := a.f.Close()
+	a.f = nil
+	return err
+}
+
 func (l *Log) path(name string) string { return filepath.Join(l.dir, name) }
 
 // Open opens a log for writing, creating it if the directory is new, and takes the
@@ -484,11 +496,8 @@ func (l *Log) Close() error {
 		// A reader that took its view before Close still uses a.f outside the lock: retire
 		// the segment and let the last release close it, as rotation does (decision 95).
 		a.retired = true
-		if a.readers == 0 {
-			if cerr := a.f.Close(); err == nil {
-				err = cerr
-			}
-			a.f = nil
+		if cerr := a.closeIfIdle(); err == nil {
+			err = cerr
 		}
 	}
 	if cerr := l.lock.Close(); err == nil {
