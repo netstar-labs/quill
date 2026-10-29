@@ -104,6 +104,35 @@ func TestUsageErrorsExitTwoAndHelpWorks(t *testing.T) {
 	}
 }
 
+func TestAnUnopenableDirExitsOneAndUsageErrorsStillWinExitTwo(t *testing.T) {
+	// -dir names a path under a regular file, so no verb can open it.
+	file := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bad := filepath.Join(file, "log")
+	for _, args := range [][]string{
+		{"stat"}, {"check"}, {"read"}, {"cat"}, {"tail"}, {"consumers"}, // reader verbs
+		{"register", "-name", "c"}, {"unregister", "-name", "c"}, {"commit", "-name", "c", "-offset", "1"}, // consumer verbs
+		{"append", "x"}, {"roll"}, {"prune", "-retention", "-1s"}, // writer verbs
+	} {
+		if code, _, errw := exec(t, "", append([]string{args[0], "-dir", bad}, args[1:]...)...); code != exitError {
+			t.Errorf("%v on an unopenable -dir: exit %d, want %d (%s)", args, code, exitError, errw)
+		}
+	}
+	for _, args := range [][]string{
+		{"commit", "-name", "c"},                                // neither -offset nor -time
+		{"commit", "-name", "c", "-offset", "1", "-time", "1h"}, // both
+		{"register", "-name", "c", "-protect", "-no-protect"},
+		{"unregister"}, // no -name
+		{"prune", "-retention", "bogus"},
+	} {
+		if code, _, errw := exec(t, "", append([]string{args[0], "-dir", bad}, args[1:]...)...); code != exitUsage {
+			t.Errorf("%v on an unopenable -dir: exit %d, want %d (%s)", args, code, exitUsage, errw)
+		}
+	}
+}
+
 func TestReadableOutputIsLosslessInTextAndJSON(t *testing.T) {
 	// T20.
 	all := make([]byte, 256)

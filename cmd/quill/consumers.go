@@ -10,42 +10,39 @@ import (
 )
 
 func cmdConsumers(c *cli, args []string) int {
-	r, code := c.reader()
-	if code != exitOK {
-		return code
-	}
-	defer r.Close()
-	list, err := r.Consumers()
-	if err != nil {
-		return c.errorf("%v", err)
-	}
-	head, err := r.Head()
-	if err != nil {
-		return c.errorf("%v", err)
-	}
-	if c.json {
+	return c.withReader(func(r *quill.Reader) int {
+		list, err := r.Consumers()
+		if err != nil {
+			return c.errorf("%v", err)
+		}
+		head, err := r.Head()
+		if err != nil {
+			return c.errorf("%v", err)
+		}
+		if c.json {
+			for _, ci := range list {
+				row := map[string]any{"name": ci.Name, "offset": ci.Offset, "protected": ci.Protected, "lag": lag(head, ci.Offset)}
+				if ci.Err != nil {
+					row["error"] = ci.Err.Error()
+				}
+				if code := printJSON(c, row); code != exitOK {
+					return code
+				}
+			}
+			return exitOK
+		}
+		w := tabwriter.NewWriter(c.out, 0, 8, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tOFFSET\tLAG\tPROTECTED\tNOTE")
 		for _, ci := range list {
-			row := map[string]any{"name": ci.Name, "offset": ci.Offset, "protected": ci.Protected, "lag": lag(head, ci.Offset)}
+			note := ""
 			if ci.Err != nil {
-				row["error"] = ci.Err.Error()
+				note = "error: " + ci.Err.Error()
 			}
-			if code := printJSON(c, row); code != exitOK {
-				return code
-			}
+			fmt.Fprintf(w, "%s\t%d\t%d\t%v\t%s\n", ci.Name, ci.Offset, lag(head, ci.Offset), ci.Protected, note)
 		}
+		_ = w.Flush()
 		return exitOK
-	}
-	w := tabwriter.NewWriter(c.out, 0, 8, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tOFFSET\tLAG\tPROTECTED\tNOTE")
-	for _, ci := range list {
-		note := ""
-		if ci.Err != nil {
-			note = "error: " + ci.Err.Error()
-		}
-		fmt.Fprintf(w, "%s\t%d\t%d\t%v\t%s\n", ci.Name, ci.Offset, lag(head, ci.Offset), ci.Protected, note)
-	}
-	_ = w.Flush()
-	return exitOK
+	})
 }
 
 func lag(head, offset uint64) uint64 {
@@ -70,75 +67,66 @@ func cmdCommit(c *cli, args []string) int {
 	if (c.offset == "") == (c.at == "") {
 		return c.usage("commit: exactly one of -offset and -time")
 	}
-	r, code := c.reader()
-	if code != exitOK {
-		return code
-	}
-	defer r.Close()
-	cons, code := c.consumer(r, quill.ConsumerOptions{})
-	if code != exitOK {
-		return code
-	}
-	defer cons.Close()
-	if c.at != "" {
-		t, err := parseTime(c.at, time.Now())
-		if err != nil {
-			return c.usage("-time: %v", err)
+	return c.withReader(func(r *quill.Reader) int {
+		cons, code := c.consumer(r, quill.ConsumerOptions{})
+		if code != exitOK {
+			return code
 		}
-		if err := cons.SeekToTime(t); err != nil {
-			return c.errorf("%v", err)
+		defer cons.Close()
+		if c.at != "" {
+			t, err := parseTime(c.at, time.Now())
+			if err != nil {
+				return c.usage("-time: %v", err)
+			}
+			if err := cons.SeekToTime(t); err != nil {
+				return c.errorf("%v", err)
+			}
+		} else {
+			var next uint64
+			if _, err := fmt.Sscanf(c.offset, "%d", &next); err != nil {
+				return c.usage("-offset: %v", err)
+			}
+			if err := cons.Commit(next); err != nil {
+				return c.errorf("%v", err)
+			}
 		}
-	} else {
-		var next uint64
-		if _, err := fmt.Sscanf(c.offset, "%d", &next); err != nil {
-			return c.usage("-offset: %v", err)
-		}
-		if err := cons.Commit(next); err != nil {
-			return c.errorf("%v", err)
-		}
-	}
-	fmt.Fprintf(c.out, "%s %d\n", c.name, cons.Offset())
-	return exitOK
+		fmt.Fprintf(c.out, "%s %d\n", c.name, cons.Offset())
+		return exitOK
+	})
 }
 
 func cmdRegister(c *cli, args []string) int {
 	if c.protect && c.noProt {
 		return c.usage("register: -protect and -no-protect exclude each other")
 	}
-	r, code := c.reader()
-	if code != exitOK {
-		return code
-	}
-	defer r.Close()
-	opts := quill.ConsumerOptions{}
-	switch {
-	case c.protect:
-		opts.Protect = quill.ProtectOn
-	case c.noProt:
-		opts.Protect = quill.ProtectOff
-	}
-	cons, code := c.consumer(r, opts)
-	if code != exitOK {
-		return code
-	}
-	defer cons.Close()
-	fmt.Fprintf(c.out, "%s %d protected=%v\n", c.name, cons.Offset(), cons.Protected())
-	return exitOK
+	return c.withReader(func(r *quill.Reader) int {
+		opts := quill.ConsumerOptions{}
+		switch {
+		case c.protect:
+			opts.Protect = quill.ProtectOn
+		case c.noProt:
+			opts.Protect = quill.ProtectOff
+		}
+		cons, code := c.consumer(r, opts)
+		if code != exitOK {
+			return code
+		}
+		defer cons.Close()
+		fmt.Fprintf(c.out, "%s %d protected=%v\n", c.name, cons.Offset(), cons.Protected())
+		return exitOK
+	})
 }
 
 func cmdUnregister(c *cli, args []string) int {
 	if c.name == "" {
 		return c.usage("-name is required")
 	}
-	r, code := c.reader()
-	if code != exitOK {
-		return code
-	}
-	defer r.Close()
-	if err := r.DeleteConsumer(c.name); err != nil {
-		return c.errorf("%v", err)
-	}
-	return exitOK
+	return c.withReader(func(r *quill.Reader) int {
+		if err := r.DeleteConsumer(c.name); err != nil {
+			return c.errorf("%v", err)
+		}
+		return exitOK
+	})
 }
 
 func cmdArchive(c *cli, args []string) int {

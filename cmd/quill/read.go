@@ -15,12 +15,15 @@ import (
 	"github.com/netstar-labs/quill"
 )
 
-func (c *cli) reader() (*quill.Reader, int) {
+// withReader opens the log read-only, runs fn, and closes the reader. A verb checks its
+// usage before calling it, so a bad flag still exits 2 when -dir cannot be opened.
+func (c *cli) withReader(fn func(r *quill.Reader) int) int {
 	r, err := quill.OpenReader(c.dir, quill.ReaderOptions{})
 	if err != nil {
-		return nil, c.errorf("%v", err)
+		return c.errorf("%v", err)
 	}
-	return r, exitOK
+	defer r.Close()
+	return fn(r)
 }
 
 func cmdLs(c *cli, args []string) int {
@@ -67,24 +70,21 @@ func cmdLs(c *cli, args []string) int {
 }
 
 func cmdStat(c *cli, args []string) int {
-	r, code := c.reader()
-	if code != exitOK {
-		return code
-	}
-	defer r.Close()
-	st, err := r.Stat()
-	if err != nil {
-		return c.errorf("%v", err)
-	}
-	if c.json {
-		return printJSON(c, map[string]any{"head": st.Head, "first": st.First, "segments": st.Segments, "bytes": st.Bytes,
-			"records": st.Records, "holes": st.Holes, "marker_age_seconds": st.MarkerAge.Seconds()})
-	}
-	fmt.Fprintf(c.out, "head %d\nfirst %d\nrecords %d\nsegments %d\nbytes %d\nmarker age %s\n", st.Head, st.First, st.Records, st.Segments, st.Bytes, st.MarkerAge.Round(time.Millisecond))
-	for _, h := range st.Holes {
-		fmt.Fprintf(c.out, "hole %d-%d\n", h.From, h.To)
-	}
-	return exitOK
+	return c.withReader(func(r *quill.Reader) int {
+		st, err := r.Stat()
+		if err != nil {
+			return c.errorf("%v", err)
+		}
+		if c.json {
+			return printJSON(c, map[string]any{"head": st.Head, "first": st.First, "segments": st.Segments, "bytes": st.Bytes,
+				"records": st.Records, "holes": st.Holes, "marker_age_seconds": st.MarkerAge.Seconds()})
+		}
+		fmt.Fprintf(c.out, "head %d\nfirst %d\nrecords %d\nsegments %d\nbytes %d\nmarker age %s\n", st.Head, st.First, st.Records, st.Segments, st.Bytes, st.MarkerAge.Round(time.Millisecond))
+		for _, h := range st.Holes {
+			fmt.Fprintf(c.out, "hole %d-%d\n", h.From, h.To)
+		}
+		return exitOK
+	})
 }
 
 // start resolves -from and -since to the first sequence to print.
@@ -113,16 +113,13 @@ func (c *cli) start(r *quill.Reader) (uint64, int) {
 func cmdRead(c *cli, args []string) int { return printFrom(c) }
 
 func printFrom(c *cli) int {
-	r, code := c.reader()
-	if code != exitOK {
-		return code
-	}
-	defer r.Close()
-	from, code := c.start(r)
-	if code != exitOK {
-		return code
-	}
-	return printRecords(c, r, from, false)
+	return c.withReader(func(r *quill.Reader) int {
+		from, code := c.start(r)
+		if code != exitOK {
+			return code
+		}
+		return printRecords(c, r, from, false)
+	})
 }
 
 // printRecords prints from `from`, stopping at the limit, a gap, or the end (or never with
@@ -159,62 +156,57 @@ func printRecords(c *cli, r *quill.Reader, from uint64, follow bool) int {
 }
 
 func cmdTail(c *cli, args []string) int {
-	r, code := c.reader()
-	if code != exitOK {
-		return code
-	}
-	defer r.Close()
-	var from uint64
-	if c.since != "" || c.from > 0 {
-		from, code = c.start(r)
-		if code != exitOK {
-			return code
+	return c.withReader(func(r *quill.Reader) int {
+		var from uint64
+		if c.since != "" || c.from > 0 {
+			var code int
+			from, code = c.start(r)
+			if code != exitOK {
+				return code
+			}
+		} else {
+			st, err := r.Stat()
+			if err != nil {
+				return c.errorf("%v", err)
+			}
+			from = max(st.Head+1-min(c.n, st.Head), st.First)
 		}
-	} else {
-		st, err := r.Stat()
-		if err != nil {
-			return c.errorf("%v", err)
-		}
-		from = max(st.Head+1-min(c.n, st.Head), st.First)
-	}
-	return printRecords(c, r, from, c.follow)
+		return printRecords(c, r, from, c.follow)
+	})
 }
 
 func cmdCheck(c *cli, args []string) int {
-	r, code := c.reader()
-	if code != exitOK {
-		return code
-	}
-	defer r.Close()
-	res, err := r.Check()
-	if err != nil {
-		return c.errorf("%v", err)
-	}
-	status := "HEALTHY"
-	if !res.Healthy {
-		status = "UNHEALTHY"
-	}
-	if c.json {
-		problems := []map[string]any{}
-		for _, p := range res.Problems {
-			problems = append(problems, map[string]any{"kind": p.Kind, "path": p.Path, "offset": p.Offset, "intact": p.Intact, "detail": p.Detail, "fatal": p.Fatal})
+	return c.withReader(func(r *quill.Reader) int {
+		res, err := r.Check()
+		if err != nil {
+			return c.errorf("%v", err)
 		}
-		if code := printJSON(c, map[string]any{"status": status, "unbounded": res.Unbounded, "problems": problems}); code != exitOK {
-			return code
+		status := "HEALTHY"
+		if !res.Healthy {
+			status = "UNHEALTHY"
 		}
-	} else {
-		fmt.Fprintln(c.out, status)
-		if res.Unbounded {
-			fmt.Fprintln(c.out, "UNBOUNDED: neither MaxBytes nor MinFreeBytes is set; a fast writer can fill the disk")
+		if c.json {
+			problems := []map[string]any{}
+			for _, p := range res.Problems {
+				problems = append(problems, map[string]any{"kind": p.Kind, "path": p.Path, "offset": p.Offset, "intact": p.Intact, "detail": p.Detail, "fatal": p.Fatal})
+			}
+			if code := printJSON(c, map[string]any{"status": status, "unbounded": res.Unbounded, "problems": problems}); code != exitOK {
+				return code
+			}
+		} else {
+			fmt.Fprintln(c.out, status)
+			if res.Unbounded {
+				fmt.Fprintln(c.out, "UNBOUNDED: neither MaxBytes nor MinFreeBytes is set; a fast writer can fill the disk")
+			}
+			for _, p := range res.Problems {
+				fmt.Fprintln(c.out, p.String())
+			}
 		}
-		for _, p := range res.Problems {
-			fmt.Fprintln(c.out, p.String())
+		if !res.Healthy {
+			return exitUnhealthy
 		}
-	}
-	if !res.Healthy {
-		return exitUnhealthy
-	}
-	return exitOK
+		return exitOK
+	})
 }
 
 // parseTime accepts RFC 3339, "@<unix seconds>", or a duration meaning that long ago.

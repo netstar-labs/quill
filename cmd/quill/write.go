@@ -10,8 +10,9 @@ import (
 	"github.com/netstar-labs/quill"
 )
 
-// writer opens the log writable for an offline tool: no background maintenance (decision 68).
-func (c *cli) writer(cfg quill.Config) (*quill.Log, int) {
+// openWriter opens the log writable for an offline tool: no background maintenance
+// (decision 68). The caller closes it.
+func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 	cfg.Dir = c.dir
 	cfg.NoMaintenance = true
 	l, err := quill.Open(cfg)
@@ -24,42 +25,50 @@ func (c *cli) writer(cfg quill.Config) (*quill.Log, int) {
 	return l, exitOK
 }
 
-func cmdAppend(c *cli, args []string) int {
-	l, code := c.writer(quill.Config{Retention: -1})
+// withWriter opens the log writable, runs fn, and closes the log, discarding Close's
+// error; cmdRecover reports it and so uses openWriter directly.
+func (c *cli) withWriter(cfg quill.Config, fn func(l *quill.Log) int) int {
+	l, code := c.openWriter(cfg)
 	if code != exitOK {
 		return code
 	}
 	defer l.Close()
-	var payloads [][]byte
-	if len(args) > 0 {
-		for _, a := range args {
-			payloads = append(payloads, []byte(a))
+	return fn(l)
+}
+
+func cmdAppend(c *cli, args []string) int {
+	return c.withWriter(quill.Config{Retention: -1}, func(l *quill.Log) int {
+		var payloads [][]byte
+		if len(args) > 0 {
+			for _, a := range args {
+				payloads = append(payloads, []byte(a))
+			}
+		} else {
+			sc := bufio.NewScanner(c.in)
+			sc.Buffer(make([]byte, 1<<20), quill.MaxPayloadBytes)
+			for sc.Scan() {
+				payloads = append(payloads, append([]byte(nil), sc.Bytes()...))
+			}
+			if err := sc.Err(); err != nil {
+				return c.errorf("stdin: %v", err)
+			}
 		}
-	} else {
-		sc := bufio.NewScanner(c.in)
-		sc.Buffer(make([]byte, 1<<20), quill.MaxPayloadBytes)
-		for sc.Scan() {
-			payloads = append(payloads, append([]byte(nil), sc.Bytes()...))
+		if len(payloads) == 0 {
+			return c.usage("append: nothing to append")
 		}
-		if err := sc.Err(); err != nil {
-			return c.errorf("stdin: %v", err)
-		}
-	}
-	if len(payloads) == 0 {
-		return c.usage("append: nothing to append")
-	}
-	first, err := l.AppendBatch(payloads)
-	if err != nil {
-		return c.errorf("%v", err)
-	}
-	last := first + uint64(len(payloads)) - 1
-	if c.sync {
-		if err := l.Sync(context.Background(), last); err != nil {
+		first, err := l.AppendBatch(payloads)
+		if err != nil {
 			return c.errorf("%v", err)
 		}
-	}
-	fmt.Fprintf(c.out, "%d\n", last)
-	return exitOK
+		last := first + uint64(len(payloads)) - 1
+		if c.sync {
+			if err := l.Sync(context.Background(), last); err != nil {
+				return c.errorf("%v", err)
+			}
+		}
+		fmt.Fprintf(c.out, "%d\n", last)
+		return exitOK
+	})
 }
 
 func cmdPrune(c *cli, args []string) int {
@@ -92,37 +101,31 @@ func cmdPrune(c *cli, args []string) int {
 			return c.usage("-consumer-ttl: %v", err)
 		}
 	}
-	l, code := c.writer(cfg)
-	if code != exitOK {
-		return code
-	}
-	defer l.Close()
-	before, _ := l.Stat()
-	if err := l.Prune(c.force); err != nil {
-		return c.errorf("%v", err)
-	}
-	after, err := l.Stat()
-	if err != nil {
-		return c.errorf("%v", err)
-	}
-	fmt.Fprintf(c.out, "segments %d -> %d, bytes %d -> %d, first %d -> %d\n", before.Segments, after.Segments, before.Bytes, after.Bytes, before.First, after.First)
-	return exitOK
+	return c.withWriter(cfg, func(l *quill.Log) int {
+		before, _ := l.Stat()
+		if err := l.Prune(c.force); err != nil {
+			return c.errorf("%v", err)
+		}
+		after, err := l.Stat()
+		if err != nil {
+			return c.errorf("%v", err)
+		}
+		fmt.Fprintf(c.out, "segments %d -> %d, bytes %d -> %d, first %d -> %d\n", before.Segments, after.Segments, before.Bytes, after.Bytes, before.First, after.First)
+		return exitOK
+	})
 }
 
 func cmdRoll(c *cli, args []string) int {
-	l, code := c.writer(quill.Config{Retention: -1})
-	if code != exitOK {
-		return code
-	}
-	defer l.Close()
-	if err := l.Roll(); err != nil {
-		return c.errorf("%v", err)
-	}
-	return exitOK
+	return c.withWriter(quill.Config{Retention: -1}, func(l *quill.Log) int {
+		if err := l.Roll(); err != nil {
+			return c.errorf("%v", err)
+		}
+		return exitOK
+	})
 }
 
 func cmdRecover(c *cli, args []string) int {
-	l, code := c.writer(quill.Config{Retention: -1})
+	l, code := c.openWriter(quill.Config{Retention: -1})
 	if code != exitOK {
 		return code
 	}
