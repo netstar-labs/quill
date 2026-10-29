@@ -317,13 +317,14 @@ func (l *Log) mkdirAll(dir string) error {
 }
 
 // create decides whether the directory is a new log and, if so, creates it; it also finishes
-// an interrupted creation. The lock is held.
+// an interrupted creation: whichever of consumers/, the first segment and quill.tail is
+// missing is created, when the log holds no segments and no non-zero marker. The lock is held.
 func (l *Log) create() error {
 	names, err := l.fs.ReadDir(l.dir)
 	if err != nil {
 		return err
 	}
-	hasFormat, hasTail, other := false, false, false
+	hasFormat, hasTail, hasSegment, hasConsumers, other := false, false, false, false, false
 	for _, n := range names {
 		switch {
 		case n == lockName, strings.HasPrefix(n, tempPrefix):
@@ -331,15 +332,20 @@ func (l *Log) create() error {
 			hasFormat = true
 		case n == tailName:
 			hasTail = true
+		case n == consumersDir:
+			hasConsumers = true
 		default:
-			other = true
+			if _, ok := parseSegmentName(n); ok {
+				hasSegment = true
+			} else {
+				other = true
+			}
 		}
 	}
 	switch {
-	case hasFormat && hasTail:
-		return nil
-	case !hasFormat && !other && !hasTail:
-		// New.
+	case !hasFormat && !other && !hasTail && !hasSegment && !hasConsumers:
+		// New. The marker is made durable before anything else exists, so no crash can leave
+		// a segment or consumers/ without it (decision 81).
 		id, err := newLogID()
 		if err != nil {
 			return err
@@ -347,17 +353,31 @@ func (l *Log) create() error {
 		if err := writeState(l.fs, l.path(formatName), encodeFormat(id), l.cfg.Perm); err != nil {
 			return err
 		}
+		if err := l.fs.SyncDir(l.dir); err != nil {
+			return err
+		}
 	case !hasFormat:
 		return fmt.Errorf("%w: %s holds files but no %s", ErrNoLog, l.dir, formatName)
 	}
-	// Interrupted creation (quill.format exists, quill.tail does not): finish it, unless the
-	// directory holds frames, which load will refuse.
-	if err := l.fs.Mkdir(l.path(consumersDir), l.cfg.dirPerm()); err != nil && !errors.Is(err, fs.ErrExist) {
-		return err
+	changed := false
+	if !hasConsumers {
+		if err := l.fs.Mkdir(l.path(consumersDir), l.cfg.dirPerm()); err != nil {
+			return err
+		}
+		changed = true
 	}
-	first := l.path(segmentName(0))
-	if _, err := l.fs.Lstat(first); errors.Is(err, fs.ErrNotExist) {
-		f, err := l.fs.OpenFile(first, fsx.O_RDWR|fsx.O_CREATE|fsx.O_EXCL, l.cfg.Perm)
+	if !hasSegment {
+		// No segment at all: an interrupted creation, unless the marker says records existed.
+		if hasTail {
+			data, err := readState(l.fs, l.path(tailName))
+			if err != nil {
+				return err
+			}
+			if tl, err := decodeTail(data); err != nil || tl != (tail{}) {
+				return fmt.Errorf("%w: no segment files", ErrCorrupt)
+			}
+		}
+		f, err := l.fs.OpenFile(l.path(segmentName(0)), fsx.O_RDWR|fsx.O_CREATE|fsx.O_EXCL, l.cfg.Perm)
 		if err != nil {
 			return err
 		}
@@ -368,15 +388,32 @@ func (l *Log) create() error {
 		if err := f.Close(); err != nil {
 			return err
 		}
-	} else if err != nil {
-		return err
+		changed = true
 	}
 	if !hasTail {
+		// Without a marker the directory is an interrupted creation only if no segment holds
+		// a byte (decision 62).
+		for _, n := range names {
+			if _, ok := parseSegmentName(n); !ok {
+				continue
+			}
+			info, err := l.fs.Lstat(l.path(n))
+			if err != nil {
+				return err
+			}
+			if info.Size() > 0 {
+				return fmt.Errorf("%w: segments with frames but no %s", ErrCorrupt, tailName)
+			}
+		}
 		if err := writeState(l.fs, l.path(tailName), encodeTail(tail{}), l.cfg.Perm); err != nil {
 			return err
 		}
+		changed = true
 	}
-	return l.fs.SyncDir(l.dir)
+	if changed {
+		return l.fs.SyncDir(l.dir)
+	}
+	return nil
 }
 
 // Close flushes, publishes the marker, fsyncs the directory, releases the lock and returns

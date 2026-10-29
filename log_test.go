@@ -89,7 +89,7 @@ func TestANewerFormatMarkerAndSegmentsWithoutOneAreRefused(t *testing.T) {
 	}
 }
 
-func TestACrashAtEveryStepOfCreationLeavesADirectoryOpenCompletesOrRefusesNeverAnotherLog(t *testing.T) {
+func TestACrashAtEveryStepOfCreationLeavesADirectoryOpenCompletesNeverAnotherLog(t *testing.T) {
 	for at := 1; ; at++ {
 		s := fsx.NewSim()
 		count := 0
@@ -120,10 +120,7 @@ func TestACrashAtEveryStepOfCreationLeavesADirectoryOpenCompletesOrRefusesNeverA
 		}
 		l2, err := Open(simConfig(s, "/log"))
 		if err != nil {
-			if !errors.Is(err, ErrNoLog) && !errors.Is(err, ErrCorrupt) {
-				t.Fatalf("crash at op %d: reopen: %v", at, err)
-			}
-			continue
+			t.Fatalf("crash at op %d: reopen: %v", at, err)
 		}
 		if seenID != "" && l2.ID() != seenID {
 			t.Fatalf("crash at op %d: reopened as %s, a reader saw %s", at, l2.ID(), seenID)

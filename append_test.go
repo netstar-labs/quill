@@ -75,9 +75,6 @@ func TestABatchOverMaxBatchBytesAndAPayloadOverMaxPayloadBytesAreRefused(t *test
 }
 
 func TestARecordOfExactlyMaxPayloadBytesIsWrittenRecoveredAndRead(t *testing.T) {
-	if testing.Short() {
-		t.Skip("a 64 MiB record")
-	}
 	dir := t.TempDir()
 	l := openDir(t, dir, func(c *Config) { c.SegmentBytes = 1 << 30 })
 	payload := bytes.Repeat([]byte{0xab}, MaxPayloadBytes)
