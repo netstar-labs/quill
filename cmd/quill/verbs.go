@@ -44,8 +44,9 @@ type cli struct {
 	maxRecords, ttl                    string
 }
 
+// errorf prints one "quill: " prefix: the library's errors already begin with it.
 func (c *cli) errorf(format string, args ...any) int {
-	fmt.Fprintf(c.err, "quill: "+format+"\n", args...)
+	fmt.Fprintf(c.err, "quill: %s\n", strings.TrimPrefix(fmt.Sprintf(format, args...), "quill: "))
 	return exitError
 }
 

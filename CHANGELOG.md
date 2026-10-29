@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: every `quill` error that came from the library printed a doubled prefix (`quill: quill: ...`); it now
+  prints one. A `quill commit` that fails no longer leaves behind the consumer it had just created (the empty
+  lock file stays, as for any consumer); a successful commit on a new name still registers it, now stated in
+  the user guide.
+
 - Fixed: `hack/gate.sh` printed `OK: gate green` even when `FUZZTIME=0` had skipped the fuzz step. It now ends with
   `PARTIAL: fuzz skipped`; the exit status is unchanged (0). The README gate summary now lists the no-require and
   unsupported-platform steps.

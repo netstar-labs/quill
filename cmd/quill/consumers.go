@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"text/tabwriter"
 	"time"
 
@@ -84,16 +85,25 @@ func cmdCommit(c *cli, args []string) int {
 		next = n
 	}
 	return c.withReader(func(r *quill.Reader) int {
+		// Only a consumer this command is sure it created is removed again on failure: if the
+		// listing fails, assume the consumer existed.
+		known, lerr := r.Consumers()
 		cons, code := c.consumer(r, quill.ConsumerOptions{})
 		if code != exitOK {
 			return code
 		}
 		defer cons.Close()
+		var err error
 		if c.at != "" {
-			if err := cons.SeekToTime(at); err != nil {
-				return c.errorf("%v", err)
+			err = cons.SeekToTime(at)
+		} else {
+			err = cons.Commit(next)
+		}
+		if err != nil {
+			if lerr == nil && !slices.ContainsFunc(known, func(ci quill.ConsumerInfo) bool { return ci.Name == c.name }) {
+				_ = cons.Close() // release the lock before removing the file
+				_ = r.DeleteConsumer(c.name)
 			}
-		} else if err := cons.Commit(next); err != nil {
 			return c.errorf("%v", err)
 		}
 		fmt.Fprintf(c.out, "%s %d\n", c.name, cons.Offset())

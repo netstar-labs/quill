@@ -96,7 +96,8 @@ err = c.Close()
   at-most-once. Exactly-once needs processing that is idempotent on `Seq`.
 - `ErrWrongLog`: the consumer file belongs to another log (the log was recreated).
   `ErrAhead`: the offset is above `Head + 1` (the log was restored to an older state); rewind
-  it deliberately with `quill commit`.
+  it deliberately with `quill commit`. `quill commit` registers the consumer when the name is
+  new, so a mistyped `-name` creates one; a commit that fails leaves no new consumer behind.
 - `DeleteConsumer(name)` removes the offset file; the lock file stays for good.
 
 **Protection.** A consumer opened with `Protect: quill.ProtectOn` (or `quill register
