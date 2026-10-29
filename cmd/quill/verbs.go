@@ -24,6 +24,8 @@ type verb struct {
 	summary string
 	lock    string // "log", "consumer" or "none": what the verb takes (decision 53)
 	dirDoc  string // the -dir meaning in help and the reference; empty: "the log directory"
+	noDir   bool   // runs without -dir, and has no flags of its own to document
+	hidden  bool   // left out of the help list and the reference
 	flags   func(fs *flag.FlagSet, c *cli)
 	run     func(c *cli, args []string) int
 }
@@ -113,10 +115,10 @@ func init() {
 			run:   cmdArchive},
 		{name: "recover", summary: "open the log writable, which repairs a torn tail and republishes quill.tail, then close it", lock: "log",
 			run: cmdRecover},
-		{name: "help", summary: "print this list, or a verb's flags", lock: "none", run: cmdHelp},
-		{name: "version", summary: "print the version", lock: "none",
+		{name: "help", summary: "print this list, or a verb's flags", lock: "none", noDir: true, run: cmdHelp},
+		{name: "version", summary: "print the version", lock: "none", noDir: true,
 			run: func(c *cli, args []string) int { fmt.Fprintln(c.out, "quill", version); return exitOK }},
-		{name: "reference", summary: "print docs/reference.md", lock: "none", run: cmdReference},
+		{name: "reference", summary: "print docs/reference.md", lock: "none", noDir: true, hidden: true, run: cmdReference},
 	}
 }
 
@@ -190,7 +192,7 @@ func dispatch(args []string, in io.Reader, out, errw io.Writer) int {
 		}
 		return c.usage("%s: %v", v.name, err)
 	}
-	if v.name != "help" && v.name != "version" && v.name != "reference" && c.dir == "" {
+	if !v.noDir && c.dir == "" {
 		return c.usage("%s: -dir is required", v.name)
 	}
 	return v.run(c, fs.Args())
@@ -227,7 +229,7 @@ func cmdHelp(c *cli, args []string) int {
 	fmt.Fprintln(c.out)
 	w := tabwriter.NewWriter(c.out, 0, 8, 2, ' ', 0)
 	for _, v := range verbs {
-		if v.name == "reference" {
+		if v.hidden {
 			continue
 		}
 		fmt.Fprintf(w, "  %s\t%s\n", v.name, v.summary)
@@ -267,13 +269,13 @@ func cmdReference(c *cli, args []string) int {
 	fmt.Fprintln(c.out, "| Verb | Lock | Summary |")
 	fmt.Fprintln(c.out, "|---|---|---|")
 	for _, v := range verbs {
-		if v.name == "reference" {
+		if v.hidden {
 			continue
 		}
 		fmt.Fprintf(c.out, "| `%s` | %s | %s |\n", v.name, v.lock, v.summary)
 	}
 	for _, v := range verbs {
-		if v.name == "reference" || v.name == "help" || v.name == "version" {
+		if v.hidden || v.noDir {
 			continue
 		}
 		fmt.Fprintf(c.out, "\n## `quill %s`\n\n%s.\n\nLock: %s.\n", v.name, strings.ToUpper(v.summary[:1])+v.summary[1:], lockText(v.lock))
