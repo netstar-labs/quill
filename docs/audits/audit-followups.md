@@ -24,15 +24,6 @@ approve the snapshot variant (record the targets before `publishLocked`, delete 
 leading run of `l.sealed` still in the set); four regression tests in a new
 retention_reentrancy_test.go.
 
-### correctness-22: `Close` nils the active descriptor under a pinned reader (sev:major)
-
-log.go:467-472 ignores `l.active.readers`; a `Read`/`Follow`/`Seek`/`Archive` whose view was
-taken before `Close` dereferences nil at load.go:121. Reproduced three times, also under
-`-race`. Why owner: the fix lets a read-only descriptor outlive `Close` until the last in-flight
-reader releases it (as rotation already does under decision 43), a behaviour change the finder
-flagged. Recommended: approve (`if l.active.readers > 0 { l.active.retired = true } else { close
-}`); the regression test runs under `-race`.
-
 ### simplify-1: a Reader panics on a sealed segment whose first frame carries seq 0 (sev:major)
 
 reader.go:204-206 calls `reason(ferr)` with `ferr == nil` when the frame is CRC-valid and seq 0;
@@ -122,6 +113,18 @@ contradicts decision 46. Recommended: restate the bound as `MaxBytes + SegmentBy
 MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes + 34)` at scope.md:239, :347,
 userguide.md:152 and decision 69, and say at scope.md:119 / append.go:17-18 that a single record
 is bounded by `MaxPayloadBytes` alone.
+
+## Applied
+
+### correctness-22: `Close` nils the active descriptor under a pinned reader (applied)
+
+Decision taken: approved as recommended (decision 95). `Close` retires the active segment and
+closes its descriptor at once only when no reader holds it; otherwise the last reader's release
+closes it, as rotation already does. A read in flight at `Close` finishes (or returns
+`ErrClosed` if it began after); it never dereferences nil. The lock file is still released in
+`Close` (decision 53). Regression tests in close_pinned_test.go: a stalled `Read` pinned on a
+sealed and on the active segment while `Close` runs, with no panic and `OpenFiles() == 0`
+afterwards.
 
 ## Deferred (one issue)
 

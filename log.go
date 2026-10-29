@@ -269,8 +269,8 @@ type activeSegment struct {
 	at         int64
 	lastAt     int64
 	nextAnchor int64 // the byte position at or after which the next anchor is taken
-	readers    int   // reads in progress on f (so rotation does not close it under them)
-	retired    bool  // rotated out; closed when readers reaches 0
+	readers    int   // reads in progress on f (so rotation and Close do not close it under them)
+	retired    bool  // rotated out or the log closed; closed when readers reaches 0
 }
 
 func (l *Log) path(name string) string { return filepath.Join(l.dir, name) }
@@ -467,11 +467,16 @@ func (l *Log) Close() error {
 	if serr := l.fs.SyncDir(l.dir); err == nil {
 		err = serr
 	}
-	if l.active != nil && l.active.f != nil {
-		if cerr := l.active.f.Close(); err == nil {
-			err = cerr
+	if a := l.active; a != nil && a.f != nil {
+		// A reader that took its view before Close still uses a.f outside the lock: retire
+		// the segment and let the last release close it, as rotation does (decision 95).
+		a.retired = true
+		if a.readers == 0 {
+			if cerr := a.f.Close(); err == nil {
+				err = cerr
+			}
+			a.f = nil
 		}
-		l.active.f = nil
 	}
 	if cerr := l.lock.Close(); err == nil {
 		err = cerr

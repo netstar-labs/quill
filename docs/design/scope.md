@@ -53,7 +53,7 @@ It is not a message broker: no network protocol, no replication, no consumer gro
 
 | Call | Purpose |
 |---|---|
-| `Open(Config) (*Log, error)` / `(*Log).Close()` | Open (taking the directory lock) and flush-and-stop; `Close` returns the final flush's error |
+| `Open(Config) (*Log, error)` / `(*Log).Close()` | Open (taking the directory lock) and flush-and-stop; `Close` returns the final flush's error; a read in flight at `Close` finishes, and later calls return `ErrClosed` |
 | `Append(payload)` / `AppendBatch(payloads)` | Buffer records; durable after the next flush. A batch is one lock acquisition and lands in one segment |
 | `Flush()` | Write buffered records, fsync, then publish `quill.tail` |
 | `Read(offset, limit)` | Flushed records with `seq >= offset`, ascending, payloads copied: at most `limit` records and `MaxReadBytes` of payload, but always at least one if available. Returns a `*GapError` where records are unavailable (decision 38) |
