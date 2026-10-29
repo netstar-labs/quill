@@ -31,8 +31,8 @@ sockets, no dependencies. Closer to "the SQLite of commit logs" than to a lightw
   [build prompt](docs/design/build-prompt.md) (how the build runs, phase by phase).
 - **Format**: [docs/format.md](docs/format.md), the normative on-disk format, frozen by golden
   tests.
-- **Audits**: [docs/audits/](docs/audits/), what the tests cannot show and why, the test ledger,
-  and the benchmark baselines.
+- **Audits**: [docs/audits/](docs/audits/): the test ledger, what the tests cannot show and why,
+  the benchmark baselines, the real power-loss runs, and the self-review before the audit.
 - **Start here**: [introduction](docs/introduction.md), [executive summary](docs/executive-summary.md).
 - **Deep dive**: [architecture](docs/architecture.md).
 - **Operations**: [user guide](docs/userguide.md), the generated [command reference](docs/reference.md).

@@ -46,7 +46,9 @@ the machine running the tests.
 
 ### An OS crash on a real machine (needs: a machine you can cut power to)
 
-Everything above still holds. Phases 2 and 3 tested the crash property with a crash injected
+**Partly done**: a Linux server was rebooted without sync (`sysrq b`) under a running
+writer; see [power-loss.md](power-loss.md). What a disk's own write cache does on a true
+power cut remains untested. Everything above still holds. Phases 2 and 3 tested the crash property with a crash injected
 before every file operation of two scenarios, under every subset of surviving items when
 few are unsynced and a sample otherwise, and under a real `SIGKILL` of a writer process. The
 `SIGKILL` runs show that nothing the writer acknowledged is lost when the page cache survives;

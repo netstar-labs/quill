@@ -198,12 +198,12 @@ Three separate things, easy to confuse:
 | **Consumer protection** (`Protect`) | **Retention only**: whether age-based pruning may delete segments a protected consumer has not read | It has no effect on whether a write survives a crash |
 
 To make a write durable, the producer calls `Flush` (or `AppendBatch` then `Flush`) and treats the record as
-safe only when it returns. That is the cost: a flush is an fsync, so one record per flush is slow and batches
-amortise it. **Measured** on the reference implementation at one lane ([review.md](review.md); library level,
-512-record batches, one producer): about 25 K records/s on a macOS host and about 190–220 K records/s in a
-Linux container, whose fsync is much cheaper (whether it reaches the physical disk is not known); the
-reference's own one-record-per-flush benchmark took 20.6–22.1 ms per record on the host (**reported**), about
-45–48 records/s. Shortening `FlushInterval` narrows the window for callers that do not flush explicitly; it
+safe only when it returns. That is the cost: a flush is two fsyncs (the data and the marker), so one record per
+flush is slow and batches amortise it. **Measured** on quill's build machine (macOS, Apple silicon, APFS;
+[audits/benchmark-baselines.md](../audits/benchmark-baselines.md)): about 10 ms per flush, so about 100
+durable records/s for one record per flush and about 50 K records/s with 512-record batches; a Linux server
+with a cheaper `fsync` is several times faster (whether its fsync reaches the physical disk is not known).
+Shortening `FlushInterval` narrows the window for callers that do not flush explicitly; it
 does not close it. A crash loses at most the unflushed suffix and never a middle (guarantee 3); consumers and
 readers never see that suffix (guarantee 2).
 
@@ -245,9 +245,9 @@ configured with only `Retention` can fill a disk; `quill check` and `quill ls` m
 
 **Knowing the size.** Disk use is measured, not estimated: `Stat().Bytes` is the sum of the log's segment sizes
 and `Stat().Records` is `Head − first retained sequence + 1`, exact because sequences are contiguous
-(decision 10). **Verified** on the reference at one lane: its byte count equalled the bytes of the segment
-files on disk at payloads of 10 B, 128 B, 1 KiB and 16 KiB, and framing added 13.9, 15.9, 15.9 and 17.9 bytes
-per record (200,000 records each). So for planning, `bytes ≈ records × (average payload + about 16)`, and
+(decision 10). **Verified** in quill's tests (T17): the byte count equals the bytes of the segment files on
+disk across rotations, deletions and a crash. Framing is the length prefix, three varints and the CRC: about
+14 to 18 bytes per record (the baselines' 128-byte records cost 145 bytes each). So for planning, `bytes ≈ records × (average payload + about 16)`, and
 `MaxBytes ≈ target records × (average payload + 16)`; the overhead creeps up a few bytes as sequence numbers
 grow, because they are varints. A record count alone does not bound disk unless record size is bounded, so
 `MaxRecords` caps the count and `MaxBytes` caps the bytes, and the worst case under `MaxRecords` is
@@ -360,9 +360,10 @@ Quill changes shape, not speed. Phase 4 records a baseline for each benchmark �
 flush per call, read from the start, read near the tail, read of sealed segments, `ReadWait`, cold start, and
 two new ones (several logs flushing in parallel, a `Reader` following a live writer) — on one machine, six
 runs, in `docs/audits/benchmark-baselines.md`. A later release may not regress one beyond run-to-run noise.
-For orientation, the reference at one lane measured `Read(limit 100)` at about 11–19 µs and a full `ScanAll`
-at about 36 M records/s over 400 K warm records on an Apple-silicon laptop. Quill adds a marker write and fsync to
-every flush, so durable-write throughput is expected to be lower than the reference's; the baselines state that cost. Read cost does not grow with backlog: segments below the offset are skipped without being opened, the
+The recorded baselines on the build machine: `Read(limit 100)` at about 23–39 µs depending on the segment,
+a full `ScanAll` at about 21 M records/s over 400 K warm records, and a `Reader` draining a backlog at about
+16 M records/s. The marker write and fsync on every flush, which the reference did not have, is about half
+of a flush's 10 ms on macOS; the baselines state that cost. Read cost does not grow with backlog: segments below the offset are skipped without being opened, the
 sparse index seeks within a segment, and a read stops after `limit` records. `Commit` now writes a file (one fsync per commit), so consumers commit per batch.
 
 ### Platforms
