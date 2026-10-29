@@ -59,39 +59,60 @@ the overlap the device allows; this device allows little.
 
 ## Linux, a virtual server, 2026-10-28
 
-Debian 13, Linux 6.12.113, 4 vCPUs, ext4 on a virtual disk, Go 1.27.3, the same commit. Not
+Debian 13, Linux 6.12.113, 4 vCPUs, 8 GiB, ext4 (`data=ordered`) on a virtual disk, Go
+1.27.3, the same commit, with the temporary directory on the disk (the server's `/tmp` is a
+tmpfs, and a first run there measured memory, not a disk; those figures are discarded). Not
 the baseline machine (the regression rule applies to the macOS table); recorded because the
-cost of an fsync differs by two orders of magnitude between the two, and the read figures
-show what a slower CPU does. Whether this disk's `fsync` reaches anything persistent is not
-known.
+cost of an fsync differs by an order of magnitude between the two and because this machine
+can hold a backlog larger than its memory. Whether the virtual disk's `fsync` reaches anything
+persistent is not known.
 
 | Benchmark | Median ns/op | Range (min–max) | Runs | Median B/op | Median allocs/op | Other |
 |---|---|---|---|---|---|---|
-| `BenchmarkAppendBuffered` | 674 | 391–2,294 | 6 | 2 | 0 | 195.64 MB/s |
-| `BenchmarkAppendFlushEach` | 33,980 | 32,604–47,727 | 6 | 992 | 14 | 3.77 MB/s |
-| `BenchmarkAppendBatchSync` | 185,179 | 149,353–260,957 | 6 | 1,130 | 14 | 359.96 MB/s |
-| `BenchmarkReadStart` | 49,472 | 44,302–51,723 | 6 | 27,716 | 136 | — |
-| `BenchmarkReadTail` | 73,837 | 71,440–77,327 | 6 | 27,094 | 129 | — |
-| `BenchmarkReadSealed` | 81,817 | 75,023–89,110 | 6 | 27,398 | 136 | — |
-| `BenchmarkScanAll` | 60,018,922 | 58,776,928–81,695,657 | 6 | 109,218 | 119 | 6,665,072 records/s |
-| `BenchmarkReadWait` | 81,452 | 78,565–89,066 | 6 | 2,516 | 25 | — |
-| `BenchmarkColdStart` | 27,046,105 | 25,016,013–28,115,953 | 6 | 7,420,998 | 363 | — |
-| `BenchmarkParallelLogsFlush` | 104,440 | 92,562–113,155 | 6 | 4,433 | 66 | 4.90 MB/s |
-| `BenchmarkReaderFollow` | 811,055 | 626,103–864,446 | 6 | 158,610 | 136 | — |
-| `BenchmarkDrainBacklog` | 341,556,897 | 334,723,663–351,416,329 | 6 | 1,930,648 | 196 | 785.92 MB/s, 5,458,232 records/s |
+| `BenchmarkAppendBuffered` | 2,842 | 2,645–3,434 | 6 | 3 | 0 | 45.04 MB/s |
+| `BenchmarkAppendFlushEach` | 929,308 | 898,101–964,887 | 6 | 1,089 | 14 | 0.14 MB/s |
+| `BenchmarkAppendBatchSync` | 1,215,706 | 1,200,227–3,506,327 | 6 | 1,489 | 14 | 53.92 MB/s |
+| `BenchmarkReadStart` | 44,972 | 41,128–46,444 | 6 | 27,700 | 136 | — |
+| `BenchmarkReadTail` | 66,596 | 64,344–74,104 | 6 | 26,766 | 129 | — |
+| `BenchmarkReadSealed` | 79,549 | 73,205–152,317 | 6 | 27,257 | 136 | — |
+| `BenchmarkScanAll` | 60,129,846 | 57,447,278–63,601,067 | 6 | 109,405 | 119 | 6,657,584 records/s |
+| `BenchmarkReadWait` | 1,022,843 | 945,475–1,155,069 | 6 | 6,674 | 25 | — |
+| `BenchmarkColdStart` | 27,531,304 | 26,510,346–28,207,397 | 6 | 7,422,030 | 363 | — |
+| `BenchmarkParallelLogsFlush` | 1,374,841 | 1,285,289–1,421,308 | 6 | 4,820 | 66 | 0.37 MB/s |
+| `BenchmarkReaderFollow` | 1,552,604 | 1,483,489–1,600,729 | 6 | 179,436 | 239 | — |
+| `BenchmarkDrainBacklog` | 362,929,796 | 339,691,184–409,661,358 | 6 | 1,933,728 | 198 | 739.66 MB/s, 5,140,637 records/s |
 
-**fsync is cheap here**: one record per flush costs about 34 µs (about 30 K durable records
-per second for a lone producer) and a 512-record batch about 185 µs (about 2.7 M records per
-second), against 10 ms per flush on the macOS build machine. `ReadWait` sees a record about
-80 µs after `Append`.
+**fsync costs about 1 ms here**: one record per flush about 0.93 ms (about 1,100 durable
+records per second for a lone producer) and a 512-record batch about 1.2 ms (about 420 K
+records per second), against 10 ms per flush on the macOS build machine. `ReadWait` sees a
+record about 1 ms after `Append`. Four logs flushing in parallel take 1.4 ms per round
+against 0.93 ms for one: the fsyncs overlap well on this device, which is what decision 13's
+per-log flush goroutines are for.
 
-**Reads are CPU-bound on this VM**: a 100-record read costs 49 µs at the start, 74 µs near
-the tail and 82 µs in a sealed segment. The tail read is the slowest because the sparse index
+**Reads are CPU-bound on this VM**: a 100-record read costs 45 µs at the start, 67 µs near
+the tail and 80 µs in a sealed segment. The tail read is the slowest because the sparse index
 anchors every 64 KiB, so a read near the tail decodes a few hundred frames past its anchor
 before the first one it wants; on the faster build machine the same work costs 23 µs.
-Narrowing the anchor stride is a measured follow-up for the audit sequence.
+Narrowing the anchor stride is a measured follow-up for the audit sequence. Before decision 91
+the start and sealed reads cost about 230 µs on this machine; the tail read did not change,
+which is how the anchor-stride cost was told apart from the chunk cost.
 
-**Before decision 91**, the same reads on this machine cost 230 µs at the start, 73 µs near
-the tail and 226 µs in a sealed segment: the fixed 1 MiB first chunk dominated every read of
-a sealed segment. The tail read did not change, which is how the anchor-stride cost above
-was told apart from the chunk cost.
+### A backlog larger than memory (decision 15)
+
+`BenchmarkDrainBacklog` with `QUILL_BENCH_BACKLOG_BYTES` set to 12 GiB on the 8 GiB server:
+about 89 million records written, then drained by a `Reader` with nothing of it left in the
+page cache.
+
+| `BenchmarkDrainBacklog` | 39,105,102,614 | 38,890,552,202–41,496,919,403 | 6 | 246,715,088 | 10,358 | 329.50 MB/s, 2,288,182 records/s |
+
+The drain runs at about 330 MB/s, 2.3 M records per second. For context: the same `Reader`
+drains the warm 256 MiB backlog at about 740 MB/s, and the disk reads a 2 GiB file
+sequentially at about 1.1 GB/s after the caches are dropped (`dd`, a file of zeros on a
+virtual disk, so an upper bound). The cold drain is slower than both, and close to their sum:
+12 GiB at 1.1 GB/s is about 11 s of reading and at 740 MB/s about 17 s of decoding, against
+39 s measured. Reading and decoding do not overlap: each chunk is read with `pread` and then
+decoded before the next is read. So decision 15's assumption ("sequential `pread` with large
+chunks should be limited by the disk either way") holds only in the sense that `pread` is not
+the limit; a drain from disk pays the disk and the decoder in series. Overlapping them (a
+read-ahead of the next chunk) is a measured candidate for the audit sequence's optimisation
+pass, with this table as the before.

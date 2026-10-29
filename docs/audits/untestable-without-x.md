@@ -64,13 +64,13 @@ after 64 acknowledged 4 KiB records, every acknowledged record read back, `Check
 and the writer recovered without a restart once the filler was removed. The short-write and
 `ENOSPC` paths are also tested against the simulator (T3).
 
-### A backlog larger than memory on a real disk (needs: hours and a large disk)
+### A backlog larger than memory on a real disk (done)
 
-`BenchmarkDrainBacklog` drains a backlog whose size `QUILL_BENCH_BACKLOG_BYTES` sets; the
-baselines used 256 MiB, which fits in memory. The decision-15 question (does `pread` with
-large chunks stay disk-bound on a backlog larger than memory?) is therefore inferred from
-the warm figures, not measured. Run the benchmark with the variable above the machine's
-memory to measure it.
+`BenchmarkDrainBacklog` was run with a 12 GiB backlog on an 8 GiB Linux server (six rounds,
+`benchmark-baselines.md`): the drain runs at about 330 MB/s, slower than both the disk (about
+1.1 GB/s raw) and the warm decode (about 740 MB/s), because reading and decoding run in
+series. That answers decision 15's question and leaves a measured follow-up. A real disk rather
+than a virtual one has not been measured.
 
 ### Lock release on process death across machines (needs: nothing more; stated for clarity)
 
