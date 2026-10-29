@@ -298,6 +298,9 @@ func Open(cfg Config) (*Log, error) {
 		return nil, err
 	}
 	if err := l.load(); err != nil {
+		if l.active != nil && l.active.f != nil {
+			_ = l.active.f.Close()
+		}
 		_ = lock.Close()
 		return nil, err
 	}

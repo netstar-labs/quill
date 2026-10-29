@@ -521,3 +521,32 @@ func TestRollDoesNothingOnAnEmptySegmentAndSealsOtherwise(t *testing.T) {
 		t.Fatalf("a second roll on an empty segment made %v", ids)
 	}
 }
+
+func TestAFailedOpenLeaksNoDescriptor(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	appendN(t, l, 3)
+	if err := l.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if n := s.OpenFiles(); n != 0 {
+		t.Fatalf("open handles after Close: %d", n)
+	}
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpSyncDir {
+			return syscall.EIO
+		}
+		return nil
+	}
+	for i := 1; i <= 3; i++ {
+		if _, err := Open(simConfig(s, "/log")); !errors.Is(err, syscall.EIO) {
+			t.Fatalf("attempt %d: want EIO, got %v", i, err)
+		}
+		if n := s.OpenFiles(); n != 0 {
+			t.Fatalf("attempt %d: %d handles left open after a failed Open", i, n)
+		}
+	}
+}
