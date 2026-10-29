@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -174,6 +175,35 @@ func TestArchiveFailsOnAShortWriteAndLeavesNoTempFileInTheDestination(t *testing
 	}
 	if ids := segmentFiles(t, s, "/arch"); len(ids) != 3 {
 		t.Fatalf("after the retry: %v", ids)
+	}
+}
+
+func TestArchiveFailsWhenTheDestinationCannotSyncAndLeavesNoTempFile(t *testing.T) {
+	s := fsx.NewSim()
+	clk := newClock()
+	l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
+	defer l.Close()
+	fillSegments(t, l, clk, 3)
+	if err := s.Mkdir("/arch", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpSync && filepath.Dir(name) == "/arch" && strings.HasPrefix(filepath.Base(name), tempPrefix) {
+			return syscall.ENOSPC
+		}
+		return nil
+	}
+	err := archive(s, "/log", "/arch", 0o600)
+	s.Inject = nil
+	if !errors.Is(err, syscall.ENOSPC) {
+		t.Fatalf("archive with a failing fsync: %v", err)
+	}
+	names, rerr := s.ReadDir("/arch")
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	if len(names) != 0 {
+		t.Fatalf("destination holds %v after a failed fsync, want nothing", names)
 	}
 }
 

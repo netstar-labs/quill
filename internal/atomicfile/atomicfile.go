@@ -28,6 +28,16 @@ const TempPrefix = ".tmp-"
 // directory, created exclusively and never through a symbolic link), chmod to perm exactly,
 // write, fsync, rename. A failure at any step removes the temp file and leaves path as it was.
 func Write(fsys fsx.FS, path string, data []byte, perm fs.FileMode) error {
+	return WriteFrom(fsys, path, perm, func(f fsx.File) error {
+		_, err := f.WriteAt(data, 0)
+		return err
+	})
+}
+
+// WriteFrom is Write for content that is streamed rather than held in memory: fill writes the
+// whole content into the temp file, which is then fsynced and renamed over path. An error from
+// fill fails the write like any other step, removing the temp file and leaving path as it was.
+func WriteFrom(fsys fsx.FS, path string, perm fs.FileMode, fill func(f fsx.File) error) error {
 	var suffix [8]byte
 	if _, err := rand.Read(suffix[:]); err != nil {
 		return err
@@ -39,7 +49,7 @@ func Write(fsys fsx.FS, path string, data []byte, perm fs.FileMode) error {
 	}
 	err = f.Chmod(perm)
 	if err == nil {
-		_, err = f.WriteAt(data, 0)
+		err = fill(f)
 	}
 	if err == nil {
 		err = f.Sync()

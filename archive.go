@@ -1,14 +1,13 @@
 package quill
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"path/filepath"
 
+	"github.com/netstar-labs/quill/internal/atomicfile"
 	"github.com/netstar-labs/quill/internal/fsx"
 )
 
@@ -128,7 +127,7 @@ func archiveDest(fsys fsx.FS, dstDir string, id logID, perm fs.FileMode) error {
 }
 
 // copySegment verifies a sealed segment whole, then copies it to the destination under its
-// own name by temp file, fsync, rename. A destination file of the same size is kept. It
+// own name through atomicfile.WriteFrom (temp file, fsync, rename). A destination file of the same size is kept. It
 // returns the size and the segment's last sequence.
 func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64, uint64, error) {
 	r, size, closer, err := s.open()
@@ -144,33 +143,14 @@ func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64
 	if di, err := fsys.Lstat(dst); err == nil && di.Mode().IsRegular() && di.Size() == size {
 		return size, info.last.Seq, nil
 	}
-	var suffix [8]byte
-	if _, err := rand.Read(suffix[:]); err != nil {
-		return 0, 0, err
-	}
-	tmp := filepath.Join(dstDir, tempPrefix+hex.EncodeToString(suffix[:]))
-	f, err := fsys.OpenFile(tmp, fsx.O_RDWR|fsx.O_CREATE|fsx.O_EXCL, perm)
-	if err != nil {
-		return 0, 0, err
-	}
-	if err = f.Chmod(perm); err == nil {
-		n, cerr := io.CopyBuffer(io.NewOffsetWriter(f, 0), io.NewSectionReader(r, 0, size), make([]byte, windowChunk))
-		if cerr == nil && n < size {
-			cerr = io.ErrUnexpectedEOF
+	err = atomicfile.WriteFrom(fsys, dst, perm, func(f fsx.File) error {
+		n, err := io.CopyBuffer(io.NewOffsetWriter(f, 0), io.NewSectionReader(r, 0, size), make([]byte, windowChunk))
+		if err == nil && n < size {
+			err = io.ErrUnexpectedEOF
 		}
-		err = cerr
-	}
-	if err == nil {
-		err = f.Sync()
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = fsys.Rename(tmp, dst)
-	}
+		return err
+	})
 	if err != nil {
-		_ = fsys.Remove(tmp)
 		return 0, 0, err
 	}
 	return size, info.last.Seq, nil
