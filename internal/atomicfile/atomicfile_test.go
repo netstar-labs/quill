@@ -187,3 +187,14 @@ func TestWriteOverASymlinkReplacesTheLinkAndNeverWritesItsTarget(t *testing.T) {
 		t.Fatalf("state is still a link: %v %v", info, err)
 	}
 }
+
+func TestTempNameMatchesJoin(t *testing.T) {
+	suffix := [8]byte{0x00, 0x01, 0xab, 0xcd, 0xef, 0x10, 0x7f, 0xff}
+	for _, path := range []string{"/x", "x", "/a/b", "a/b", "/", "a/b/", "./x", "../x", "//x", "a//b", ""} {
+		dir := filepath.Dir(path)
+		want := filepath.Join(dir, TempPrefix+"0001abcdef107fff")
+		if got := tempName(dir, suffix); got != want {
+			t.Errorf("tempName(%q) = %q, want %q", dir, got, want)
+		}
+	}
+}

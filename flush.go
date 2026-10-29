@@ -112,7 +112,8 @@ func (l *Log) publishLocked() error {
 	sealed := l.justSealed
 	m := tail{Seq: l.head, Seg: l.active.id, Off: uint64(l.active.durable), MaxSeg: l.maxSeg}
 	if m != l.marker || l.pendingPublish || sealed {
-		if err := writeState(l.fs, l.path(tailName), encodeTail(m), l.cfg.Perm); err != nil {
+		l.tailBuf = appendTail(l.tailBuf[:0], m)
+		if err := writeState(l.fs, l.tailPath, l.tailBuf, l.cfg.Perm); err != nil {
 			l.pendingPublish, l.bgErr = true, err
 			return err
 		}
@@ -162,6 +163,7 @@ func (l *Log) rotateLocked() error {
 	old := l.active
 	l.sealed = append(l.sealed, &segment{id: old.id, path: old.path, first: old.first, last: l.head,
 		size: old.durable, index: old.index, at: old.at, lastAt: old.lastAt})
+	l.refsValid = false
 	old.retired = true
 	if old.readers == 0 {
 		_ = old.f.Close()
@@ -196,11 +198,23 @@ func (l *Log) Roll() error {
 	return err
 }
 
-// broadcastLocked wakes every waiter on the flush broadcast.
+// broadcastLocked wakes every waiter on the flush broadcast. The channel is made lazily by
+// waitChanLocked, so a flush with nobody waiting allocates nothing.
 func (l *Log) broadcastLocked() {
-	close(l.flushed)
-	l.flushed = make(chan struct{})
+	if l.flushed != nil {
+		close(l.flushed)
+		l.flushed = nil
+	}
 	l.flushGen++
+}
+
+// waitChanLocked returns the channel the next broadcastLocked closes, making it if no waiter
+// has yet. The caller holds l.mu.
+func (l *Log) waitChanLocked() chan struct{} {
+	if l.flushed == nil {
+		l.flushed = make(chan struct{})
+	}
+	return l.flushed
 }
 
 // Sync signals the flusher and blocks until seq is durable, sharing one fsync with every other
@@ -231,7 +245,7 @@ func (l *Log) Sync(ctx context.Context, seq uint64) error {
 			l.mu.Unlock()
 			return ErrClosed
 		}
-		ch := l.flushed
+		ch := l.waitChanLocked()
 		l.mu.Unlock()
 		select {
 		case l.flushReq <- struct{}{}:

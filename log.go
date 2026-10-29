@@ -193,11 +193,13 @@ func validName(name string) error {
 
 // Log is one topic in one directory, held by its one writer.
 type Log struct {
-	cfg  Config
-	fs   fsx.FS
-	dir  string
-	id   logID
-	lock fsx.File
+	cfg Config
+	fs  fsx.FS
+	dir string
+	// tailPath is the marker's path, joined once in Open: publishLocked writes it on every flush.
+	tailPath string
+	id       logID
+	lock     fsx.File
 
 	mu sync.Mutex // the log's lock: everything below
 	// The buffer of encoded frames not yet written, and the sequences it holds.
@@ -209,12 +211,19 @@ type Log struct {
 	maxSeg   uint64 // the highest segment id ever created
 	active   *activeSegment
 	sealed   []*segment // ascending by id
+
+	// sealedRefs is the good part of sealed as segRefs, valid while refsValid; every writer of
+	// sealed clears refsValid (decision 103). Guarded by mu.
+	sealedRefs []*segRef
+	refsValid  bool
+
 	holes    []Hole
-	marker   tail  // the last published quill.tail
-	failed   error // sticky: an fsync error wrapping ErrFailed
-	bgErr    error // the last background or retryable error, for Err()
-	flushErr error // the last flush's error, while flushes are failing; nil once one succeeds
-	loadErr  error // a sticky load error (a sealed segment that failed), for Err()
+	marker   tail   // the last published quill.tail
+	tailBuf  []byte // scratch for encoding the marker; used only under mu
+	failed   error  // sticky: an fsync error wrapping ErrFailed
+	bgErr    error  // the last background or retryable error, for Err()
+	flushErr error  // the last flush's error, while flushes are failing; nil once one succeeds
+	loadErr  error  // a sticky load error (a sealed segment that failed), for Err()
 	closed   bool
 	// justSealed is set by a rotation until the marker naming the new segment has been
 	// published and fsynced into the directory (decision 65).
@@ -222,8 +231,8 @@ type Log struct {
 	// pendingPublish is set when the data is durable but the marker could not be published
 	// (or the next segment created); the next flush retries (decision 60 d).
 	pendingPublish bool
-	// flushed is closed and replaced after every flush attempt; waiters block on it without
-	// the lock (Sync, ReadWait).
+	// flushed is made by the first waiter (waitChanLocked) and closed and set to nil by the next
+	// flush attempt; waiters block on it without the lock (Sync, ReadWait).
 	flushed  chan struct{}
 	flushGen uint64
 
@@ -283,8 +292,9 @@ func Open(cfg Config) (*Log, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	l := &Log{cfg: cfg, fs: cfg.fs, dir: filepath.Clean(cfg.Dir), flushed: make(chan struct{}),
+	l := &Log{cfg: cfg, fs: cfg.fs, dir: filepath.Clean(cfg.Dir),
 		flushReq: make(chan struct{}, 1), stop: make(chan struct{}), done: make(chan struct{})}
+	l.tailPath = l.path(tailName)
 	l.bufPool.New = func() any { b := make([]byte, 0, windowChunk); return &b }
 	if err := l.mkdirAll(l.dir); err != nil {
 		return nil, err

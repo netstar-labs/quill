@@ -1,7 +1,10 @@
 package quill
 
 import (
+	"encoding/json"
 	"errors"
+	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -246,5 +249,70 @@ func TestStateFilesAreWrittenAtomicallyAndReadWithoutFollowingLinks(t *testing.T
 	_ = hf.Close()
 	if _, err := readState(fsx.OS{}, huge); err == nil || !errors.Is(err, errBadState) {
 		t.Fatalf("huge: %v", err)
+	}
+}
+
+// TestAppendTailMatchesJSON pins the hand-written encoder to json.Marshal of the struct
+// plus a newline, byte for byte, and checks that it appends to the buffer it is given.
+func TestAppendTailMatchesJSON(t *testing.T) {
+	max := uint64(math.MaxUint64)
+	for _, in := range []tail{{}, {Seq: 1, Seg: 2, Off: 3, MaxSeg: 4}, {Seq: max, Seg: max, Off: max, MaxSeg: max}, {Seq: 42, Seg: 3, Off: 1024, MaxSeg: 7}} {
+		want, err := json.Marshal(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, '\n')
+		if got := appendTail(nil, in); string(got) != string(want) {
+			t.Fatalf("%+v: got %q, want %q", in, got, want)
+		}
+		if got := appendTail([]byte("xy"), in); string(got) != "xy"+string(want) {
+			t.Fatalf("%+v: append to a prefix: %q", in, got)
+		}
+	}
+}
+
+// TestDecodeTailFastAgreesWithSlow: whenever the fast path accepts, the strict path gives
+// the same tail; a mutated marker never makes the two disagree on validity or value.
+func TestDecodeTailFastAgreesWithSlow(t *testing.T) {
+	seeds := []tail{{}, {1, 1, 1, 1}, {1234567, 42, 8_000_001, 45}, {1<<64 - 1, 1<<64 - 1, 1<<64 - 1, 1<<64 - 1}, {9_999_999_999_999_999_999, 3, 4, 5}, {1, 5, 4, 3}}
+	rng := rand.New(rand.NewSource(1))
+	fast := 0
+	check := func(in []byte) {
+		f, ok := decodeTailFast(in)
+		s, err := decodeTailSlow(in)
+		if ok && (err != nil || f != s) {
+			t.Fatalf("fast accepted %q as %v, strict gave %v, %v", in, f, s, err)
+		}
+		if ok {
+			fast++
+		}
+		if got, gerr := decodeTail(in); got != s || (gerr == nil) != (err == nil) || (err != nil && gerr.Error() != err.Error()) {
+			t.Fatalf("decodeTail(%q) = %v, %v; strict %v, %v", in, got, gerr, s, err)
+		}
+	}
+	for _, sd := range seeds {
+		enc := encodeTail(sd)
+		check(enc)
+		for i := 0; i < 20000; i++ {
+			m := append([]byte(nil), enc...)
+			for k := rng.Intn(3) + 1; k > 0 && len(m) > 0; k-- {
+				switch rng.Intn(4) {
+				case 0:
+					m[rng.Intn(len(m))] = "0123456789{}:,\" \n-+e.x"[rng.Intn(22)]
+				case 1:
+					i := rng.Intn(len(m))
+					m = append(m[:i], m[i+1:]...)
+				case 2:
+					i := rng.Intn(len(m) + 1)
+					m = append(m[:i], append([]byte{"0123456789 \n,"[rng.Intn(13)]}, m[i:]...)...)
+				case 3:
+					m = m[:rng.Intn(len(m)+1)]
+				}
+			}
+			check(m)
+		}
+	}
+	if fast == 0 {
+		t.Fatal("the fast path never accepted a mutated input")
 	}
 }

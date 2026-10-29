@@ -265,6 +265,10 @@ func (s *readerSegment) scan(fsys fsx.FS) error {
 	return s.scanErr
 }
 
+// firstFrameChunk is the read size of the active segment's first-frame probe: a frame's
+// header and a small payload, not the 64 KiB a scan starts with.
+const firstFrameChunk = 4 << 10
+
 // view reads the marker, lists the directory, and builds the segment ranges from first
 // frames (decision 47): a sealed segment's range ends where the next one starts.
 func (r *Reader) view() (*segView, func(), error) {
@@ -282,7 +286,7 @@ func (r *Reader) view() (*segView, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	var sealed []*readerSegment
+	sealed := make([]*readerSegment, 0, len(names))
 	for _, n := range names {
 		if id, ok := parseSegmentName(n); ok && id < tl.Seg {
 			sealed = append(sealed, r.segment(id))
@@ -301,8 +305,13 @@ func (r *Reader) view() (*segView, func(), error) {
 			_ = f.Close()
 			return nil, nil, fmt.Errorf("%w: segment %d holds %d bytes, the marker says %d", ErrCorrupt, tl.Seg, size, tl.Off)
 		}
-		w := &window{r: f, size: int64(tl.Off)}
+		// One frame is decoded and only its Seq and At are kept, so the pooled buffer is
+		// returned straight away and nothing aliases it afterwards.
+		bufp := r.bufPool.Get().(*[]byte)
+		w := &window{r: f, size: int64(tl.Off), buf: (*bufp)[:0], chunk: firstFrameChunk}
 		rec, _, ferr := w.frameAt(0)
+		*bufp = w.buf[:0]
+		r.bufPool.Put(bufp)
 		if ferr != nil || rec.Seq == 0 || rec.Seq > tl.Seq {
 			_ = f.Close()
 			return nil, nil, fmt.Errorf("%w: the active segment's first frame does not decode below the marker", ErrCorrupt)
@@ -317,8 +326,8 @@ func (r *Reader) view() (*segView, func(), error) {
 		last  uint64
 		index []anchor
 	}
-	var cands []cand
-	var rs []seqRange
+	cands := make([]cand, 0, len(sealed))
+	rs := make([]seqRange, 0, len(sealed)+1)
 	leadBad := false // a bad segment before the first kept one
 	for i, s := range sealed {
 		if s.bad != nil {
@@ -366,9 +375,14 @@ func (r *Reader) view() (*segView, func(), error) {
 		return nil, nil, err
 	}
 	v.holes = holes
-	for _, c := range cands {
+	// One slab holds every reference, the active one last: a view is short-lived and so are
+	// its refs. A scanned segment already has its index, so only the others get ensureIndex.
+	refs := make([]segRef, len(cands)+1)
+	v.segs = make([]*segRef, 0, len(cands)+1)
+	for i, c := range cands {
 		s, last := c.s, c.last
-		v.segs = append(v.segs, &segRef{id: s.id, first: s.first, last: last, at: s.at, index: c.index,
+		ref := &refs[i]
+		*ref = segRef{id: s.id, first: s.first, last: last, at: s.at, index: c.index,
 			open: func() (io.ReaderAt, int64, func(), error) {
 				f, size, err := openSegment(r.fs, s.path)
 				if err != nil {
@@ -385,19 +399,24 @@ func (r *Reader) view() (*segView, func(), error) {
 					return nil, 0, nil, fmt.Errorf("%w: segment %d changed size from %d to %d", ErrCorrupt, s.id, s.size, size)
 				}
 				return f, size, func() { _ = f.Close() }, nil
-			},
-			ensureIndex: func() ([]anchor, uint64, error) {
+			}}
+		if c.index == nil {
+			ref.ensureIndex = func() ([]anchor, uint64, error) {
 				if err := s.scan(r.fs); err != nil {
 					return nil, 0, err
 				}
 				res := s.result.Load()
 				return res.index, res.last, nil
-			}})
+			}
+		}
+		v.segs = append(v.segs, ref)
 	}
 	if activeFile != nil {
 		off := int64(tl.Off)
-		v.segs = append(v.segs, &segRef{id: tl.Seg, first: activeFirst, last: tl.Seq, at: activeAt, active: true,
-			open: func() (io.ReaderAt, int64, func(), error) { return activeFile, off, func() {}, nil }})
+		ref := &refs[len(cands)]
+		*ref = segRef{id: tl.Seg, first: activeFirst, last: tl.Seq, at: activeAt, active: true,
+			open: func() (io.ReaderAt, int64, func(), error) { return activeFile, off, func() {}, nil }}
+		v.segs = append(v.segs, ref)
 	} else if len(cands) > 0 && tl.Seq > cands[len(cands)-1].last {
 		v.holes = append(v.holes, Hole{From: cands[len(cands)-1].last + 1, To: tl.Seq})
 	} else if leadBad && len(cands) == 0 && tl.Seq > 0 {

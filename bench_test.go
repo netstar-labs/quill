@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/netstar-labs/quill/internal/fsx"
 )
 
 // T24: the benchmark baselines (decision 21). Run six times on one machine and record the
@@ -134,6 +136,26 @@ func BenchmarkReadTail(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if recs, err := l.Read(head-100, 100); err != nil || len(recs) != 100 {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkReaderReadActive: Reader.Read(limit 1) near the head of a log whose active segment
+// holds well over 64 KiB, so every call's view probes the active segment's first frame.
+func BenchmarkReaderReadActive(b *testing.B) {
+	l, dir := benchLog(b, nil)
+	defer l.Close()
+	fillBench(b, l, benchRecords)
+	r, err := OpenReader(dir, ReaderOptions{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer r.Close()
+	head := l.Head()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if recs, err := r.Read(head, 1); err != nil || len(recs) != 1 {
 			b.Fatal(err)
 		}
 	}
@@ -312,4 +334,80 @@ func BenchmarkDrainBacklog(b *testing.B) {
 	}
 	b.ReportMetric(float64(records)*float64(b.N)/b.Elapsed().Seconds(), "records/s")
 	_ = fmt.Sprint
+}
+
+// BenchmarkReadStartThousandSegments: Read(limit 1) from the first record of a log of 1,000
+// sealed segments on the in-memory file system. Each Read builds a view, whose cost was linear
+// in the sealed count (decision 103); allocs/op is guarded by the test below.
+func BenchmarkReadStartThousandSegments(b *testing.B) {
+	l := thousandSegmentLog(b)
+	defer l.Close()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if recs, err := l.Read(1, 1); err != nil || len(recs) != 1 {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkReaderReadStartThousandSegments: the same Read through a Reader, whose view lists the
+// directory and builds a segment reference for every sealed segment on every call.
+func BenchmarkReaderReadStartThousandSegments(b *testing.B) {
+	s := fsx.NewSim()
+	l := thousandSegmentLogOn(b, s)
+	defer l.Close()
+	r, err := OpenReader("/log", ReaderOptions{fs: s})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer r.Close()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if recs, err := r.Read(1, 1); err != nil || len(recs) != 1 {
+			b.Fatal(err)
+		}
+	}
+}
+
+func thousandSegmentLog(tb testing.TB) *Log {
+	tb.Helper()
+	return thousandSegmentLogOn(tb, fsx.NewSim())
+}
+
+func thousandSegmentLogOn(tb testing.TB, s *fsx.Sim) *Log {
+	tb.Helper()
+	cfg := simConfig(s, "/log")
+	cfg.SegmentBytes = 100 // every flushed 128-byte record seals its segment
+	cfg.NoMaintenance = true
+	l, err := Open(cfg)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	for len(sealedIDs(l)) < 1000 {
+		if _, err := l.Append(make([]byte, benchPayload)); err != nil {
+			tb.Fatal(err)
+		}
+		if err := l.Flush(); err != nil {
+			tb.Fatal(err)
+		}
+	}
+	return l
+}
+
+// A Read of a log with a thousand sealed segments does not allocate per sealed segment: the
+// sealed refs are built once, not per call (decision 103).
+func TestReadAllocationsDoNotGrowWithTheSealedSegmentCount(t *testing.T) {
+	l := thousandSegmentLog(t)
+	defer l.Close()
+	n := testing.AllocsPerRun(20, func() {
+		if recs, err := l.Read(1, 1); err != nil || len(recs) != 1 {
+			t.Fatal(err)
+		}
+	})
+	// 31 measured; before decision 103 it was 2,041 (two per sealed segment).
+	if n > 40 {
+		t.Fatalf("Read allocates %v times with 1,000 sealed segments", n)
+	}
 }

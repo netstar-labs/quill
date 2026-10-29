@@ -257,6 +257,7 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 		l.logf(slog.LevelInfo, "deleted segment", "segment", s.path, "last", last)
 	}
 	l.sealed = l.sealed[n:]
+	l.refsValid = false
 	first := l.firstRetainedLocked()
 	// A fresh slice: segViews and Stat snapshots alias l.holes, so it is only ever reassigned.
 	kept := make([]Hole, 0, len(l.holes))

@@ -98,6 +98,8 @@ type window struct {
 	buf   []byte
 	off   int64 // position of buf[0] in the file
 	chunk int64 // the next read's size; 0 means readChunk
+	// noIndex stops walk recording anchors, for a caller that discards the segInfo.
+	noIndex bool
 }
 
 const (
@@ -184,7 +186,7 @@ func walk(w *window, start int64, prev uint64, havePrev bool, fn func(rec Record
 		if info.frames == 0 {
 			info.first = Record{Seq: rec.Seq, At: rec.At}
 		}
-		if pos >= nextAnchor {
+		if !w.noIndex && pos >= nextAnchor {
 			info.index = append(info.index, anchor{seq: rec.Seq, pos: pos, at: rec.At})
 			nextAnchor = pos + indexStride
 		}

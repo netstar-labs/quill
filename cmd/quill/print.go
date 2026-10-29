@@ -22,6 +22,7 @@ type printer struct {
 	w    *bufio.Writer
 	json bool
 	b64  bool
+	buf  []byte // the record being built, reused
 }
 
 func newPrinter(w io.Writer, jsonMode, b64 bool) *printer {
@@ -30,46 +31,131 @@ func newPrinter(w io.Writer, jsonMode, b64 bool) *printer {
 
 func (p *printer) flush() { _ = p.w.Flush() }
 
-// jsonRecord has the fixed field order of decision 35: seq, at, time, len, then exactly one
-// of payload and payload_b64.
-type jsonRecord struct {
-	Seq        uint64  `json:"seq"`
-	At         int64   `json:"at"`
-	Time       string  `json:"time"`
-	Len        int     `json:"len"`
-	Payload    *string `json:"payload,omitempty"`
-	PayloadB64 *string `json:"payload_b64,omitempty"`
+// print appends the record to p.buf, which is kept between records, and writes it with one
+// call. The bytes are what encoding/json and strconv.Quote would produce for the same
+// values: the fixed field order of decision 35 is seq, at, time, len, then exactly one of
+// payload and payload_b64.
+func (p *printer) print(rec quill.Record) error {
+	text := !p.b64 && utf8.Valid(rec.Payload)
+	b := p.buf[:0]
+	if p.json {
+		b = append(b, `{"seq":`...)
+		b = strconv.AppendUint(b, rec.Seq, 10)
+		b = append(b, `,"at":`...)
+		b = strconv.AppendInt(b, rec.At, 10)
+		b = append(b, `,"time":"`...)
+		b = time.Unix(rec.At, 0).UTC().AppendFormat(b, time.RFC3339)
+		b = append(b, `","len":`...)
+		b = strconv.AppendInt(b, int64(len(rec.Payload)), 10)
+		if text {
+			b = append(b, `,"payload":"`...)
+			b = appendJSONString(b, rec.Payload)
+		} else {
+			b = append(b, `,"payload_b64":"`...)
+			b = base64.StdEncoding.AppendEncode(b, rec.Payload)
+		}
+		b = append(b, "\"}\n"...)
+	} else {
+		b = strconv.AppendUint(b, rec.Seq, 10)
+		b = append(b, '\t')
+		b = time.Unix(rec.At, 0).UTC().AppendFormat(b, time.RFC3339)
+		b = append(b, '\t')
+		if text {
+			b = appendQuoted(b, rec.Payload)
+		} else {
+			b = append(b, "b64:"...)
+			b = base64.StdEncoding.AppendEncode(b, rec.Payload)
+		}
+		b = append(b, '\n')
+	}
+	p.buf = b
+	_, err := p.w.Write(b)
+	return err
 }
 
-func (p *printer) print(rec quill.Record) error {
-	at := time.Unix(rec.At, 0).UTC().Format(time.RFC3339)
-	text := !p.b64 && utf8.Valid(rec.Payload)
-	if p.json {
-		jr := jsonRecord{Seq: rec.Seq, At: rec.At, Time: at, Len: len(rec.Payload)}
-		if text {
-			s := string(rec.Payload)
-			jr.Payload = &s
+const hexDigits = "0123456789abcdef"
+
+// appendJSONString appends the body of a JSON string (without the quotes) for valid UTF-8 text, escaping as
+// encoding/json does by default: the quote, the backslash, the controls, the HTML characters
+// < > & and the line and paragraph separators U+2028 and U+2029.
+func appendJSONString(b, s []byte) []byte {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '"' || c == '\\':
+			b = append(b, '\\', c)
+		case c == '\b':
+			b = append(b, '\\', 'b')
+		case c == '\f':
+			b = append(b, '\\', 'f')
+		case c == '\n':
+			b = append(b, '\\', 'n')
+		case c == '\r':
+			b = append(b, '\\', 'r')
+		case c == '\t':
+			b = append(b, '\\', 't')
+		case c < 0x20 || c == '<' || c == '>' || c == '&':
+			b = append(b, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
+		case c == 0xe2 && i+2 < len(s) && s[i+1] == 0x80 && s[i+2]&^1 == 0xa8:
+			b = append(b, '\\', 'u', '2', '0', '2', hexDigits[s[i+2]&0xf])
+			i += 2
+		default:
+			b = append(b, c)
+		}
+	}
+	return b
+}
+
+// appendQuoted appends s as strconv.Quote would, for valid UTF-8 text: printable runes
+// as they are, the rest escaped.
+func appendQuoted(b, s []byte) []byte {
+	b = append(b, '"')
+	for i := 0; i < len(s); {
+		c := s[i]
+		if c < utf8.RuneSelf {
+			i++
+			switch {
+			case c == '"' || c == '\\':
+				b = append(b, '\\', c)
+			case c >= 0x20 && c < 0x7f:
+				b = append(b, c)
+			default:
+				b = appendQuotedControl(b, c)
+			}
+			continue
+		}
+		r, n := utf8.DecodeRune(s[i:])
+		if strconv.IsPrint(r) {
+			b = append(b, s[i:i+n]...)
+		} else if r < 0x10000 {
+			b = append(b, '\\', 'u', hexDigits[r>>12], hexDigits[r>>8&0xf], hexDigits[r>>4&0xf], hexDigits[r&0xf])
 		} else {
-			s := base64.StdEncoding.EncodeToString(rec.Payload)
-			jr.PayloadB64 = &s
+			b = append(b, '\\', 'U', '0', '0', hexDigits[r>>20&0xf], hexDigits[r>>16&0xf], hexDigits[r>>12&0xf], hexDigits[r>>8&0xf], hexDigits[r>>4&0xf], hexDigits[r&0xf])
 		}
-		b, err := json.Marshal(jr) // a valid-UTF-8 string is never altered by the encoder
-		if err != nil {
-			return err
-		}
-		if _, err := p.w.Write(b); err != nil {
-			return err
-		}
-		return p.w.WriteByte('\n')
+		i += n
 	}
-	var payload string
-	if text {
-		payload = strconv.Quote(string(rec.Payload)) // escapes control characters and quotes
-	} else {
-		payload = "b64:" + base64.StdEncoding.EncodeToString(rec.Payload)
+	return append(b, '"')
+}
+
+// appendQuotedControl escapes an ASCII control character or DEL the way strconv.Quote does.
+func appendQuotedControl(b []byte, c byte) []byte {
+	switch c {
+	case '\a':
+		return append(b, '\\', 'a')
+	case '\b':
+		return append(b, '\\', 'b')
+	case '\f':
+		return append(b, '\\', 'f')
+	case '\n':
+		return append(b, '\\', 'n')
+	case '\r':
+		return append(b, '\\', 'r')
+	case '\t':
+		return append(b, '\\', 't')
+	case '\v':
+		return append(b, '\\', 'v')
 	}
-	_, err := fmt.Fprintf(p.w, "%d\t%s\t%s\n", rec.Seq, at, payload)
-	return err
+	return append(b, '\\', 'x', hexDigits[c>>4], hexDigits[c&0xf])
 }
 
 // printJSON writes one object and a newline.

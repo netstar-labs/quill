@@ -116,3 +116,41 @@ chunks should be limited by the disk either way") holds only in the sense that `
 the limit; a drain from disk pays the disk and the decoder in series. Overlapping them (a
 read-ahead of the next chunk) is a measured candidate for the audit sequence's optimisation
 pass, with this table as the before.
+
+## Allocation pass (A1 follow-up)
+
+One row per change, on the macOS build machine, three runs each of
+`GOWORK=off go test -run '^$' -bench '^<Name>$' -benchmem -count 3 .`, before and after.
+Wall time is dominated by `F_FULLFSYNC` and did not move beyond noise.
+
+| Change | Benchmark | Before B/op | Before allocs/op | After B/op | After allocs/op |
+|---|---|---|---|---|---|
+| write-1: `quill.tail` encoded by `appendTail` into a reused `Log.tailBuf` instead of `json.Marshal` | `BenchmarkAppendFlushEach` | 1,291–1,295 | 14 | 1,177–1,182 | 11 |
+| write-1 (same change) | `BenchmarkParallelLogsFlush` | 5,727–6,108 | 66–68 | 5,317–5,442 | 55 |
+| write-2: `fsx.OS.Rename` calls `syscall.Rename` (retrying `EINTR`, wrapping in `*os.LinkError`) instead of `os.Rename`, which `Lstat`s the destination first | `BenchmarkAppendFlushEach` | 1,181–1,184 | 11 | 860–861 | 9 |
+| write-2 (same change) | `BenchmarkParallelLogsFlush` | 5,296–5,407 | 55 | 4,042–4,153 | 47 |
+| write-3: `atomicfile.WriteFrom` builds the temp name with `hex.Encode` into a stack array and one concatenation (`tempName`) instead of `filepath.Join` plus `hex.EncodeToString` | `BenchmarkAppendFlushEach` | 857 | 9 | 833–836 | 8 |
+| write-3 (same change) | `BenchmarkParallelLogsFlush` | 3,977–4,213 | 47 | 3,869–4,280 | 43–44 |
+| write-4: `Log.tailPath` joined once in `Open` instead of `filepath.Join` in `publishLocked` on every flush | `BenchmarkAppendFlushEach` | 833–837 | 8 | 721–725 | 7 |
+| write-4 (same change) | `BenchmarkParallelLogsFlush` | 3,845–4,113 | 43 | 3,486–3,626 | 39 |
+| write-5: the `Log.flushed` broadcast channel is made by the first waiter (`waitChanLocked`, called by `Sync` and `ReadWait`) and closed and set to nil by `broadcastLocked`, instead of a new channel made after every flush attempt | `BenchmarkAppendFlushEach` | 721–725 | 7 | 608–611 | 6 |
+| write-5 (same change; a waiter is present each flush, so the channel is still made, and B/op is dominated by the batch buffer) | `BenchmarkAppendBatchSync` | 3,225–3,290 | 7 | 3,176–3,615 | 6 |
+| write-5 (same change; B/op varies run to run with the reader's buffers) | `BenchmarkReadWait` | 10,394–27,506 | 18–19 | 19,269–36,712 | 17 |
+| read-7: `Log.view` reuses the sealed `segRef`s cached in `Log.sealedRefs` (decision 103) instead of building one `segRef` and one `open` closure per sealed segment on every call | `BenchmarkReadStart` | 27,971–28,278 | 136 | 26,976–27,011 | 121 |
+| read-7 (same change) | `BenchmarkReadTail` | 27,655–27,787 | 129 | 26,162–26,253 | 114 |
+| read-7 (same change; 1,000 sealed segments on `fsx.Sim`, `Read(1, 1)`; ns/op 36,762–38,573 before, 2,171–2,436 after) | `BenchmarkReadStartThousandSegments` | 177,925–179,073 | 2,041 | 11,437–11,481 | 31 |
+| read-9: `readFrom` sizes its result slice once, from the view, when the first record is delivered (`scanSource`'s `expect` hook, decision 104), instead of growing it by `append` from nil | `BenchmarkReadStart` | 26,935–27,323 | 121 | 18,532–18,678 | 114 |
+| read-9 (same change; ns/op 26,484–27,413 before, 24,826–24,905 after) | `BenchmarkReadTail` | 26,064–26,460 | 114 | 17,956–18,229 | 107 |
+| read-9 (same change; ns/op 38,948–40,402 before, 35,523–37,895 after) | `BenchmarkReadSealed` | 26,673–26,906 | 121 | 18,542–18,644 | 114 |
+| reader-15: `decodeTail` takes `decodeTailFast` for the exact bytes `appendTail` writes (decision 105) instead of the strict JSON pipeline on every `quill.tail` read; non-canonical input still takes the strict path (ns/op 10.14-10.57 ms before, 10.23-10.72 ms after: the 1 ms poll sleep dominates; B/op varies with the number of polls per iteration) | `BenchmarkReaderFollow` | 186,609-203,517 | 522-537 | 95,556-193,948 | 164-167 |
+| reader-15 (same change; `Log.Read` never reads `quill.tail`, so it is unchanged, as expected) | `BenchmarkReadTail` | 18,061-18,256 | 107 | 18,008-18,500 | 107 |
+| reader-16: `Reader.view` decodes the active segment's first frame in a buffer taken from `Reader.bufPool` (4 KiB first read) instead of a fresh 64 KiB `make` on every call (new benchmark; `Read(head, 1)` on a 400 K-record active segment; ns/op 1,964,412-2,034,195 before, 1,927,021-1,933,573 after) | `BenchmarkReaderReadActive` | 84,384-87,635 | 95 | 15,291-16,987 | 94 |
+| reader-17: `Reader.view` sizes `sealed`, `cands`, `rs` and `v.segs` up front, allocates the segment references as one slab, and sets `ensureIndex` only on a segment that has no index yet (a scanned one never calls it) instead of one `*segRef` and two closures per sealed segment (new benchmark; `Read(1, 1)` through a `Reader` on 1,000 sealed segments on `fsx.Sim`; ns/op 192,822-194,041 before, 159,593-160,334 after) | `BenchmarkReaderReadStartThousandSegments` | 542,491-551,953 | 3,099-3,100 | 361,639-365,970 | 2,061 |
+| reader-17 (same change; one active segment and a few sealed ones; ns/op 1,911,198-1,932,657 before, 1,921,260-1,937,592 after, within noise) | `BenchmarkReaderReadActive` | 15,296-17,694 | 94 | 14,749-15,185 | 80 |
+| reader-19: `printer.print` appends the record to a reused `printer.buf` (`strconv.AppendUint`, `time.AppendFormat`, `base64.AppendEncode`, `appendJSONString`, `appendQuoted`) and makes one `Write`, instead of `time.Format`, `jsonRecord`, `json.Marshal`, `strconv.Quote` and `fmt.Fprintf` (new benchmark in `cmd/quill`, run with `GOWORK=off go test -run '^$' -bench BenchmarkPrint -benchmem -count 3 ./cmd/quill`; output bytes are identical, checked by `TestPrintMatchesReference`; ns/op 445.8-457.9 before, 297.8-305.5 after) | `BenchmarkPrintJSONText` | 424 | 6 | 0 | 0 |
+| reader-19 (same change; ns/op 383.6-393.0 before, 55.8-57.2 after) | `BenchmarkPrintJSONBin` | 304 | 6 | 0 | 0 |
+| reader-19 (same change; ns/op 533.0-535.7 before, 155.9-156.5 after) | `BenchmarkPrintTextText` | 368 | 7 | 0 | 0 |
+| reader-19 (same change; ns/op 161.0-161.3 before, 42.4-43.5 after) | `BenchmarkPrintTextBin` | 120 | 6 | 0 | 0 |
+| reader-20: `scanSource`'s window sets `noIndex`, so `walk` no longer appends an anchor every 64 KiB (`indexStride`) into a `segInfo.index` that the scan path discards; `verifySegment`, `recoverSegment` and `verifyBounded` still build the index (ns/op 106.0-114.5 ms before, 112.4-113.6 ms after: the first run's spread covers it, so within noise; B/op varies with the pooled buffers) | `BenchmarkDrainBacklog` | 705,070-833,891 | 134-137 | 522,328-522,976 | 88-89 |
+| reader-20 (same change; ns/op 18.80-19.34 ms before, 18.69-18.98 ms after) | `BenchmarkScanAll` | 71,412-72,017 | 104 | 22,093-22,984 | 47 |
+| reader-20 (same change; ns/op 1,924,933-1,946,905 before, 1,935,879-2,045,463 after) | `BenchmarkReaderReadActive` | 15,097-15,197 | 80 | 9,081-13,353 | 72 |

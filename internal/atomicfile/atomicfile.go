@@ -34,6 +34,24 @@ func Write(fsys fsx.FS, path string, data []byte, perm fs.FileMode) error {
 	})
 }
 
+// tempName is filepath.Join(dir, TempPrefix+hex(suffix)) with one allocation instead of three.
+// dir comes from filepath.Dir, so it is already clean and Join's Clean would change nothing;
+// only the two shapes Join treats specially remain: "." (a bare file name, no directory part)
+// and "/" (the separator is already there). This file builds on linux and darwin only, so the
+// separator is always "/".
+func tempName(dir string, suffix [8]byte) string {
+	var name [len(TempPrefix) + 2*len(suffix)]byte
+	copy(name[:], TempPrefix)
+	hex.Encode(name[len(TempPrefix):], suffix[:])
+	switch dir {
+	case ".":
+		return string(name[:])
+	case "/":
+		return "/" + string(name[:])
+	}
+	return dir + "/" + string(name[:])
+}
+
 // WriteFrom is Write for content that is streamed rather than held in memory: fill writes the
 // whole content into the temp file, which is then fsynced and renamed over path. An error from
 // fill fails the write like any other step, removing the temp file and leaving path as it was.
@@ -42,7 +60,7 @@ func WriteFrom(fsys fsx.FS, path string, perm fs.FileMode, fill func(f fsx.File)
 	if _, err := rand.Read(suffix[:]); err != nil {
 		return err
 	}
-	tmp := filepath.Join(filepath.Dir(path), TempPrefix+hex.EncodeToString(suffix[:]))
+	tmp := tempName(filepath.Dir(path), suffix)
 	f, err := fsys.OpenFile(tmp, fsx.O_RDWR|fsx.O_CREATE|fsx.O_EXCL, perm)
 	if err != nil {
 		return err

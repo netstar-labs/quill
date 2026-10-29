@@ -92,6 +92,10 @@ func (v *segView) locate(seq uint64) (*segRef, error) {
 	return nil, &GapError{From: seq, To: seq} // between segments with no hole recorded: cannot happen
 }
 
+// maxExpect bounds the slice a Read reserves up front, in records: a larger result grows by
+// append past it.
+const maxExpect = 4096
+
 // cursor remembers where a scan ended, so the next one starts there without a seek.
 type cursor struct {
 	seq   uint64 // the next sequence to read
@@ -102,7 +106,9 @@ type cursor struct {
 
 func readFrom(src source, offset uint64, limit int) ([]Record, error) {
 	var out []Record
-	_, err := scanSource(src, cursor{seq: max(offset, 1)}, limit, src.maxReadBytes(), true, false, func(rec Record) bool {
+	_, err := scanSource(src, cursor{seq: max(offset, 1)}, limit, src.maxReadBytes(), true, false, func(n int) {
+		out = make([]Record, 0, n)
+	}, func(rec Record) bool {
 		out = append(out, rec)
 		return true
 	})
@@ -111,7 +117,7 @@ func readFrom(src source, offset uint64, limit int) ([]Record, error) {
 
 // scanFrom scans from offset; offset 0 means the first retained sequence.
 func scanFrom(src source, offset uint64, limit int, fn func(Record) bool) error {
-	_, err := scanSource(src, cursor{seq: offset}, limit, 0, false, true, fn)
+	_, err := scanSource(src, cursor{seq: offset}, limit, 0, false, true, nil, fn)
 	return err
 }
 
@@ -132,8 +138,11 @@ func readWait(ctx context.Context, src source, offset uint64, limit int) ([]Reco
 // A gap met after records were delivered is returned at once when gapAfter is set (Scan:
 // the callback already has the records) and otherwise left for the next call (Read: the
 // records are the result). A from.seq of 0 means the first retained sequence. It returns
-// where it stopped, for the next scan to continue from.
-func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, gapAfter bool, fn func(Record) bool) (cursor, error) {
+// where it stopped, for the next scan to continue from. expect, when not nil, is called once,
+// just before the first record is delivered, with how many records the scan may deliver at
+// most (at least 1, at most maxExpect), so a caller collecting them can size its slice
+// once; it is not called when no record is delivered (an empty poll, a gap, an error).
+func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, gapAfter bool, expect func(n int), fn func(Record) bool) (cursor, error) {
 	v, release, err := src.view()
 	if err != nil {
 		return from, err
@@ -202,7 +211,7 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		}); i > 0 {
 			start = index[i-1].pos
 		}
-		w := &window{r: r, size: size, buf: (*bufp)[:0]}
+		w := &window{r: r, size: size, buf: (*bufp)[:0], noIndex: true}
 		done := false
 		_, err = walk(w, start, 0, false, func(rec Record, pos int64) bool {
 			if rec.Seq < cur {
@@ -214,6 +223,13 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 			}
 			if copyPayloads {
 				rec.Payload = slices.Clone(rec.Payload)
+			}
+			if count == 0 && expect != nil {
+				n := v.head - rec.Seq + 1
+				if limit > 0 {
+					n = min(n, uint64(limit))
+				}
+				expect(int(min(n, maxExpect)))
 			}
 			count++
 			bytes += len(rec.Payload)
@@ -261,21 +277,21 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 func (l *Log) maxReadBytes() int      { return l.cfg.MaxReadBytes }
 func (l *Log) bufferPool() *sync.Pool { return &l.bufPool }
 
-func (l *Log) view() (*segView, func(), error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.closed {
-		return nil, nil, ErrClosed
+// sealedRefsLocked returns the good sealed segments as segRefs, built once and reused until
+// l.sealed changes (decision 103). The slice and the refs are shared by every view and are
+// never written: a view copies the slice before appending the active segment, and a sealed
+// ref has no ensureIndex, so scanSource never writes its last. Called with l.mu held.
+func (l *Log) sealedRefsLocked() []*segRef {
+	if l.refsValid {
+		return l.sealedRefs
 	}
-	a := l.active
-	a.readers++
-	v := &segView{holes: l.holes, head: l.head}
+	refs := make([]*segRef, 0, len(l.sealed))
 	for _, s := range l.sealed {
 		if s.bad != nil {
 			continue
 		}
 		s := s
-		v.segs = append(v.segs, &segRef{id: s.id, first: s.first, last: s.last, at: s.at, index: s.index,
+		refs = append(refs, &segRef{id: s.id, first: s.first, last: s.last, at: s.at, index: s.index,
 			open: func() (io.ReaderAt, int64, func(), error) {
 				f, size, err := openSegment(l.fs, s.path)
 				if err != nil {
@@ -288,6 +304,22 @@ func (l *Log) view() (*segView, func(), error) {
 				return f, size, func() { _ = f.Close() }, nil
 			}})
 	}
+	l.sealedRefs, l.refsValid = refs, true
+	return refs
+}
+
+func (l *Log) view() (*segView, func(), error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return nil, nil, ErrClosed
+	}
+	a := l.active
+	a.readers++
+	v := &segView{holes: l.holes, head: l.head}
+	refs := l.sealedRefsLocked()
+	v.segs = make([]*segRef, len(refs), len(refs)+1)
+	copy(v.segs, refs)
 	durable := a.durable
 	if a.frames > 0 {
 		v.segs = append(v.segs, &segRef{id: a.id, first: a.first, last: l.head, at: a.at, index: a.index, active: true,
@@ -320,7 +352,7 @@ func (l *Log) wait(ctx context.Context, offset uint64) error {
 		l.mu.Unlock()
 		return nil
 	}
-	ch := l.flushed
+	ch := l.waitChanLocked()
 	l.mu.Unlock()
 	select {
 	case <-ch:
