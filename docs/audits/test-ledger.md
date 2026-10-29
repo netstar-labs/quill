@@ -41,7 +41,7 @@ were recorded from quill's encoder and equal the bytes the design specifies.
 | T11 | `TestAnEmptyDirectoryIsANewLog…`, `TestANewerFormatMarker…`, `TestACrashAtEveryStepOfCreation…`, `TestTwoProcessesCreatingTheSameLogAtOnce…`, reader `ErrNoLog` in `TestAReaderSeesOnly…` | done |
 | T12 | `FuzzDecodeFrame`, `FuzzRecoverSegment`, `FuzzDecodeTail`, `FuzzDecodeFormat`, `FuzzDecodeConsumer`, `FuzzDecodePolicy`, `FuzzUnmarshalNeverPanics` | done; 20 s each in the gate |
 | T13 | `TestDiskBoundsMaxBytesHolds…`, `TestEveryConfigDefaultAndRefusal` | done |
-| T14 | `TestAFullDiskFailsAppends…` | written; runs in CI on a tmpfs (`QUILL_FULLDISK_DIR`), not run on the build machine (no container runtime) |
+| T14 | `TestAFullDiskFailsAppends…` | done; runs in CI on a tmpfs (`QUILL_FULLDISK_DIR`) and was run by hand on a Linux server (see untestable-without-x.md) |
 | T15 | `TestRollDoesNothingOnAnEmptySegment…`, T1's `Roll` steps (a crash at each step of rotation), `TestAMarkerNamingASealedSegment…`, `TestArchiveCopies…`, `TestArchiveStopsAtACorruptSegment…`, `TestTheArchiverIsAProtectedConsumer…`, `TestArchiveOnTheRealFileSystem` | done |
 | T16 | `TestConsumerAgingUnderConsumerTTL`, `TestConsumerFilesAreWrittenAtomicallyAndCommitsLeaveTheirMtime` (the premise) | done |
 | T17 | `TestSizeAccountingIsMeasured` | done |

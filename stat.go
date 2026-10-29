@@ -223,7 +223,7 @@ func mustList(st *consumerStore) []ConsumerInfo {
 func verifyBounded(f interface {
 	ReadAt([]byte, int64) (int, error)
 }, size int64, prevAt *int64, future int64, clock func(seq uint64, at int64, what string)) (segInfo, error) {
-	w := &window{r: f, size: size}
+	w := &window{r: f, size: size, chunk: windowChunk}
 	info, err := walk(w, 0, 0, false, func(rec Record, _ int64) bool {
 		if rec.At > future {
 			clock(rec.Seq, rec.At, "is more than a day in the future")

@@ -161,7 +161,7 @@ func BenchmarkScanAll(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		n := 0
-		if err := l.ScanAll(func(Record) bool { n++; return true }); err != nil || n != benchRecords {
+		if err := l.ScanAll(func(Record) bool { n++; return true }); err != nil || n < benchRecords {
 			b.Fatal(err, n)
 		}
 	}

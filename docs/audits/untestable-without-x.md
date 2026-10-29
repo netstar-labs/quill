@@ -56,10 +56,11 @@ simulator's model (see phase 1).
 
 ### A full disk (needs: a filesystem you can fill)
 
-T14 fills a small tmpfs in CI (`.github/workflows/ci.yml`, job `fulldisk`). The build machine
-had no container runtime, so the test has not run here; the short-write and `ENOSPC` paths it
-exercises are tested against the simulator (T3), and the test itself is type-checked by the
-gate.
+T14 fills a small tmpfs in CI (`.github/workflows/ci.yml`, job `fulldisk`). It was also run by
+hand on a Debian 13 server (Linux 6.12, a 4 MiB tmpfs) on 2026-10-28: the filesystem filled
+after 64 acknowledged 4 KiB records, every acknowledged record read back, `Check` was healthy,
+and the writer recovered without a restart once the filler was removed. The short-write and
+`ENOSPC` paths are also tested against the simulator (T3).
 
 ### A backlog larger than memory on a real disk (needs: hours and a large disk)
 

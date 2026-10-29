@@ -84,14 +84,21 @@ func openSegment(fsys fsx.FS, path string) (fsx.File, int64, error) {
 }
 
 // window reads a segment through an io.ReaderAt in chunks, handing out slices of frames.
+// A read starts with a small chunk and doubles it on each further read, so a Read of a
+// hundred records costs one small pread while a scan of a whole segment soon reads a
+// megabyte at a time (decision 91). verifySegment and recoverSegment start large.
 type window struct {
-	r    io.ReaderAt
-	size int64
-	buf  []byte
-	off  int64 // position of buf[0] in the file
+	r     io.ReaderAt
+	size  int64
+	buf   []byte
+	off   int64 // position of buf[0] in the file
+	chunk int64 // the next read's size; 0 means readChunk
 }
 
-const windowChunk = 1 << 20
+const (
+	windowChunk = 1 << 20 // the largest chunk, and the first for a whole-segment scan
+	readChunk   = 64 << 10
+)
 
 // bytes returns n bytes at pos, n at most size-pos, reading from the file when they are not
 // buffered. The slice is valid until the next call.
@@ -99,7 +106,11 @@ func (w *window) bytes(pos int64, n int) ([]byte, error) {
 	if pos >= w.off && pos+int64(n) <= w.off+int64(len(w.buf)) {
 		return w.buf[pos-w.off : pos-w.off+int64(n)], nil
 	}
-	want := int64(max(n, windowChunk))
+	if w.chunk == 0 {
+		w.chunk = readChunk
+	}
+	want := max(int64(n), w.chunk)
+	w.chunk = min(w.chunk*2, windowChunk)
 	if pos+want > w.size {
 		want = w.size - pos
 	}
@@ -188,7 +199,7 @@ func walk(w *window, start int64, prev uint64, havePrev bool, fn func(rec Record
 // intact and contiguous, the last must end exactly at size, and there must be at least one.
 // Anything else is a *SegmentError (decision 39, decision 43).
 func verifySegment(r io.ReaderAt, size int64) (segInfo, error) {
-	w := &window{r: r, size: size}
+	w := &window{r: r, size: size, chunk: windowChunk}
 	info, err := walk(w, 0, 0, false, nil)
 	if err != nil {
 		if !isFrameError(err) {
@@ -212,7 +223,7 @@ func recoverSegment(r io.ReaderAt, size int64, durable int64) (info segInfo, cut
 	if durable > size {
 		return segInfo{}, false, &SegmentError{Offset: size, Intact: size, Reason: fmt.Sprintf("the file holds %d bytes but the marker says %d are durable", size, durable)}
 	}
-	w := &window{r: r, size: durable}
+	w := &window{r: r, size: durable, chunk: windowChunk}
 	info, err = walk(w, 0, 0, false, nil)
 	if err != nil {
 		if !isFrameError(err) {
