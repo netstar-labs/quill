@@ -133,7 +133,7 @@ orders/                        one log
 ├── 0000000001.log
 ├── quill.tail                 durable position and highest segment id, rewritten after each fsync
 ├── quill.format               format marker and log ID, "quill/1 <id>"
-├── quill.policy               the Config the writer last opened with, for tools (decision 29)
+├── quill.policy               the Config the last writer opened with, for tools (decisions 29, 99)
 ├── quill.lock                 the writer's exclusive flock (advisory, empty)
 └── consumers/
     ├── billing                one file per consumer: the log ID, the next sequence to read, and whether it is protected
@@ -265,7 +265,8 @@ when space returns. The reference derived this from its code but never ran it on
 **Managing logs individually.** Everything is per directory: `ls`, `stat`, `check`, `prune`, `roll`,
 `archive`; moving, renaming or deleting a log is a directory operation done while no writer holds it.
 Policy (`Retention`, caps) is each writer's `Config`; `quill.policy` records what the writer last opened
-with, so offline tools and `quill ls` can show and apply it (decision 29).
+with, so offline tools and `quill ls` can show and apply it (decision 29). Offline verbs never rewrite it
+(decision 99).
 
 **Aging out consumers.** The reference has no consumer expiry: a registered consumer that never commits pins
 segments until someone calls `DeleteConsumer` (**reported**, its user guide). Quill adds `ConsumerTTL`

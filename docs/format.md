@@ -158,9 +158,13 @@ the archiver). The file is written only by the process holding `consumers/{name}
 
 ### `quill.policy`
 
-JSON, indented, the settings the writer last opened with. Informational: `Config` at open is
-authoritative and rewrites it; offline tools read it. Unknown fields are ignored and a parse
-failure never blocks an open; an offline tool that cannot parse it refuses to act on it.
+JSON, indented, the settings the last writer opened with. Informational: `Config` at open is
+authoritative and rewrites it, except that an open with `NoMaintenance` (the offline verbs
+`append`, `roll`, `prune` and `recover`) never writes it, so a tool does not replace the writer's
+settings. Offline tools read it: `append`, `roll` and `recover` take the segment size and payload
+limit from it, so they never seal an active segment below the writer's size. Unknown fields are
+ignored and a parse failure never blocks an open; an offline tool that cannot parse it refuses to
+act on it (`prune`) or uses the segment-size ceiling (`append`, `roll`, `recover`).
 
 ```
 {

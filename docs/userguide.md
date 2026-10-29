@@ -146,7 +146,7 @@ arrives during creation retries).
 | `ConsumerTTL` | off | See §4 |
 | `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures |
 | `Perm` | 0600 (dirs 0700) | File mode |
-| `NoMaintenance` | off | For offline tools: no background prune or age rotation |
+| `NoMaintenance` | off | For offline tools: no background prune or age rotation, and `quill.policy` is not written |
 
 **Bounded disk.** With `MaxBytes` set, segment bytes stay within
 `MaxBytes + SegmentBytes + MaxBufferBytes + MaxBatchBytes`. Defaults leave `MaxBytes` and
@@ -171,8 +171,10 @@ future or earlier than their predecessor.
 | `append`, `roll`, `prune`, `recover` | the writer's | no: `ErrLocked` |
 
 Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. Offline verbs run with
-background maintenance off; `prune` uses `quill.policy` or the retention flags and refuses a
-log whose policy it cannot read. Numeric flags (`commit -offset`, `prune -max-bytes`,
+background maintenance off and never rewrite `quill.policy`; `append`, `roll` and `recover` take
+the segment size from it (the 1 GiB ceiling when it cannot be read), so they do not seal a large
+active segment; `roll` seals regardless. `prune` uses `quill.policy` or the retention flags and
+refuses a log whose policy it cannot read. Numeric flags (`commit -offset`, `prune -max-bytes`,
 `-min-free-bytes`, `-max-records`, and `@<unix seconds>`) take plain decimal integers; `1e6`,
 `1M`, `0x10`, `-1` and trailing text are usage errors, not guesses.
 
@@ -198,7 +200,7 @@ orders/
 ├── 0000000000.log      segments: ascending ids, never reused; the newest is active
 ├── quill.tail          {"seq","seg","off","maxseg"}: the durable position
 ├── quill.format        "quill/1 <log id>"
-├── quill.policy        the writer's settings, for tools
+├── quill.policy        the last writer's settings, for tools
 ├── quill.lock          the writer's flock
 └── consumers/
     ├── billing         "<log id> <next> <protect>"

@@ -59,7 +59,8 @@ type Config struct {
 	// ConsumerTTL: a protected consumer behind for this long stops protecting segments (0: off).
 	ConsumerTTL time.Duration
 	// NoMaintenance disables the background prune pass and age rotation: for offline tools
-	// that open a log briefly (decision 68). Flushing still runs.
+	// that open a log briefly (decision 68). Flushing still runs. Open does not write
+	// quill.policy under it, so a tool never replaces the writer's settings (decision 99).
 	NoMaintenance bool
 
 	fs     fsx.FS                           // the seam; nil is the real file system
@@ -305,8 +306,10 @@ func Open(cfg Config) (*Log, error) {
 		return nil, err
 	}
 	l.removeStaleTemps()
-	if err := l.writePolicy(); err != nil {
-		l.bgErr = err
+	if !cfg.NoMaintenance { // an offline tool never replaces the writer's policy (decision 99)
+		if err := l.writePolicy(); err != nil {
+			l.bgErr = err
+		}
 	}
 	// Protected consumers exist, protected, before any consumer process starts (decision 67).
 	for _, name := range cfg.ProtectedConsumers {

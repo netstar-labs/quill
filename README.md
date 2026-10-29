@@ -15,7 +15,7 @@ sockets, no dependencies. Closer to "the SQLite of commit logs" than to a lightw
             ├── 0000000001.log   active
             ├── quill.tail       the durable position (seq, seg, off, maxseg)
             ├── quill.format     "quill/1 <log id>"
-            ├── quill.policy     the writer's Config, for tools
+            ├── quill.policy     the last writer's Config, for tools; offline verbs never rewrite it
             ├── quill.lock       the writer's flock
             └── consumers/       <name>: "<log id> <next> <protect>", one file per consumer
                                      ▲

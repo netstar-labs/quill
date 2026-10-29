@@ -9,6 +9,9 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
   nil dereference; a read in flight finishes and the last one out closes the active segment.
 - Fixed: a damaged sealed segment now counts its file's bytes in `Stat().Bytes` and toward `MaxBytes`
   (and `MinFreeBytes`), so the cap can delete it when it is the oldest.
+- Fixed: the offline verbs (`append`, `roll`, `prune`, `recover`) no longer rewrite `quill.policy`
+  (`Open` skips it under `NoMaintenance`), and `append`, `roll` and `recover` take the segment size
+  from it instead of the 8 MiB default, so they do not seal a larger active segment.
 
 ## v0.1.0
 

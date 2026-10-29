@@ -111,6 +111,12 @@ then at a quarter of the sealed segments per pass (the clock guard), then the ca
 the marker is published and the directory fsynced before any unlink. The same caps run at
 every seal.
 
+`quill.policy` records the last writer's settings (retention, caps, segment size, payload limit)
+for tools that see only the directory. An open with `NoMaintenance`, which is how the offline
+verbs `append`, `roll`, `prune` and `recover` open, never writes it; those verbs open with no
+caps and take the segment size and payload limit from it, so opening does not seal a segment the
+writer's own size allows (decision 99).
+
 ## 7. Testing
 
 The crash simulator keeps a durable and a volatile image per file and per directory: unsynced

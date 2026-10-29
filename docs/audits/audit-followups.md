@@ -31,25 +31,6 @@ reader.go:204-206 calls `reason(ferr)` with `ferr == nil` when the frame is CRC-
 Reader returns `GapError{1,1}` as decisions 11/38 and guarantee 14 require. Why owner: flagged
 semantic (panic becomes a gap). Recommended: approve; test from the probe.
 
-### correctness-32 + docs-33: what Config the offline writable verbs open with (sev:major)
-
-`quill append`, `roll` and `recover` open with `Config{Retention: -1}` plus defaults
-(verbs.go:474, :728, :756; `writer` :287-298), so they (a) rotate any active segment over the
-default 8 MiB at load (load.go:414 -> flush.go:104) and (b) rewrite `quill.policy` with their
-own settings (log.go:305), after which a flagless `quill prune` runs with retention off and no
-caps and `ls`/`check` print UNBOUNDED until the real writer reopens. Both reproduced. Decisions
-29, 68 and 87 say the file holds the writer's settings for tools to read. Why owner: seeding the
-offline Config from the whole policy would make the policy's caps live during an offline
-append's flush-time seal (`publishLocked` -> `capsLocked`), which decision 68 ("never prunes")
-forbids; guarding `writePolicy` on `NoMaintenance` redefines that flag as "offline tool"; and
-skip-rotation-under-NoMaintenance alone would not cover `quill append`. Recommended: offline
-verbs keep `Retention: -1` and no caps, take `SegmentBytes` and `MaxPayloadBytes` from
-`ReadPolicy` when it parses (else `MaxSegmentBytes`); `Open` skips `writePolicy` when
-`cfg.NoMaintenance` is set; decision 68 records both and that `roll` rotates regardless. If the
-behaviour is kept instead, docs/format.md:161, README.md:18, docs/userguide.md:174/199,
-scope.md:136/267 and decision 29 must say that any writable open rewrites the file (text in
-audit-docs.md item 1).
-
 ### correctness-28: `quill append -sync=false` exits 0 when the deferred `Close`, its only flush, fails (sev:minor)
 
 verbs.go:478 discards `Close`'s error; reproduced on the simulator (prints the sequence, exit
@@ -129,6 +110,20 @@ verification; from an `Lstat` when the open fails. A file that cannot be `Lstat`
 Regression tests in load_damaged_bytes_test.go: a sealed segment with a flipped CRC byte, reopened,
 matches the files and the `Reader`, and a `MaxBytes` pass deletes exactly that segment; an
 injected open failure still counts the file's size.
+
+### correctness-32 + docs-33: what Config the offline writable verbs open with (applied)
+
+Decision taken: approved as recommended (decision 99). `Open` skips `writePolicy` when
+`Config.NoMaintenance` is set, so `append`, `roll`, `prune` and `recover` never rewrite
+`quill.policy`. The command's writer helper (`openWriter`, cmd/quill/write.go) keeps `Retention:
+-1`, no caps and no protected consumers, and takes `SegmentBytes` and `MaxPayloadBytes` from
+`ReadPolicy` when it parses, else `MaxSegmentBytes` and the payload ceiling; `roll` rotates
+regardless. One exception: `prune` with explicit caps and an unreadable policy keeps the default
+segment size, since a cap below twice the ceiling would not validate. docs/format.md, README.md,
+docs/userguide.md, docs/architecture.md and scope.md describe it. Regression tests in
+cmd/quill/offline_policy_test.go (policy byte-identical after append, roll, recover and prune; a
+9 MiB active segment is not rotated under a 1 GiB policy, is under a 64 KiB one; no policy, no
+file created) and policy_nomaintenance_test.go.
 
 ## Deferred (one issue)
 
