@@ -12,25 +12,31 @@ GOWORK=off go test -run '^$' -bench . -benchmem -count 6 . | tee bench.txt
 flush (every flush is the benchmark's own). "Read" is `Read(offset, 100)` on a warm 400 K-record
 log. On macOS every fsync is `F_FULLFSYNC`.*
 
-## macOS, Apple silicon (the build machine), 2026-10-28
+## macOS, Apple silicon (the build machine), 2026-10-29
 
 Darwin 25.6.0, arm64, 10 cores, APFS on the internal SSD, Go 1.27.3, quill at the commit that
-tags v0.1.0.
+tags v0.1.0, re-recorded after the allocation pass (the tables before it are at commit 45d2d2b;
+no median moved by more than noise except downward: a flush allocates 6 times instead of 14, a
+100-record read 113 instead of 136, a `Reader` poll 162 instead of 543, a full scan 47 instead
+of 119).
 
 | Benchmark | Median ns/op | Range (min–max) | Runs | Median B/op | Median allocs/op | Other |
 |---|---|---|---|---|---|---|
-| `BenchmarkAppendBuffered` | 22,655 | 21,324–23,981 | 6 | 8 | 0 | 5.65 MB/s |
-| `BenchmarkAppendFlushEach` | 9,990,037 | 9,765,522–10,539,680 | 6 | 1,290 | 14 | 0.01 MB/s |
-| `BenchmarkAppendBatchSync` | 10,337,037 | 10,219,898–10,474,447 | 6 | 3,882 | 14 | 6.34 MB/s |
-| `BenchmarkReadStart` | 26,650 | 26,579–26,916 | 6 | 28,260 | 136 | — |
-| `BenchmarkReadTail` | 22,732 | 22,356–23,265 | 6 | 27,366 | 129 | — |
-| `BenchmarkReadSealed` | 38,792 | 37,474–39,937 | 6 | 27,708 | 136 | — |
-| `BenchmarkScanAll` | 18,682,048 | 18,622,615–18,978,407 | 6 | 72,687 | 119 | 21,523,194 records/s |
-| `BenchmarkReadWait` | 10,136,097 | 9,955,176–10,397,931 | 6 | 28,187 | 25 | — |
-| `BenchmarkColdStart` | 23,044,597 | 22,550,728–23,646,150 | 6 | 7,421,258 | 366 | — |
-| `BenchmarkParallelLogsFlush` | 24,255,678 | 23,260,447–25,145,656 | 6 | 5,653 | 66 | 0.02 MB/s |
-| `BenchmarkReaderFollow` | 10,405,351 | 10,037,283–10,778,244 | 6 | 168,786 | 543 | — |
-| `BenchmarkDrainBacklog` | 114,334,530 | 108,669,608–116,420,185 | 6 | 901,756 | 176 | 2,347.85 MB/s, 16,399,074 records/s |
+| `BenchmarkAppendBuffered` | 22,146 | 21,899–22,789 | 6 | 6 | 0 | 5.78 MB/s |
+| `BenchmarkAppendFlushEach` | 9,793,069 | 9,615,704–10,242,545 | 6 | 610 | 6 | 0.01 MB/s |
+| `BenchmarkAppendBatchSync` | 10,330,171 | 10,169,191–10,602,169 | 6 | 3,210 | 6 | 6.35 MB/s |
+| `BenchmarkReadStart` | 24,592 | 24,446–25,546 | 6 | 18,836 | 113 | — |
+| `BenchmarkReadTail` | 20,696 | 20,336–21,004 | 6 | 18,059 | 106 | — |
+| `BenchmarkReaderReadActive` | 1,966,076 | 1,921,382–2,128,119 | 6 | 10,364 | 72 | — |
+| `BenchmarkReadSealed` | 36,192 | 35,639–36,724 | 6 | 18,624 | 113 | — |
+| `BenchmarkScanAll` | 18,896,942 | 18,646,579–19,513,642 | 6 | 22,379 | 47 | 21,271,603 records/s |
+| `BenchmarkReadWait` | 10,201,346 | 10,028,294–10,417,794 | 6 | 18,894 | 16 | — |
+| `BenchmarkColdStart` | 22,655,105 | 22,549,493–22,950,587 | 6 | 7,417,626 | 327 | — |
+| `BenchmarkParallelLogsFlush` | 23,866,388 | 20,759,760–25,975,165 | 6 | 2,918 | 35 | 0.02 MB/s |
+| `BenchmarkReaderFollow` | 10,414,117 | 9,893,177–10,795,930 | 6 | 72,470 | 162 | — |
+| `BenchmarkDrainBacklog` | 112,877,826 | 110,578,075–114,572,958 | 6 | 522,350 | 88 | 2,378.11 MB/s, 16,599,194 records/s |
+| `BenchmarkReadStartThousandSegments` | 2,250 | 2,228–2,305 | 6 | 11,300 | 30 | — |
+| `BenchmarkReaderReadStartThousandSegments` | 163,128 | 162,244–165,086 | 6 | 360,952 | 2,060 | — |
 
 **The cost of the marker.** A flush is two `F_FULLFSYNC`s on macOS: the segment's data and
 the marker's temp file. `AppendFlushEach` (one record per flush) is about 10 ms per record,
@@ -41,15 +47,15 @@ costs (decision 8). `ReadWait` and `ReaderFollow` are dominated by the same flus
 in-process reader sees a record about 10 ms after `Append`, an external reader polling at
 1 ms about 10.4 ms.
 
-**Reads.** A 100-record read costs about 27 µs at the start of the log, 23 µs near the tail
-and 39 µs at a random position in a sealed segment; the difference is opening a sealed
+**Reads.** A 100-record read costs about 25 µs at the start of the log, 21 µs near the tail
+and 36 µs at a random position in a sealed segment; the difference is opening a sealed
 segment per read (decision 15) and the seek within it. The sparse index and the
 first-chunk size (decision 91) keep the cost independent of the backlog (T19).
 
-**Scans.** A full in-process `ScanAll` decodes about 21.5 M records per second warm; a
-`Reader` draining a 256 MiB backlog decodes about 16.4 M records per second, about 2.3 GB/s.
-The backlog fits in memory; the larger-than-memory measurement of decision 15 was not run
-(see `untestable-without-x.md`).
+**Scans.** A full in-process `ScanAll` decodes about 21.3 M records per second warm; a
+`Reader` draining a 256 MiB backlog decodes about 16.6 M records per second, about 2.4 GB/s.
+The backlog fits in memory; the larger-than-memory measurement of decision 15 was run on
+the Linux server (below).
 
 **Cold start** of a 400 K-record, 58 MiB log, every byte read and CRC-checked: about 23 ms.
 
@@ -57,10 +63,10 @@ The backlog fits in memory; the larger-than-memory measurement of decision 15 wa
 one: `F_FULLFSYNC`s overlap only partly here. Decision 13's per-log flush goroutines give
 the overlap the device allows; this device allows little.
 
-## Linux, a virtual server, 2026-10-28
+## Linux, a virtual server, 2026-10-29
 
 Debian 13, Linux 6.12.113, 4 vCPUs, 8 GiB, ext4 (`data=ordered`) on a virtual disk, Go
-1.27.3, the same commit, with the temporary directory on the disk (the server's `/tmp` is a
+1.27.3, the same commit (re-recorded after the allocation pass; the tables before it are at commit 45d2d2b), with the temporary directory on the disk (the server's `/tmp` is a
 tmpfs, and a first run there measured memory, not a disk; those figures are discarded). Not
 the baseline machine (the regression rule applies to the macOS table); recorded because the
 cost of an fsync differs by an order of magnitude between the two and because this machine
@@ -69,28 +75,31 @@ persistent is not known.
 
 | Benchmark | Median ns/op | Range (min–max) | Runs | Median B/op | Median allocs/op | Other |
 |---|---|---|---|---|---|---|
-| `BenchmarkAppendBuffered` | 2,842 | 2,645–3,434 | 6 | 3 | 0 | 45.04 MB/s |
-| `BenchmarkAppendFlushEach` | 929,308 | 898,101–964,887 | 6 | 1,089 | 14 | 0.14 MB/s |
-| `BenchmarkAppendBatchSync` | 1,215,706 | 1,200,227–3,506,327 | 6 | 1,489 | 14 | 53.92 MB/s |
-| `BenchmarkReadStart` | 44,972 | 41,128–46,444 | 6 | 27,700 | 136 | — |
-| `BenchmarkReadTail` | 66,596 | 64,344–74,104 | 6 | 26,766 | 129 | — |
-| `BenchmarkReadSealed` | 79,549 | 73,205–152,317 | 6 | 27,257 | 136 | — |
-| `BenchmarkScanAll` | 60,129,846 | 57,447,278–63,601,067 | 6 | 109,405 | 119 | 6,657,584 records/s |
-| `BenchmarkReadWait` | 1,022,843 | 945,475–1,155,069 | 6 | 6,674 | 25 | — |
-| `BenchmarkColdStart` | 27,531,304 | 26,510,346–28,207,397 | 6 | 7,422,030 | 363 | — |
-| `BenchmarkParallelLogsFlush` | 1,374,841 | 1,285,289–1,421,308 | 6 | 4,820 | 66 | 0.37 MB/s |
-| `BenchmarkReaderFollow` | 1,552,604 | 1,483,489–1,600,729 | 6 | 179,436 | 239 | — |
-| `BenchmarkDrainBacklog` | 362,929,796 | 339,691,184–409,661,358 | 6 | 1,933,728 | 198 | 739.66 MB/s, 5,140,637 records/s |
+| `BenchmarkAppendBuffered` | 2,944 | 2,810–3,077 | 6 | 1 | 0 | 43.48 MB/s |
+| `BenchmarkAppendFlushEach` | 994,156 | 950,052–1,044,095 | 6 | 472 | 6 | 0.13 MB/s |
+| `BenchmarkAppendBatchSync` | 1,350,909 | 1,277,484–4,047,745 | 6 | 880 | 6 | 48.52 MB/s |
+| `BenchmarkReadStart` | 41,656 | 38,466–48,065 | 6 | 18,239 | 113 | — |
+| `BenchmarkReadTail` | 68,017 | 63,754–127,662 | 6 | 17,404 | 106 | — |
+| `BenchmarkReaderReadActive` | 6,798,884 | 6,630,854–7,099,823 | 6 | 12,984 | 70 | — |
+| `BenchmarkReadSealed` | 76,863 | 73,147–132,146 | 6 | 18,208 | 113 | — |
+| `BenchmarkScanAll` | 59,850,301 | 58,908,592–70,607,948 | 6 | 59,743 | 48 | 6,688,301 records/s |
+| `BenchmarkReadWait` | 1,031,078 | 1,024,260–1,082,676 | 6 | 6,920 | 16 | — |
+| `BenchmarkColdStart` | 28,056,283 | 26,577,688–28,635,837 | 6 | 7,419,016 | 324 | — |
+| `BenchmarkParallelLogsFlush` | 1,336,699 | 1,275,376–1,404,999 | 6 | 2,355 | 34 | 0.39 MB/s |
+| `BenchmarkReaderFollow` | 1,407,812 | 1,387,655–1,475,206 | 6 | 17,009 | 108 | — |
+| `BenchmarkDrainBacklog` | 355,361,852 | 348,752,705–369,701,060 | 6 | 1,552,917 | 113 | 755.48 MB/s, 5,250,530 records/s |
+| `BenchmarkReadStartThousandSegments` | 5,742 | 5,498–6,526 | 6 | 11,178 | 30 | — |
+| `BenchmarkReaderReadStartThousandSegments` | 416,622 | 407,842–451,619 | 6 | 352,538 | 2,066 | — |
 
-**fsync costs about 1 ms here**: one record per flush about 0.93 ms (about 1,100 durable
-records per second for a lone producer) and a 512-record batch about 1.2 ms (about 420 K
+**fsync costs about 1 ms here**: one record per flush about 1.0 ms (about 1,000 durable
+records per second for a lone producer) and a 512-record batch about 1.35 ms (about 380 K
 records per second), against 10 ms per flush on the macOS build machine. `ReadWait` sees a
-record about 1 ms after `Append`. Four logs flushing in parallel take 1.4 ms per round
-against 0.93 ms for one: the fsyncs overlap well on this device, which is what decision 13's
+record about 1 ms after `Append`. Four logs flushing in parallel take 1.3 ms per round
+against 1.0 ms for one: the fsyncs overlap well on this device, which is what decision 13's
 per-log flush goroutines are for.
 
-**Reads are CPU-bound on this VM**: a 100-record read costs 45 µs at the start, 67 µs near
-the tail and 80 µs in a sealed segment. The tail read is the slowest because the sparse index
+**Reads are CPU-bound on this VM**: a 100-record read costs 42 µs at the start, 68 µs near
+the tail and 77 µs in a sealed segment. The tail read is the slowest because the sparse index
 anchors every 64 KiB, so a read near the tail decodes a few hundred frames past its anchor
 before the first one it wants; on the faster build machine the same work costs 23 µs.
 Narrowing the anchor stride is a measured follow-up for the audit sequence. Before decision 91
