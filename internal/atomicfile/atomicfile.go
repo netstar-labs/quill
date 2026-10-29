@@ -7,8 +7,7 @@
 // Write does not fsync the directory. After a process crash the rename is complete; after a
 // power loss it may be undone, leaving the previous version, and never a torn or empty file,
 // because the data was synced before the name moved (decision 40). Callers that need the
-// rename itself to be durable call WriteSyncDir, or fsx.FS.SyncDir at the points decision 65
-// names.
+// rename itself to be durable call fsx.FS.SyncDir after Write, at the points decision 65 names.
 package atomicfile
 
 import (
@@ -82,13 +81,4 @@ func WriteFrom(fsys fsx.FS, path string, perm fs.FileMode, fill func(f fsx.File)
 		_ = fsys.Remove(tmp) // no failed write leaves a temp file behind
 	}
 	return err
-}
-
-// WriteSyncDir is Write followed by an fsync of the containing directory, so the rename
-// itself survives a power loss.
-func WriteSyncDir(fsys fsx.FS, path string, data []byte, perm fs.FileMode) error {
-	if err := Write(fsys, path, data, perm); err != nil {
-		return err
-	}
-	return fsys.SyncDir(filepath.Dir(path))
 }

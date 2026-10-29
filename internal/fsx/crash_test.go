@@ -24,7 +24,7 @@ func mustOpen(t *testing.T, fsys FS, name string, flag int) File {
 func mustWrite(t *testing.T, f File, data []byte, off int64) {
 	t.Helper()
 	if _, err := f.WriteAt(data, off); err != nil {
-		t.Fatalf("write %s: %v", f.Name(), err)
+		t.Fatalf("write: %v", err)
 	}
 }
 

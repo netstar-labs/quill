@@ -169,8 +169,6 @@ func (f *simFile) Close() error {
 	return nil
 }
 
-func (f *simFile) Name() string { return f.name }
-
 // fileInfo is the simulator's fs.FileInfo. Sys returns the file identity, which a test can
 // use to tell a replaced file from the original.
 type fileInfo struct {

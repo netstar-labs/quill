@@ -53,8 +53,6 @@ type File interface {
 	// Close or by the process ending.
 	TryLock() error
 	Close() error
-	// Name is the path the file was opened with.
-	Name() string
 }
 
 // ErrLocked is returned by TryLock when another holder has the lock.

@@ -104,11 +104,19 @@ func TestAFailureAtAnyStepLeavesTheTargetUntouchedAndNoTempFile(t *testing.T) {
 	}
 }
 
+// writeDurable is Write followed by a directory fsync, so the rename survives a crash.
+func writeDurable(fsys fsx.FS, path string, data []byte) error {
+	if err := Write(fsys, path, data, 0o600); err != nil {
+		return err
+	}
+	return fsys.SyncDir(filepath.Dir(path))
+}
+
 func TestACrashAtAnyPointLeavesTheOldOrTheWholeNewFile(t *testing.T) {
 	// Crash before every operation of a Write, with every subset of unsynced items kept.
 	for at := 1; ; at++ {
 		s := fsx.NewSim()
-		if err := WriteSyncDir(s, "/state", []byte("old"), 0o600); err != nil {
+		if err := writeDurable(s, "/state", []byte("old")); err != nil {
 			t.Fatal(err)
 		}
 		count := 0
@@ -135,7 +143,7 @@ func TestACrashAtAnyPointLeavesTheOldOrTheWholeNewFile(t *testing.T) {
 		// Replay the same point with every subset of the unsynced items.
 		for mask := 0; ; mask++ {
 			s := fsx.NewSim()
-			if err := WriteSyncDir(s, "/state", []byte("old"), 0o600); err != nil {
+			if err := writeDurable(s, "/state", []byte("old")); err != nil {
 				t.Fatal(err)
 			}
 			count := 0
