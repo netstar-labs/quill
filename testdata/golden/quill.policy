@@ -1,0 +1,14 @@
+{
+  "retention": "24h0m0s",
+  "segment_bytes": 8388608,
+  "segment_max_age": "24h0m0s",
+  "max_bytes": 0,
+  "min_free_bytes": 0,
+  "max_records": 0,
+  "max_payload_bytes": 67108832,
+  "consumer_ttl": "0s",
+  "protected_consumers": [
+    "_archive",
+    "billing"
+  ]
+}
