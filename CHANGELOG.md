@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a prune pass that deleted several sealed segments synced the directory once, before the first
+  unlink, so a power loss could persist a later unlink without an earlier one and leave a hole in the
+  middle of the retained records; the directory is now synced before each unlink, so what survives a
+  crash is always a suffix. Deleting n segments costs n directory syncs instead of one.
+
 - Fixed: at the sequence ceiling the API contradicted itself: after the record numbered 2^64-1 was
   accepted, `Sync` of it returned `ErrBadSeq`, so did `Append` with `SyncAppends` although the record
   was durable, and `Read` of it returned `ErrCorrupt`. The last sequence, 2^64-1, is now never

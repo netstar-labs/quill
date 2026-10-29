@@ -108,7 +108,8 @@ protects its unread sealed segments unless `ConsumerTTL` finds it stale (behind,
 file and an old record at its offset); the caps override protection and `Dropped` counts the
 loss. The age sweep takes the longest expired prefix of sealed segments, cuts it at protection,
 then at a quarter of the sealed segments per pass (the clock guard), then the caps extend it;
-the marker is published and the directory fsynced before any unlink. The same caps run at
+the marker is published and the directory fsynced before any unlink, and again before each
+further one so that a crash leaves the surviving segments a suffix. The same caps run at
 every seal.
 
 `quill.policy` records the last writer's settings (retention, caps, segment size, payload limit)

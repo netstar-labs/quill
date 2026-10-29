@@ -113,14 +113,15 @@ func TestTheAgeSweepDeletesExpiredSealedSegmentsNeverTheActiveOneAndNeverReusesA
 	if _, err := l.Read(1, 10); !isGap(err, 1, 12) {
 		t.Fatalf("below the first retained: %v", err)
 	}
-	// The marker was published and the directory synced before the unlinks; the unlinks
-	// themselves may be undone by a crash, which resurrects whole, contiguous segments.
+	// The marker was published and the directory synced before each unlink; the last unlink
+	// may be undone by a crash, which resurrects a whole segment at the front: what survives
+	// is a suffix, and the survivors are contiguous.
 	s.Crash(nil)
 	l2, err := Open(simConfig(s, "/log"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ids := segmentFiles(t, s, "/log"); len(ids) != 4 && len(ids) != 7 {
+	if ids := segmentFiles(t, s, "/log"); len(ids) < 4 || len(ids) > 7 || ids[len(ids)-1] != 6 {
 		t.Fatalf("after a crash %v", ids)
 	}
 	if recs, err := readAll(l2); err != nil || checkContiguous(t, recs, recs[0].Seq) != 24 {

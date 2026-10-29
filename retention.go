@@ -211,8 +211,9 @@ func (l *Log) capsLocked(n int) int {
 	return n
 }
 
-// deleteLocked unlinks the first n sealed segments: the marker is published and the
-// directory fsynced first (decision 65). offsets are the consumers' offsets, for Dropped.
+// deleteLocked unlinks the first n sealed segments, oldest first: the marker is published and
+// the directory fsynced before each unlink (decision 65). offsets are the consumers' offsets,
+// for Dropped.
 //
 // The publish may seal an active segment that outgrew SegmentBytes after a failed rotation
 // (decision 60 d), and that seal runs the caps (decision 24), which delete a prefix of
@@ -236,11 +237,16 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 	if n == 0 {
 		return nil
 	}
-	if err := l.fs.SyncDir(l.dir); err != nil {
-		l.fail(err)
-		return l.failed
-	}
+	// The directory is synced before each unlink, not once before the first: a power loss may
+	// persist any unsynced unlink (decision 61), and one that persists without the unlink
+	// before it leaves a hole in the middle of the retained records. Synced one at a time,
+	// the segments that survive a crash are always a suffix.
+	var syncErr error
 	for i := 0; i < n; i++ {
+		if syncErr = l.fs.SyncDir(l.dir); syncErr != nil {
+			n = i
+			break
+		}
 		s := l.sealed[i]
 		err := l.fs.Remove(s.path)
 		if errors.Is(err, fs.ErrNotExist) {
@@ -273,6 +279,10 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 		}
 	}
 	l.holes = kept
+	if syncErr != nil {
+		l.fail(syncErr)
+		return l.failed
+	}
 	return nil
 }
 
