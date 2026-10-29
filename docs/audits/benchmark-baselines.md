@@ -136,3 +136,6 @@ Wall time is dominated by `F_FULLFSYNC` and did not move beyond noise.
 | write-5: the `Log.flushed` broadcast channel is made by the first waiter (`waitChanLocked`, called by `Sync` and `ReadWait`) and closed and set to nil by `broadcastLocked`, instead of a new channel made after every flush attempt | `BenchmarkAppendFlushEach` | 721–725 | 7 | 608–611 | 6 |
 | write-5 (same change; a waiter is present each flush, so the channel is still made, and B/op is dominated by the batch buffer) | `BenchmarkAppendBatchSync` | 3,225–3,290 | 7 | 3,176–3,615 | 6 |
 | write-5 (same change; B/op varies run to run with the reader's buffers) | `BenchmarkReadWait` | 10,394–27,506 | 18–19 | 19,269–36,712 | 17 |
+| read-7: `Log.view` reuses the sealed `segRef`s cached in `Log.sealedRefs` (decision 103) instead of building one `segRef` and one `open` closure per sealed segment on every call | `BenchmarkReadStart` | 27,971–28,278 | 136 | 26,976–27,011 | 121 |
+| read-7 (same change) | `BenchmarkReadTail` | 27,655–27,787 | 129 | 26,162–26,253 | 114 |
+| read-7 (same change; 1,000 sealed segments on `fsx.Sim`, `Read(1, 1)`; ns/op 36,762–38,573 before, 2,171–2,436 after) | `BenchmarkReadStartThousandSegments` | 177,925–179,073 | 2,041 | 11,437–11,481 | 31 |

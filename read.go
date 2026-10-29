@@ -261,21 +261,21 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 func (l *Log) maxReadBytes() int      { return l.cfg.MaxReadBytes }
 func (l *Log) bufferPool() *sync.Pool { return &l.bufPool }
 
-func (l *Log) view() (*segView, func(), error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.closed {
-		return nil, nil, ErrClosed
+// sealedRefsLocked returns the good sealed segments as segRefs, built once and reused until
+// l.sealed changes (decision 103). The slice and the refs are shared by every view and are
+// never written: a view copies the slice before appending the active segment, and a sealed
+// ref has no ensureIndex, so scanSource never writes its last. Called with l.mu held.
+func (l *Log) sealedRefsLocked() []*segRef {
+	if l.refsValid {
+		return l.sealedRefs
 	}
-	a := l.active
-	a.readers++
-	v := &segView{holes: l.holes, head: l.head}
+	refs := make([]*segRef, 0, len(l.sealed))
 	for _, s := range l.sealed {
 		if s.bad != nil {
 			continue
 		}
 		s := s
-		v.segs = append(v.segs, &segRef{id: s.id, first: s.first, last: s.last, at: s.at, index: s.index,
+		refs = append(refs, &segRef{id: s.id, first: s.first, last: s.last, at: s.at, index: s.index,
 			open: func() (io.ReaderAt, int64, func(), error) {
 				f, size, err := openSegment(l.fs, s.path)
 				if err != nil {
@@ -288,6 +288,22 @@ func (l *Log) view() (*segView, func(), error) {
 				return f, size, func() { _ = f.Close() }, nil
 			}})
 	}
+	l.sealedRefs, l.refsValid = refs, true
+	return refs
+}
+
+func (l *Log) view() (*segView, func(), error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return nil, nil, ErrClosed
+	}
+	a := l.active
+	a.readers++
+	v := &segView{holes: l.holes, head: l.head}
+	refs := l.sealedRefsLocked()
+	v.segs = make([]*segRef, len(refs), len(refs)+1)
+	copy(v.segs, refs)
 	durable := a.durable
 	if a.frames > 0 {
 		v.segs = append(v.segs, &segRef{id: a.id, first: a.first, last: l.head, at: a.at, index: a.index, active: true,

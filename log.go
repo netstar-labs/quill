@@ -211,6 +211,12 @@ type Log struct {
 	maxSeg   uint64 // the highest segment id ever created
 	active   *activeSegment
 	sealed   []*segment // ascending by id
+
+	// sealedRefs is the good part of sealed as segRefs, valid while refsValid; every writer of
+	// sealed clears refsValid (decision 103). Guarded by mu.
+	sealedRefs []*segRef
+	refsValid  bool
+
 	holes    []Hole
 	marker   tail   // the last published quill.tail
 	tailBuf  []byte // scratch for encoding the marker; used only under mu

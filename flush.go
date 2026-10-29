@@ -163,6 +163,7 @@ func (l *Log) rotateLocked() error {
 	old := l.active
 	l.sealed = append(l.sealed, &segment{id: old.id, path: old.path, first: old.first, last: l.head,
 		size: old.durable, index: old.index, at: old.at, lastAt: old.lastAt})
+	l.refsValid = false
 	old.retired = true
 	if old.readers == 0 {
 		_ = old.f.Close()
