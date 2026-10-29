@@ -67,6 +67,22 @@ func cmdCommit(c *cli, args []string) int {
 	if (c.offset == "") == (c.at == "") {
 		return c.usage("commit: exactly one of -offset and -time")
 	}
+	// Parse before opening anything: a malformed number must not register the consumer.
+	var at time.Time
+	var next uint64
+	if c.at != "" {
+		t, err := parseTime(c.at, time.Now())
+		if err != nil {
+			return c.usage("-time: %v", err)
+		}
+		at = t
+	} else {
+		n, err := parseDecimal(c.offset)
+		if err != nil {
+			return c.usage("-offset: %q is not a plain non-negative integer", c.offset)
+		}
+		next = n
+	}
 	return c.withReader(func(r *quill.Reader) int {
 		cons, code := c.consumer(r, quill.ConsumerOptions{})
 		if code != exitOK {
@@ -74,21 +90,11 @@ func cmdCommit(c *cli, args []string) int {
 		}
 		defer cons.Close()
 		if c.at != "" {
-			t, err := parseTime(c.at, time.Now())
-			if err != nil {
-				return c.usage("-time: %v", err)
-			}
-			if err := cons.SeekToTime(t); err != nil {
+			if err := cons.SeekToTime(at); err != nil {
 				return c.errorf("%v", err)
 			}
-		} else {
-			var next uint64
-			if _, err := fmt.Sscanf(c.offset, "%d", &next); err != nil {
-				return c.usage("-offset: %v", err)
-			}
-			if err := cons.Commit(next); err != nil {
-				return c.errorf("%v", err)
-			}
+		} else if err := cons.Commit(next); err != nil {
+			return c.errorf("%v", err)
 		}
 		fmt.Fprintf(c.out, "%s %d\n", c.name, cons.Offset())
 		return exitOK

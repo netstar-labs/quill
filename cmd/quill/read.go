@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -209,16 +211,23 @@ func cmdCheck(c *cli, args []string) int {
 	})
 }
 
+// parseDecimal parses a plain base-10 unsigned integer: digits only, so "1e6", "1M",
+// "0x10", "-1", "+1", "1_000", "" and trailing junk are all refused.
+func parseDecimal(s string) (uint64, error) {
+	return strconv.ParseUint(s, 10, 64)
+}
+
 // parseTime accepts RFC 3339, "@<unix seconds>", or a duration meaning that long ago.
 func parseTime(s string, now time.Time) (time.Time, error) {
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
 		return t, nil
 	}
 	if strings.HasPrefix(s, "@") {
-		var unix int64
-		if _, err := fmt.Sscanf(s[1:], "%d", &unix); err == nil {
-			return time.Unix(unix, 0), nil
+		unix, err := parseDecimal(s[1:])
+		if err != nil || unix > math.MaxInt64 {
+			return time.Time{}, fmt.Errorf("%q is not @ and a plain non-negative integer of unix seconds", s)
 		}
+		return time.Unix(int64(unix), 0), nil
 	}
 	if d, err := time.ParseDuration(s); err == nil && d >= 0 {
 		return now.Add(-d), nil

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/netstar-labs/quill"
@@ -91,9 +92,11 @@ func cmdPrune(c *cli, args []string) int {
 		dst *int64
 	}{{c.maxBytes, &cfg.MaxBytes}, {c.minFree, &cfg.MinFreeBytes}, {c.maxRecords, &cfg.MaxRecords}} {
 		if f.s != "" {
-			if _, err := fmt.Sscanf(f.s, "%d", f.dst); err != nil {
-				return c.usage("%q: %v", f.s, err)
+			n, err := parseDecimal(f.s)
+			if err != nil || n > math.MaxInt64 {
+				return c.usage("%q is not a plain non-negative integer", f.s)
 			}
+			*f.dst = int64(n)
 		}
 	}
 	if c.ttl != "" {

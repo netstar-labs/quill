@@ -31,15 +31,6 @@ reader.go:204-206 calls `reason(ferr)` with `ferr == nil` when the frame is CRC-
 Reader returns `GapError{1,1}` as decisions 11/38 and guarantee 14 require. Why owner: flagged
 semantic (panic becomes a gap). Recommended: approve; test from the probe.
 
-### correctness-24 (absorbs simplify-3): `Sscanf %d` accepts `1e6`, `1M`, `0x10`, `12abc` silently (sev:major)
-
-cmd/quill/verbs.go:592, :700, :778. `quill prune -max-records 1e6` deleted every sealed
-segment and `quill commit -offset 1e3` committed 1, both exit 0, reproduced through the built
-binary and the CLI's `run`. Why owner: accepted input becomes a usage error (exit 2), and
-whether to accept K/M/G suffixes by design is a CLI-shape choice (decision 86 territory).
-Recommended: strict `strconv` parsing now with `exitUsage`; suffixes, if wanted, as a separate
-chore (sev:trivial) once this lands.
-
 ### correctness-32 + docs-33: what Config the offline writable verbs open with (sev:major)
 
 `quill append`, `roll` and `recover` open with `Config{Retention: -1}` plus defaults
@@ -125,6 +116,16 @@ closes it, as rotation already does. A read in flight at `Close` finishes (or re
 `Close` (decision 53). Regression tests in close_pinned_test.go: a stalled `Read` pinned on a
 sealed and on the active segment while `Close` runs, with no panic and `OpenFiles() == 0`
 afterwards.
+
+### correctness-24 (absorbs simplify-3): `Sscanf %d` accepted `1e6`, `1M`, `0x10`, `12abc` (applied)
+
+Decision taken: approved as recommended (decision 96). `commit -offset`, the three `prune`
+cap flags and the `@unix` time form use base-10 `strconv.ParseUint` and refuse anything but
+digits with exit 2 (`1e6`, `1M`, `0x10`, `-1`, `+1`, `1_000`, trailing junk, values over
+`MaxInt64` for the caps). `commit` parses before opening the log, so a refused number
+registers no consumer. K/M/G suffixes are not accepted; a separate chore if wanted. Regression
+tests in cmd/quill/numbers_test.go: every refused form on `prune` and `commit` asserts exit 2
+and a byte-identical log directory; plain decimals still work.
 
 ## Deferred (one issue)
 

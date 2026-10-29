@@ -172,7 +172,9 @@ future or earlier than their predecessor.
 
 Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. Offline verbs run with
 background maintenance off; `prune` uses `quill.policy` or the retention flags and refuses a
-log whose policy it cannot read.
+log whose policy it cannot read. Numeric flags (`commit -offset`, `prune -max-bytes`,
+`-min-free-bytes`, `-max-records`, and `@<unix seconds>`) take plain decimal integers; `1e6`,
+`1M`, `0x10`, `-1` and trailing text are usage errors, not guesses.
 
 ```
 quill cat -dir orders -json | jq .seq          # newline-delimited JSON, lossless
