@@ -50,15 +50,6 @@ behaviour is kept instead, docs/format.md:161, README.md:18, docs/userguide.md:1
 scope.md:136/267 and decision 29 must say that any writable open rewrites the file (text in
 audit-docs.md item 1).
 
-### simplify-12: `Check` says HEALTHY when consumers/ cannot be listed (sev:minor)
-
-stat.go:215-218 `mustList` drops the `ReadDir` error; retention treats the same condition as
-`broken` (retention.go:31-35). Reproduced for a missing and a mode-000 directory on the OS
-backend and with `fs.ErrPermission` injected on the Sim. Why owner: `quill check` would start
-exiting 3 for a condition it passes today, and the finder left `fatal` versus `warn` open.
-Recommended: `fatal`, per decision 67 and build-prompt.md:218; inline `list()` and delete
-`mustList`.
-
 ### correctness-31: a damaged sealed segment's bytes count toward neither `MaxBytes` nor `Stat.Bytes` (sev:minor)
 
 load.go:453-456 assigns `s.size` only on the verify-success path. Why owner: `MaxBytes` evicts
@@ -126,6 +117,15 @@ digits with exit 2 (`1e6`, `1M`, `0x10`, `-1`, `+1`, `1_000`, trailing junk, val
 registers no consumer. K/M/G suffixes are not accepted; a separate chore if wanted. Regression
 tests in cmd/quill/numbers_test.go: every refused form on `prune` and `commit` asserts exit 2
 and a byte-identical log directory; plain decimals still work.
+
+### simplify-12: `Check` said HEALTHY when consumers/ could not be listed (applied)
+
+Decision taken: approved as recommended, `fatal` (decision 97). `Check` calls `list()` directly;
+an error is a fatal `consumer` problem naming the `consumers/` directory, so the log is
+UNHEALTHY and `quill check` exits 3, the same class as an unreadable consumer file (decisions
+41 and 67). `mustList` is deleted. Regression test in check_consumers_test.go: the simulator
+injects `fs.ErrPermission` on `OpReadDir` of `consumers/`; the log is healthy before and
+UNHEALTHY with exactly one fatal `consumer` problem after.
 
 ## Deferred (one issue)
 

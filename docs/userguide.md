@@ -230,7 +230,7 @@ honest `fsync` (ext4, xfs, btrfs, APFS). Not supported: NFS, SMB, FUSE; bind mou
 filesystems at the operator's risk. Linux and macOS only.
 
 **Checking.** `quill check` verifies every sealed segment whole and the active one up to the
-marker, finds holes, unparseable consumer files and clock anomalies, and reports UNBOUNDED
+marker, finds holes, unparseable consumer files (or a `consumers/` directory that cannot be listed) and clock anomalies, and reports UNBOUNDED
 when neither cap is set. Exit 3 means UNHEALTHY.
 
 ## 10. Recovery and the manual corruption procedure

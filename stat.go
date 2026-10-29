@@ -125,7 +125,7 @@ type CheckResult struct {
 }
 
 // Check examines a log without a lock: every sealed segment whole, the active segment up
-// to the marker, holes, consumer files, the policy and the clock (decisions 44, 66). It
+// to the marker, holes, the consumers/ directory and its files, the policy and the clock (decisions 44, 66). It
 // reads every byte, so it costs what a cold start costs.
 func (r *Reader) Check() (CheckResult, error) {
 	res := CheckResult{Healthy: true}
@@ -187,7 +187,11 @@ func (r *Reader) Check() (CheckResult, error) {
 	if havePrev && prevLast < tl.Seq {
 		fatal(Problem{Kind: "hole", Path: r.path(tailName), Detail: fmt.Sprintf("the marker names %d, the last frame is %d", tl.Seq, prevLast)})
 	}
-	for _, c := range mustList(r.consumerStore()) {
+	consumers, err := r.consumerStore().list()
+	if err != nil {
+		fatal(Problem{Kind: "consumer", Path: r.path(consumersDir), Detail: err.Error()})
+	}
+	for _, c := range consumers {
 		if c.Err != nil {
 			fatal(Problem{Kind: "consumer", Path: r.path(filepath.Join(consumersDir, c.Name)), Detail: c.Err.Error()})
 		}
@@ -203,11 +207,6 @@ func (r *Reader) Check() (CheckResult, error) {
 		res.Unbounded = p.MaxBytes == 0 && p.MinFreeBytes == 0
 	}
 	return res, nil
-}
-
-func mustList(st *consumerStore) []ConsumerInfo {
-	list, _ := st.list()
-	return list
 }
 
 // verifyBounded verifies the first size bytes of a segment as a sealed one would be
