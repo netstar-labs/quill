@@ -51,8 +51,16 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `load.go` | Segment verification, parse-forward recovery, the directory scan, hole detection |
 | `append.go` | `Append`, `AppendBatch`, the buffer and its bounds |
 | `flush.go` | `Flush`, the flush goroutine, the failure classes, rotation, `Roll`, `Sync` |
-| `read.go` | `Read`, `ReadWait`, `Scan`, `ScanAll`, `GapError`, segment ranges |
-| `lock_unix.go` | Taking `quill.lock` |
+| `read.go` | The read path shared by `Log`, `Reader` and `Consumer`: `Read`, `ReadWait`, `Scan`, `ScanAll`, segment ranges, gaps |
+| `reader.go` | `OpenReader`: lock-free, bounded by `quill.tail`, a lazily built per-sealed-segment index, polling |
+| `iter.go` | `Records` and `Follow` (`iter.Seq2`) for `Log`, `Reader` and `Consumer` |
+| `seek.go` | `OffsetForTime` and `SeekToTime` |
+| `stat.go` | `Log.Stat`, `Reader.Stat`, `Reader.Check` |
+| `consumer.go` | Consumer handles: lifecycle, the per-consumer lock, the offset file, `Commit`, `Lag`, protection |
+| `archive.go` | `Archive(srcDir, dstDir)`: the `_archive` consumer behind `quill archive` |
+| `retention.go` | The prune pass: age sweep, protection, the clock guard, the caps, `ConsumerTTL`, `Dropped` |
+| `disk.go` | Free-space reading with `statfs` |
+| `lock_unix.go` | Taking `quill.lock` and `consumers/*.lock` |
 | `state.go` | `quill.tail`, `quill.format`, `quill.policy` and consumer files: encode, strict decode, atomic write |
 | `internal/fsx/` | The file-system seam: the interface, the real implementation, the crash simulator |
 | `internal/atomicfile/` | Temp file, fsync, rename, optional directory fsync, through `fsx` |
@@ -61,8 +69,7 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `hack/gate.sh`, `hack/fuzz.sh` | The commit gate: gofmt, vet, build, `test -race`, staticcheck, deadcode, every fuzz target for 20 s, tidy |
 | `.github/workflows/` | CI on Linux and macOS, the same gate as separate steps, and the PR-issue-link check |
 
-Phases 3 and 4 add `reader.go`, `iter.go`, `seek.go`, `stat.go`, `consumer.go`, `archive.go`,
-`retention.go`, `disk.go`, `cmd/quill/`, `examples/` and `build/quill`.
+Phase 4 adds `cmd/quill/`, `examples/` and `build/quill`.
 
 ## Building
 

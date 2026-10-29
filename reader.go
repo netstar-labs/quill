@@ -184,36 +184,46 @@ func (r *Reader) wait(ctx context.Context, offset uint64) error {
 }
 
 // segment returns the cached entry for a sealed segment, reading its first frame on the
-// first call. An entry whose file changed size is rebuilt.
+// first call. A cached entry costs no file operation; it is dropped when a read finds the
+// file gone or changed in size, and rebuilt on the next view (decision 63).
 func (r *Reader) segment(id uint64) *readerSegment {
-	path := r.path(segmentName(id))
-	f, size, err := openSegment(r.fs, path)
 	r.mu.Lock()
 	s, ok := r.segs[id]
-	if ok && (err != nil || s.size != size) {
-		delete(r.segs, id)
-		ok = false
+	r.mu.Unlock()
+	if ok {
+		return s
 	}
-	if !ok {
-		s = &readerSegment{id: id, path: path, size: size}
-		if err != nil {
-			s.bad = err
+	path := r.path(segmentName(id))
+	s = &readerSegment{id: id, path: path}
+	f, size, err := openSegment(r.fs, path)
+	if err != nil {
+		s.bad = err
+	} else {
+		s.size = size
+		w := &window{r: f, size: size}
+		rec, _, ferr := w.frameAt(0)
+		if ferr != nil || rec.Seq == 0 {
+			s.bad = &SegmentError{Path: path, Reason: "first frame: " + reason(ferr)}
 		} else {
-			w := &window{r: f, size: size}
-			rec, _, ferr := w.frameAt(0)
-			if ferr != nil || rec.Seq == 0 {
-				s.bad = &SegmentError{Path: path, Reason: "first frame: " + reason(ferr)}
-			} else {
-				s.first, s.at = rec.Seq, rec.At
-			}
+			s.first, s.at = rec.Seq, rec.At
 		}
+		_ = f.Close()
+	}
+	r.mu.Lock()
+	if cached, ok := r.segs[id]; ok {
+		s = cached // another call built it meanwhile
+	} else {
 		r.segs[id] = s
 	}
 	r.mu.Unlock()
-	if f != nil {
-		_ = f.Close()
-	}
 	return s
+}
+
+// forget drops a cached segment whose file changed or disappeared.
+func (r *Reader) forget(id uint64) {
+	r.mu.Lock()
+	delete(r.segs, id)
+	r.mu.Unlock()
 }
 
 // scan builds a sealed segment's index by one full scan, once.
@@ -333,7 +343,13 @@ func (r *Reader) view() (*segView, func(), error) {
 			open: func() (io.ReaderAt, int64, func(), error) {
 				f, size, err := openSegment(r.fs, s.path)
 				if err != nil {
+					r.forget(s.id)
 					return nil, 0, nil, err
+				}
+				if size != s.size {
+					_ = f.Close()
+					r.forget(s.id)
+					return nil, 0, nil, fmt.Errorf("%w: segment %d changed size from %d to %d", ErrCorrupt, s.id, s.size, size)
 				}
 				return f, size, func() { _ = f.Close() }, nil
 			},

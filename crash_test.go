@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand/v2"
 	"testing"
+	"time"
 
 	"github.com/netstar-labs/quill/internal/fsx"
 )
@@ -238,5 +239,201 @@ func TestACrashDuringRecoveryItselfRecovers(t *testing.T) {
 			t.Fatalf("crash at %d: %v %v", at, seqsOf(recs), err)
 		}
 		_ = l.Close()
+	}
+}
+
+// T1, phase-3 part: consumers commit, retention prunes and a reader reads while the
+// scenario runs, with a crash before every file operation. After recovery the earlier
+// properties hold, no consumer offset is ahead of the log, and the reader's view is a
+// subset of the recovered log.
+func runScenario3(t *testing.T, s *fsx.Sim, clk *testClock, l *Log, crashed *bool) (scenarioState, []Record) {
+	t.Helper()
+	st := scenarioState{appended: map[uint64][]byte{}}
+	var seen []Record
+	add := func(n int) {
+		for i := 0; i < n && !*crashed; i++ {
+			seq := l.nextSeqForTest()
+			p := payloadFor(seq)
+			if _, err := l.Append(p); err != nil && !*crashed {
+				t.Fatalf("append: %v", err)
+			} else if err == nil {
+				st.appended[seq] = p
+			}
+		}
+	}
+	flush := func() {
+		if *crashed {
+			return
+		}
+		if err := l.Flush(); err == nil {
+			st.acked = l.Head()
+		} else if !*crashed {
+			t.Fatalf("flush: %v", err)
+		}
+	}
+	read := func() {
+		if *crashed {
+			return
+		}
+		r, err := OpenReader("/log", ReaderOptions{fs: s})
+		if err != nil {
+			return
+		}
+		defer r.Close()
+		next := uint64(1)
+		if len(seen) > 0 {
+			next = seen[len(seen)-1].Seq + 1
+		}
+		recs, err := r.Read(next, 100)
+		if err == nil {
+			seen = append(seen, recs...)
+		}
+	}
+	commit := func(name string, protect Protect) {
+		if *crashed {
+			return
+		}
+		c, err := l.Consumer(name, ConsumerOptions{Protect: protect})
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		recs, err := c.Read(3)
+		if err == nil && len(recs) > 0 {
+			_ = c.Commit(recs[len(recs)-1].Seq + 1)
+		}
+	}
+	prune := func() {
+		if *crashed {
+			return
+		}
+		clk.Advance(2 * time.Hour)
+		_ = l.Prune(true)
+	}
+	add(4)
+	flush()
+	read()
+	commit("a", ProtectOff)
+	add(4)
+	flush()
+	commit("b", ProtectOn)
+	add(5)
+	flush()
+	prune()
+	read()
+	add(4)
+	flush()
+	commit("a", ProtectAsStored)
+	prune()
+	add(2)
+	flush()
+	read()
+	return st, seen
+}
+
+func TestCrashPropertyWithConsumersPruningAndAReader(t *testing.T) {
+	rng := rand.New(rand.NewPCG(3, 5))
+	points := 0
+	for at := 1; ; at++ {
+		fired := false
+		var n int
+		run := func(keep func(i, n int) bool) (scenarioState, []Record, *fsx.Sim, *testClock) {
+			s := fsx.NewSim()
+			clk := newClock()
+			s.Clock = clk.Now
+			open := func() (*Log, error) {
+				return Open(Config{Dir: "/log", FlushInterval: time.Hour, FlushBytes: 1 << 20, SegmentBytes: 60,
+					Retention: time.Hour, NoMaintenance: true, fs: s, clock: clk.Now})
+			}
+			created, err := open()
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = created.Close()
+			s.Crash(func(int, int) bool { return true })
+			count := 0
+			crashed := false
+			s.CrashKeep = keep
+			s.Inject = func(op fsx.Op, name string) error {
+				count++
+				if count == at {
+					crashed, fired = true, true
+					return fsx.ErrCrash
+				}
+				return nil
+			}
+			l, err := open()
+			if err != nil {
+				if !crashed {
+					t.Fatalf("open: %v", err)
+				}
+				s.Inject = nil
+				return scenarioState{appended: map[uint64][]byte{}}, nil, s, clk
+			}
+			st, seen := runScenario3(t, s, clk, l, &crashed)
+			_ = l.Close()
+			s.Inject = nil
+			return st, seen, s, clk
+		}
+		check := func(st scenarioState, seen []Record, s *fsx.Sim, label string) {
+			l, err := Open(simConfig(s, "/log"))
+			if err != nil {
+				t.Fatalf("%s at %d: reopen: %v", label, at, err)
+			}
+			defer l.Close()
+			recs, err := readAll(l)
+			if err != nil {
+				t.Fatalf("%s at %d: scan: %v", label, at, err)
+			}
+			if len(l.holes) != 0 {
+				t.Fatalf("%s at %d: holes %+v", label, at, l.holes)
+			}
+			byseq := map[uint64][]byte{}
+			for i, r := range recs {
+				if i > 0 && r.Seq != recs[i-1].Seq+1 {
+					t.Fatalf("%s at %d: not contiguous: %v", label, at, seqsOf(recs))
+				}
+				want, ok := st.appended[r.Seq]
+				if !ok || string(want) != string(r.Payload) {
+					t.Fatalf("%s at %d: seq %d holds %q, appended %q", label, at, r.Seq, r.Payload, want)
+				}
+				byseq[r.Seq] = r.Payload
+			}
+			if l.Head() < st.acked {
+				t.Fatalf("%s at %d: acknowledged %d, head %d", label, at, st.acked, l.Head())
+			}
+			for _, r := range seen {
+				p, ok := byseq[r.Seq]
+				if r.Seq > l.Head() || (ok && string(p) != string(r.Payload)) {
+					t.Fatalf("%s at %d: the reader saw %d (%q) which recovery lacks (head %d)", label, at, r.Seq, r.Payload, l.Head())
+				}
+			}
+			list, err := l.Consumers()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, c := range list {
+				if c.Err != nil || c.Offset > l.Head()+1 {
+					t.Fatalf("%s at %d: consumer %+v ahead of head %d", label, at, c, l.Head())
+				}
+			}
+		}
+		st, seen, s, _ := run(func(i, total int) bool { n = total; return false })
+		if !fired {
+			break
+		}
+		points++
+		check(st, seen, s, "keep none")
+		masks := []uint64{1<<uint(n) - 1}
+		for i := 0; i < 3; i++ {
+			masks = append(masks, rng.Uint64()&(1<<uint(n)-1))
+		}
+		for _, m := range masks {
+			st, seen, s, _ := run(func(i, _ int) bool { return m&(1<<uint(i)) != 0 })
+			check(st, seen, s, "mask")
+		}
+	}
+	if points < 60 {
+		t.Fatalf("only %d crash points", points)
 	}
 }

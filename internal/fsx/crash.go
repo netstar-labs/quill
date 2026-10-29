@@ -38,6 +38,7 @@ type Sim struct {
 	root       *simDir
 	locks      map[*inode]*simFile
 	ops        int    // operations performed, for the crash-at-every-operation driver
+	open       int    // handles open, for descriptor-leak checks
 	generation uint64 // bumped by every crash; a File from an older generation is dead
 
 	// Inject, if non-nil, is called before every operation with its kind and path and may
@@ -150,6 +151,13 @@ func (s *Sim) inject(op Op, name string) error {
 	return err
 }
 
+// OpenFiles is the number of handles opened and not yet closed.
+func (s *Sim) OpenFiles() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.open
+}
+
 // Ops is the number of operations performed so far (including failed and injected ones).
 func (s *Sim) Ops() int {
 	s.mu.Lock()
@@ -223,6 +231,7 @@ func (s *Sim) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 		d.volatile[base] = e
 		d.ops = append(d.ops, dirOp{kind: OpCreate, name: base, file: e.file})
 	}
+	s.open++
 	return &simFile{s: s, name: path.Clean("/" + name), ino: e.file, writable: flag&(O_WRONLY|O_RDWR) != 0, gen: s.generation}, nil
 }
 

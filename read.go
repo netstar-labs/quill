@@ -157,10 +157,11 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 			return next, err
 		}
 		index := s.index
+		var holeTo uint64 // when a scan showed the segment ends before its derived range does
 		if index == nil && s.ensureIndex != nil {
 			var last uint64
 			if index, last, err = s.ensureIndex(); err != nil {
-				if count > 0 {
+				if count > 0 && !gapAfter {
 					return next, nil
 				}
 				return next, &GapError{From: cur, To: s.last}
@@ -168,13 +169,13 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 			if last < s.last {
 				// The segment ends before the next one starts: a hole the first frames
 				// could not show. Serve up to its real end; the gap is reported past it.
+				holeTo, s.last = s.last, last
 				if cur > last {
-					if count > 0 {
+					if count > 0 && !gapAfter {
 						return next, nil
 					}
-					return next, &GapError{From: cur, To: s.last}
+					return next, &GapError{From: cur, To: holeTo}
 				}
-				s.last = last
 			}
 		}
 		r, size, closer, err := s.open()
@@ -239,6 +240,12 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		}
 		if cur > s.last {
 			next.valid = false // the next record is in another segment
+			if holeTo > 0 && cur <= holeTo {
+				if count > 0 && !gapAfter {
+					return next, nil
+				}
+				return next, &GapError{From: cur, To: holeTo}
+			}
 		}
 	}
 	return next, nil

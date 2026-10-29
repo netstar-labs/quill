@@ -2,6 +2,7 @@ package quill
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"syscall"
@@ -47,7 +48,14 @@ func (l *Log) consumers(now time.Time) consumerView {
 			mtime, err := st.mtime(c.Name)
 			stale := false
 			if err == nil && now.Sub(mtime) >= l.cfg.ConsumerTTL {
-				if recs, err := l.Read(c.Offset, 1); err == nil && len(recs) == 1 && now.Unix()-recs[0].At >= ttl {
+				// The record at the offset, or the first retained one when a cap already
+				// deleted it (decision 82).
+				recs, err := l.Read(c.Offset, 1)
+				var g *GapError
+				if errors.As(err, &g) {
+					recs, err = l.Read(g.To+1, 1)
+				}
+				if err == nil && len(recs) == 1 && now.Unix()-recs[0].At >= ttl {
 					stale = true
 				}
 			}

@@ -162,6 +162,7 @@ func (f *simFile) Close() error {
 		return &fs.PathError{Op: "close", Path: f.name, Err: fs.ErrClosed}
 	}
 	f.closed = true
+	f.s.open--
 	if f.s.locks[f.ino] == f {
 		delete(f.s.locks, f.ino)
 	}
