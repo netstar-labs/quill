@@ -28,15 +28,9 @@ func vanishingLog(t *testing.T) (*fsx.Sim, *Reader, string, int64) {
 	if err != nil || len(recs) != 1 {
 		t.Fatalf("warm read: %v %v", recs, err)
 	}
-	names, err := s.ReadDir("/log")
-	if err != nil {
-		t.Fatal(err)
-	}
 	var segs []string
-	for _, n := range names {
-		if _, ok := parseSegmentName(n); ok {
-			segs = append(segs, "/log/"+n)
-		}
+	for _, id := range segmentFiles(t, s, "/log") {
+		segs = append(segs, "/log/"+segmentName(id))
 	}
 	if len(segs) < 4 {
 		t.Fatalf("segments %v", segs)
@@ -119,20 +113,12 @@ func TestASealedSegmentDeletedBetweenListingAndOpeningIsAGapOverItsRange(t *test
 
 func TestTheMarkersOwnSegmentMissingStaysAnError(t *testing.T) {
 	s, r, _, _ := vanishingLog(t)
-	names, err := s.ReadDir("/log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var newest string
-	for _, n := range names {
-		if _, ok := parseSegmentName(n); ok {
-			newest = "/log/" + n
-		}
-	}
+	ids := segmentFiles(t, s, "/log")
+	newest := "/log/" + segmentName(ids[len(ids)-1])
 	if err := s.Remove(newest); err != nil {
 		t.Fatal(err)
 	}
-	_, err = r.Read(5, 10)
+	_, err := r.Read(5, 10)
 	var gap *GapError
 	if err == nil || errors.As(err, &gap) {
 		t.Fatalf("the marker's segment missing: %v", err)

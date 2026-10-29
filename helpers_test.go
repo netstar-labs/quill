@@ -167,15 +167,9 @@ func readTail(t *testing.T, fsys fsx.FS, dir string) tail {
 
 func segmentFiles(t *testing.T, fsys fsx.FS, dir string) []uint64 {
 	t.Helper()
-	names, err := fsys.ReadDir(dir)
+	ids, err := listSegments(fsys, dir)
 	if err != nil {
 		t.Fatal(err)
-	}
-	var ids []uint64
-	for _, n := range names {
-		if id, ok := parseSegmentName(n); ok {
-			ids = append(ids, id)
-		}
 	}
 	return ids
 }

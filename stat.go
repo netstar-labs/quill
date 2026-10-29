@@ -70,15 +70,12 @@ func (r *Reader) Stat() (Stats, error) {
 	release()
 	var s Stats
 	s.count(v)
-	names, err := r.fs.ReadDir(r.dir)
+	ids, err := listSegments(r.fs, r.dir)
 	if err != nil {
 		return Stats{}, err
 	}
-	for _, n := range names {
-		if _, ok := parseSegmentName(n); !ok {
-			continue
-		}
-		info, err := r.fs.Lstat(r.path(n))
+	for _, id := range ids {
+		info, err := r.fs.Lstat(r.path(segmentName(id)))
 		if err != nil {
 			continue
 		}
@@ -134,7 +131,7 @@ func (r *Reader) Check() (CheckResult, error) {
 	if err != nil {
 		return res, err
 	}
-	names, err := r.fs.ReadDir(r.dir)
+	ids, err := listSegments(r.fs, r.dir)
 	if err != nil {
 		return res, err
 	}
@@ -142,12 +139,11 @@ func (r *Reader) Check() (CheckResult, error) {
 	var prevAt int64
 	var prevLast uint64
 	havePrev := false
-	for _, n := range names {
-		id, ok := parseSegmentName(n)
-		if !ok || id > tl.Seg {
+	for _, id := range ids {
+		if id > tl.Seg {
 			continue
 		}
-		path := r.path(n)
+		path := r.path(segmentName(id))
 		f, size, err := openSegment(r.fs, path)
 		if err != nil {
 			if id < tl.Seg && errors.Is(err, fs.ErrNotExist) {

@@ -294,7 +294,7 @@ func (l *Log) load() error {
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrCorrupt, err)
 	}
-	ids, err := l.listSegments()
+	ids, err := listSegments(l.fs, l.dir)
 	if err != nil {
 		return err
 	}
@@ -411,8 +411,8 @@ func (l *Log) load() error {
 }
 
 // listSegments returns the segment ids in the directory, ascending. Other names are ignored.
-func (l *Log) listSegments() ([]uint64, error) {
-	names, err := l.fs.ReadDir(l.dir)
+func listSegments(fsys fsx.FS, dir string) ([]uint64, error) {
+	names, err := fsys.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}

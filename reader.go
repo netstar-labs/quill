@@ -289,6 +289,8 @@ func (r *Reader) view() (*segView, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	// Not listSegments: this runs on every call, and the extra id slice it builds costs more
+	// allocations and bytes per view than iterating the names directly.
 	names, err := r.fs.ReadDir(r.dir)
 	if err != nil {
 		return nil, nil, err
