@@ -351,9 +351,34 @@ func BenchmarkReadStartThousandSegments(b *testing.B) {
 	}
 }
 
+// BenchmarkReaderReadStartThousandSegments: the same Read through a Reader, whose view lists the
+// directory and builds a segment reference for every sealed segment on every call.
+func BenchmarkReaderReadStartThousandSegments(b *testing.B) {
+	s := fsx.NewSim()
+	l := thousandSegmentLogOn(b, s)
+	defer l.Close()
+	r, err := OpenReader("/log", ReaderOptions{fs: s})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer r.Close()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if recs, err := r.Read(1, 1); err != nil || len(recs) != 1 {
+			b.Fatal(err)
+		}
+	}
+}
+
 func thousandSegmentLog(tb testing.TB) *Log {
 	tb.Helper()
-	cfg := simConfig(fsx.NewSim(), "/log")
+	return thousandSegmentLogOn(tb, fsx.NewSim())
+}
+
+func thousandSegmentLogOn(tb testing.TB, s *fsx.Sim) *Log {
+	tb.Helper()
+	cfg := simConfig(s, "/log")
 	cfg.SegmentBytes = 100 // every flushed 128-byte record seals its segment
 	cfg.NoMaintenance = true
 	l, err := Open(cfg)
