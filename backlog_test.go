@@ -96,9 +96,13 @@ func TestAFullDiskFailsAppendsKeepsRecordsIntactAndRecoversWhenSpaceReturns(t *t
 		t.Fatal(err)
 	}
 	free := uint64(st.Bavail) * uint64(st.Bsize)
-	// Leave room for about 300 KiB of log: a filler takes the rest.
+	// Leave room for about 300 KiB of log: a filler takes the rest. The filesystem must be
+	// small: a tmpfs of a few MiB, never a real disk (the filler is one allocation).
 	if free < 1<<20 {
 		t.Fatalf("only %d bytes free; the test wants a small filesystem with at least 1 MiB free", free)
+	}
+	if free > 64<<20 {
+		t.Fatalf("%d bytes free: QUILL_FULLDISK_DIR must be on a small filesystem (a tmpfs of a few MiB), not a disk", free)
 	}
 	if err := os.WriteFile(filler, make([]byte, free-300<<10), 0o600); err != nil {
 		t.Fatalf("filler: %v", err)
