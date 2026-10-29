@@ -127,3 +127,5 @@ Wall time is dominated by `F_FULLFSYNC` and did not move beyond noise.
 |---|---|---|---|---|---|
 | write-1: `quill.tail` encoded by `appendTail` into a reused `Log.tailBuf` instead of `json.Marshal` | `BenchmarkAppendFlushEach` | 1,291–1,295 | 14 | 1,177–1,182 | 11 |
 | write-1 (same change) | `BenchmarkParallelLogsFlush` | 5,727–6,108 | 66–68 | 5,317–5,442 | 55 |
+| write-2: `fsx.OS.Rename` calls `syscall.Rename` (retrying `EINTR`, wrapping in `*os.LinkError`) instead of `os.Rename`, which `Lstat`s the destination first | `BenchmarkAppendFlushEach` | 1,181–1,184 | 11 | 860–861 | 9 |
+| write-2 (same change) | `BenchmarkParallelLogsFlush` | 5,296–5,407 | 55 | 4,042–4,153 | 47 |

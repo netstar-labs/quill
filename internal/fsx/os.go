@@ -55,8 +55,24 @@ func (OS) ReadDir(name string) ([]string, error) {
 }
 
 func (OS) Lstat(name string) (fs.FileInfo, error) { return os.Lstat(name) }
-func (OS) Rename(oldpath, newpath string) error   { return os.Rename(oldpath, newpath) }
 func (OS) Remove(name string) error               { return os.Remove(name) }
+
+// Rename calls rename(2) directly. os.Rename first Lstats the destination to refuse a
+// directory, which costs a FileInfo and a path copy on every flush; rename(2) already
+// fails for a file over a directory, with EISDIR instead of os.Rename's synthesized
+// EEXIST. The error is wrapped as os.Rename wraps it, and EINTR is retried.
+func (OS) Rename(oldpath, newpath string) error {
+	for {
+		err := syscall.Rename(oldpath, newpath)
+		if err == syscall.EINTR {
+			continue
+		}
+		if err != nil {
+			return &os.LinkError{Op: "rename", Old: oldpath, New: newpath, Err: err}
+		}
+		return nil
+	}
+}
 
 func (OS) SyncDir(name string) error {
 	d, err := os.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
