@@ -37,7 +37,7 @@ its sequence numbers are reassigned to the next records. Three ways to pay for d
 
 | Mode | Cost | Use |
 |---|---|---|
-| Buffered (the default): `Append`, background flush every `FlushInterval` or `FlushBytes` | One fsync per flush, shared by every record in it | Throughput; a window of `FlushInterval` can be lost |
+| Buffered (the default): `Append`; an inline flush at `FlushBytes`, a background flush every `FlushInterval` | One fsync per flush, shared by every record in it | Throughput; a window of `FlushInterval` can be lost |
 | `Append` then `Sync(ctx, seq)` | One fsync per flush, shared by every producer waiting (group commit) | A durable write per call with many producers |
 | `Config.SyncAppends` | Every `Append` returns durable | The simplest durable writer |
 
@@ -237,11 +237,12 @@ A writable open (`Open`, or `quill recover`) performs recovery: it verifies ever
 segment, parses the newest segment forward from the marker's offset, truncates a torn tail,
 and republishes `quill.tail`. A torn tail after a crash needs nothing else.
 
-`Open` fails with **`ErrCorrupt`** when damage lies *below* the durable marker: in a sealed
-segment that is the newest's predecessor, or in the newest segment below `quill.tail.off`, or
-when the marker names a sequence above the last valid frame. Damage in an older sealed
-segment does not fail `Open`: the segment becomes a hole, `Err()` names it, and reads stop
-before it with a gap. There is no `repair` verb in v0.1.0 (decision 64). The procedure:
+`Open` fails with **`ErrCorrupt`** when the newest segment is damaged below `quill.tail.off`,
+when the marker names a sequence above the last valid frame, when two segments overlap, or
+when `quill.tail` or `quill.format` is malformed. Damage in any sealed segment, the newest's
+predecessor included, does not fail `Open`: the segment becomes a hole, `Err()` names it,
+`quill check` reports it, and reads stop before it with a gap. There is no `repair` verb in
+v0.1.0 (decision 64). The procedure:
 
 1. Stop every process that holds the log.
 2. `quill check -dir <log>`: for the damaged file it prints the byte where the damage starts

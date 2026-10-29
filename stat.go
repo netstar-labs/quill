@@ -3,6 +3,7 @@ package quill
 import (
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"time"
 )
@@ -128,7 +129,7 @@ type CheckResult struct {
 // reads every byte, so it costs what a cold start costs.
 func (r *Reader) Check() (CheckResult, error) {
 	res := CheckResult{Healthy: true}
-	fatal := func(p Problem) { p.Fatal = true; res.Problems = append(res.Problems, p) }
+	fatal := func(p Problem) { p.Fatal = true; res.Healthy = false; res.Problems = append(res.Problems, p) }
 	warn := func(p Problem) { res.Problems = append(res.Problems, p) }
 	tl, err := r.readTail()
 	if err != nil {
@@ -153,21 +154,18 @@ func (r *Reader) Check() (CheckResult, error) {
 			fatal(Problem{Kind: "segment", Path: path, Detail: err.Error()})
 			continue
 		}
-		var info segInfo
+		bound := size
 		if id == tl.Seg {
 			if size < int64(tl.Off) {
 				fatal(Problem{Kind: "segment", Path: path, Offset: size, Intact: size, Detail: fmt.Sprintf("%d bytes, the marker says %d are durable", size, tl.Off)})
 				_ = f.Close()
 				continue
 			}
-			info, err = verifyBounded(f, int64(tl.Off), &prevAt, future, func(seq uint64, at int64, what string) {
-				warn(Problem{Kind: "clock", Path: path, Detail: fmt.Sprintf("record %d at %d %s", seq, at, what)})
-			})
-		} else {
-			info, err = verifyBounded(f, size, &prevAt, future, func(seq uint64, at int64, what string) {
-				warn(Problem{Kind: "clock", Path: path, Detail: fmt.Sprintf("record %d at %d %s", seq, at, what)})
-			})
+			bound = int64(tl.Off)
 		}
+		info, err := verifyBounded(f, bound, &prevAt, future, func(seq uint64, at int64, what string) {
+			warn(Problem{Kind: "clock", Path: path, Detail: fmt.Sprintf("record %d at %d %s", seq, at, what)})
+		})
 		_ = f.Close()
 		if err != nil {
 			var se *SegmentError
@@ -204,11 +202,6 @@ func (r *Reader) Check() (CheckResult, error) {
 	} else {
 		res.Unbounded = p.MaxBytes == 0 && p.MinFreeBytes == 0
 	}
-	for _, p := range res.Problems {
-		if p.Fatal {
-			res.Healthy = false
-		}
-	}
 	return res, nil
 }
 
@@ -220,9 +213,7 @@ func mustList(st *consumerStore) []ConsumerInfo {
 // verifyBounded verifies the first size bytes of a segment as a sealed one would be
 // (contiguous, ending exactly at size; an empty range is fine for the active segment) and
 // reports clock anomalies: a record dated after future, or earlier than its predecessor.
-func verifyBounded(f interface {
-	ReadAt([]byte, int64) (int, error)
-}, size int64, prevAt *int64, future int64, clock func(seq uint64, at int64, what string)) (segInfo, error) {
+func verifyBounded(f io.ReaderAt, size int64, prevAt *int64, future int64, clock func(seq uint64, at int64, what string)) (segInfo, error) {
 	w := &window{r: f, size: size, chunk: windowChunk}
 	info, err := walk(w, 0, 0, false, func(rec Record, _ int64) bool {
 		if rec.At > future {

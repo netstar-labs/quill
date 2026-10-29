@@ -37,7 +37,7 @@ func FuzzRecoverSegment(f *testing.F) {
 	f.Add([]byte{0x01, 0x00, 0x00, 0x00, 0x00}, int64(0))
 	f.Fuzz(func(t *testing.T, data []byte, durable int64) {
 		size := int64(len(data))
-		info, cut, err := recoverSegment(bytes.NewReader(data), size, durable)
+		info, cut, err := recoverSegment(bytes.NewReader(data), size, durable, "")
 		if err != nil {
 			return
 		}
@@ -47,7 +47,7 @@ func FuzzRecoverSegment(f *testing.F) {
 		// The accepted prefix is a contiguous run of frames that a sealed verification
 		// also accepts when it is non-empty.
 		if info.frames > 0 {
-			v, err := verifySegment(bytes.NewReader(data[:info.end]), info.end)
+			v, err := verifySegment(bytes.NewReader(data[:info.end]), info.end, "")
 			if err != nil || v.frames != info.frames || v.first.Seq != info.first.Seq || v.last.Seq != info.last.Seq || v.first.At != info.first.At || v.last.At != info.last.At {
 				t.Fatalf("verify of the accepted prefix: %+v %v, recovery said %+v", v, err, info)
 			}

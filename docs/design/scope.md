@@ -244,8 +244,8 @@ bounded separately by `MaxBufferBytes`. Defaults leave `MaxBytes` and `MinFreeBy
 configured with only `Retention` can fill a disk; `quill check` and `quill ls` mark such a log UNBOUNDED.
 
 **Knowing the size.** Disk use is measured, not estimated: `Stat().Bytes` is the sum of the log's segment sizes
-and `Stat().Records` is `Head − first retained sequence + 1`, exact because sequences are contiguous
-(decision 10). **Verified** in quill's tests (T17): the byte count equals the bytes of the segment files on
+and `Stat().Records` is `Head − first retained sequence + 1` minus the records inside holes, exact because sequences are contiguous
+(decisions 10, 32). **Verified** in quill's tests (T17): the byte count equals the bytes of the segment files on
 disk across rotations, deletions and a crash. Framing is the length prefix, three varints and the CRC: about
 14 to 18 bytes per record (the baselines' 128-byte records cost 145 bytes each). So for planning, `bytes ≈ records × (average payload + about 16)`, and
 `MaxBytes ≈ target records × (average payload + 16)`; the overhead creeps up a few bytes as sequence numbers
@@ -270,11 +270,12 @@ with, so offline tools and `quill ls` can show and apply it (decision 29).
 **Aging out consumers.** The reference has no consumer expiry: a registered consumer that never commits pins
 segments until someone calls `DeleteConsumer` (**reported**, its user guide). Quill adds `ConsumerTTL`
 (default off). It matters only for protected consumers. At each prune pass, a protected consumer is
-**stale** when it has been **behind** (`offset ≤ Head`) for longer than the TTL, counted from the later of its offset
-file's modification time and the first pass that saw it behind (kept in memory, reset when it catches up). Each
+**stale** when it is **behind** (`offset ≤ Head`) and both its offset file's modification time and the `At` of the
+record at its offset (or of the first retained record when a cap already deleted it, decision 82) are older than the
+TTL; the prune pass reads that one frame and keeps no state between passes (decision 45). Each
 `Commit` writes a new file and creating a handle writes one, so the modification time is the last commit or
 creation (**inferred** from temp-and-rename, to be tested); `cp` and `rsync` reset it. A stale consumer stops protecting
-segments, is counted in `Stat().StaleConsumers` and logged once per pass change, and keeps its file, so it
+segments, is counted in `Stat().StaleConsumers` and logged at every prune pass while stale, and keeps its file, so it
 resumes from its offset if it returns and its data still exists. A consumer that is caught up is never
 stale, because it pins nothing. Set the TTL longer than the longest time a live consumer can go between
 commits while it has work to do.

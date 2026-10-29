@@ -10,7 +10,7 @@ consumers that resume where they stopped, the readers in other processes, the re
 that forgets by whole segments, follows from that one discipline.
 
 **What it actually is.** quill is an embeddable, append-only log for Go on the standard
-library alone. `quill.Open(dir)` returns a `Log` and takes an exclusive lock on the directory:
+library alone. `quill.Open(quill.Config{Dir: dir})` returns a `*Log` and takes an exclusive lock on the directory:
 that process is the log's one assigned writer. Records are numbered from 1 and the numbers
 are contiguous, including after a crash. A record is visible only once it is durable. A
 consumer is a name and a committed offset, stored in its own file in the log directory,

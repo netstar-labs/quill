@@ -212,12 +212,28 @@ func (l *Log) capsLocked(n int) int {
 
 // deleteLocked unlinks the first n sealed segments: the marker is published and the
 // directory fsynced first (decision 65). offsets are the consumers' offsets, for Dropped.
+//
+// The publish may seal an active segment that outgrew SegmentBytes after a failed rotation
+// (decision 60 d), and that seal runs the caps (decision 24), which delete a prefix of
+// l.sealed through a nested call. So the segments chosen are recorded first and n is
+// re-derived afterwards as what is left of them at the front (decision 93).
 func (l *Log) deleteLocked(n int, offsets []uint64) error {
 	if n == 0 {
 		return nil
 	}
+	chosen := make(map[*segment]bool, n)
+	for _, s := range l.sealed[:n] {
+		chosen[s] = true
+	}
 	if err := l.publishLocked(); err != nil {
 		return err
+	}
+	n = 0
+	for n < len(l.sealed) && chosen[l.sealed[n]] {
+		n++
+	}
+	if n == 0 {
+		return nil
 	}
 	if err := l.fs.SyncDir(l.dir); err != nil {
 		l.fail(err)
@@ -242,7 +258,8 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 	}
 	l.sealed = l.sealed[n:]
 	first := l.firstRetainedLocked()
-	kept := l.holes[:0]
+	// A fresh slice: segViews and Stat snapshots alias l.holes, so it is only ever reassigned.
+	kept := make([]Hole, 0, len(l.holes))
 	for _, h := range l.holes {
 		if h.To >= first {
 			kept = append(kept, h)

@@ -109,6 +109,27 @@ func TestAConsumerAheadOfTheLogOrFromAnotherLogIsRefused(t *testing.T) {
 	}
 }
 
+func TestAFailedConsumerOpenReleasesItsLock(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	defer l.Close()
+	writeFile(t, s, "/log/consumers/other", encodeConsumer(consumerState{ID: testID, Next: 1}))
+	if _, err := l.Consumer("other", ConsumerOptions{}); !errors.Is(err, ErrWrongLog) {
+		t.Fatalf("first open: %v", err)
+	}
+	// A second attempt must reach the same verdict, not ErrLocked from a leaked lock.
+	if _, err := l.Consumer("other", ConsumerOptions{}); !errors.Is(err, ErrWrongLog) {
+		t.Fatalf("second open: %v", err)
+	}
+	// Once the file is repaired the name opens.
+	writeFile(t, s, "/log/consumers/other", encodeConsumer(consumerState{ID: logID(l.ID()), Next: 1}))
+	c, err := l.Consumer("other", ConsumerOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = c.Close()
+}
+
 // T9: lifecycle.
 
 func TestConsumerLifecycleProtectionFlagsLocksAndNames(t *testing.T) {
@@ -182,10 +203,10 @@ func TestConsumerLifecycleProtectionFlagsLocksAndNames(t *testing.T) {
 		}
 	}
 	// The reserved name works through the internal path.
-	if _, err := l.consumerStore().open(l, "_archive", ConsumerOptions{Protect: ProtectOn}, false); !errors.Is(err, ErrInvalidName) {
+	if _, err := l.consumerStore().open("_archive", ConsumerOptions{Protect: ProtectOn}, false); !errors.Is(err, ErrInvalidName) {
 		t.Fatalf("reserved through the public path: %v", err)
 	}
-	a, err := l.consumerStore().open(l, "_archive", ConsumerOptions{Protect: ProtectOn}, true)
+	a, err := l.consumerStore().open("_archive", ConsumerOptions{Protect: ProtectOn}, true)
 	if err != nil || !a.Protected() {
 		t.Fatalf("internal: %v", err)
 	}

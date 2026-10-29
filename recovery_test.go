@@ -257,6 +257,43 @@ func TestAMarkerNamingASealedSegmentAndAnEmptyNewestSegmentRecover(t *testing.T)
 	}
 }
 
+func TestADamagedPredecessorSegmentIsAHole(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 100 })
+	appendN(t, l, 5)
+	mustFlush(t, l)
+	appendN(t, l, 5)
+	mustFlush(t, l)
+	appendN(t, l, 2)
+	mustFlush(t, l)
+	if ids := segmentFiles(t, s, "/log"); len(ids) != 3 {
+		t.Fatalf("segments %v", ids)
+	}
+	_ = l.Close()
+	// Segment 1 (6..10) is the newest segment's predecessor.
+	seg := "/log/" + segmentName(1)
+	damaged := bytes.Clone(fileBytes(t, s, seg))
+	damaged[10] ^= 0x01
+	writeFile(t, s, seg, damaged)
+	l, err := Open(simConfig(s, "/log"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer l.Close()
+	if err := l.Err(); !errors.Is(err, ErrCorrupt) {
+		t.Fatalf("Err() %v", err)
+	}
+	if !bytes.Equal(fileBytes(t, s, seg), damaged) {
+		t.Fatal("the sealed file was modified")
+	}
+	if len(l.holes) != 1 || l.holes[0] != (Hole{From: 6, To: 10}) {
+		t.Fatalf("holes %+v", l.holes)
+	}
+	if _, err := l.Read(6, 10); !isGap(err, 6, 10) {
+		t.Fatalf("read into the hole: %v", err)
+	}
+}
+
 func TestAMiddleSegmentDeletedByHandIsAHoleFoundAtLoad(t *testing.T) {
 	s := fsx.NewSim()
 	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 60 })
@@ -519,5 +556,34 @@ func TestRollDoesNothingOnAnEmptySegmentAndSealsOtherwise(t *testing.T) {
 	}
 	if ids := segmentFiles(t, s, "/log"); len(ids) != 2 {
 		t.Fatalf("a second roll on an empty segment made %v", ids)
+	}
+}
+
+func TestAFailedOpenLeaksNoDescriptor(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	appendN(t, l, 3)
+	if err := l.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if n := s.OpenFiles(); n != 0 {
+		t.Fatalf("open handles after Close: %d", n)
+	}
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpSyncDir {
+			return syscall.EIO
+		}
+		return nil
+	}
+	for i := 1; i <= 3; i++ {
+		if _, err := Open(simConfig(s, "/log")); !errors.Is(err, syscall.EIO) {
+			t.Fatalf("attempt %d: want EIO, got %v", i, err)
+		}
+		if n := s.OpenFiles(); n != 0 {
+			t.Fatalf("attempt %d: %d handles left open after a failed Open", i, n)
+		}
 	}
 }

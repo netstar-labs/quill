@@ -187,6 +187,22 @@ func (s *Sim) walk(name string) (*simDir, string, error) {
 	return d, base, nil
 }
 
+// enter runs the injection hook without the lock (inject locks internally), then resolves
+// name and returns with the simulator's lock held (the caller unlocks) unless it returns an
+// error.
+func (s *Sim) enter(op Op, name string) (*simDir, string, error) {
+	if err := s.inject(op, name); err != nil {
+		return nil, "", err
+	}
+	s.mu.Lock()
+	d, base, err := s.walk(name)
+	if err != nil {
+		s.mu.Unlock()
+		return nil, "", err
+	}
+	return d, base, nil
+}
+
 var errNotDir = errors.New("not a directory")
 
 func splitPath(p string) []string {
@@ -206,15 +222,11 @@ func (s *Sim) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 	if flag&O_CREATE != 0 {
 		op = OpCreate
 	}
-	if err := s.inject(op, name); err != nil {
-		return nil, err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, base, err := s.walk(name)
+	d, base, err := s.enter(op, name)
 	if err != nil {
 		return nil, err
 	}
+	defer s.mu.Unlock()
 	if base == "" {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 	}
@@ -239,15 +251,11 @@ func (s *Sim) OpenFile(name string, flag int, perm fs.FileMode) (File, error) {
 var errIsDir = errors.New("is a directory")
 
 func (s *Sim) Mkdir(name string, perm fs.FileMode) error {
-	if err := s.inject(OpMkdir, name); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, base, err := s.walk(name)
+	d, base, err := s.enter(OpMkdir, name)
 	if err != nil {
 		return err
 	}
+	defer s.mu.Unlock()
 	if base == "" {
 		return &fs.PathError{Op: "mkdir", Path: name, Err: fs.ErrExist}
 	}
@@ -261,15 +269,11 @@ func (s *Sim) Mkdir(name string, perm fs.FileMode) error {
 }
 
 func (s *Sim) ReadDir(name string) ([]string, error) {
-	if err := s.inject(OpReadDir, name); err != nil {
-		return nil, err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, base, err := s.walk(name)
+	d, base, err := s.enter(OpReadDir, name)
 	if err != nil {
 		return nil, err
 	}
+	defer s.mu.Unlock()
 	if base != "" {
 		e, ok := d.volatile[base]
 		if !ok {
@@ -289,15 +293,11 @@ func (s *Sim) ReadDir(name string) ([]string, error) {
 }
 
 func (s *Sim) Lstat(name string) (fs.FileInfo, error) {
-	if err := s.inject(OpLstat, name); err != nil {
-		return nil, err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, base, err := s.walk(name)
+	d, base, err := s.enter(OpLstat, name)
 	if err != nil {
 		return nil, err
 	}
+	defer s.mu.Unlock()
 	if base == "" {
 		return fileInfo{name: "/", mode: fs.ModeDir | d.mode}, nil
 	}
@@ -316,15 +316,11 @@ func (e entry) info(name string) fileInfo {
 }
 
 func (s *Sim) Rename(oldpath, newpath string) error {
-	if err := s.inject(OpRename, oldpath); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, oldbase, err := s.walk(oldpath)
+	d, oldbase, err := s.enter(OpRename, oldpath)
 	if err != nil {
 		return err
 	}
+	defer s.mu.Unlock()
 	d2, newbase, err := s.walk(newpath)
 	if err != nil {
 		return err
@@ -349,15 +345,11 @@ func (s *Sim) Rename(oldpath, newpath string) error {
 }
 
 func (s *Sim) Remove(name string) error {
-	if err := s.inject(OpRemove, name); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, base, err := s.walk(name)
+	d, base, err := s.enter(OpRemove, name)
 	if err != nil {
 		return err
 	}
+	defer s.mu.Unlock()
 	e, ok := d.volatile[base]
 	if !ok || base == "" {
 		return &fs.PathError{Op: "remove", Path: name, Err: fs.ErrNotExist}
@@ -371,15 +363,11 @@ func (s *Sim) Remove(name string) error {
 }
 
 func (s *Sim) SyncDir(name string) error {
-	if err := s.inject(OpSyncDir, name); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, base, err := s.walk(name)
+	d, base, err := s.enter(OpSyncDir, name)
 	if err != nil {
 		return err
 	}
+	defer s.mu.Unlock()
 	if base != "" {
 		e, ok := d.volatile[base]
 		if !ok {

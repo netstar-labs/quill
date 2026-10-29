@@ -104,6 +104,35 @@ func TestUsageErrorsExitTwoAndHelpWorks(t *testing.T) {
 	}
 }
 
+func TestAnUnopenableDirExitsOneAndUsageErrorsStillWinExitTwo(t *testing.T) {
+	// -dir names a path under a regular file, so no verb can open it.
+	file := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bad := filepath.Join(file, "log")
+	for _, args := range [][]string{
+		{"stat"}, {"check"}, {"read"}, {"cat"}, {"tail"}, {"consumers"}, // reader verbs
+		{"register", "-name", "c"}, {"unregister", "-name", "c"}, {"commit", "-name", "c", "-offset", "1"}, // consumer verbs
+		{"append", "x"}, {"roll"}, {"prune", "-retention", "-1s"}, // writer verbs
+	} {
+		if code, _, errw := exec(t, "", append([]string{args[0], "-dir", bad}, args[1:]...)...); code != exitError {
+			t.Errorf("%v on an unopenable -dir: exit %d, want %d (%s)", args, code, exitError, errw)
+		}
+	}
+	for _, args := range [][]string{
+		{"commit", "-name", "c"},                                // neither -offset nor -time
+		{"commit", "-name", "c", "-offset", "1", "-time", "1h"}, // both
+		{"register", "-name", "c", "-protect", "-no-protect"},
+		{"unregister"}, // no -name
+		{"prune", "-retention", "bogus"},
+	} {
+		if code, _, errw := exec(t, "", append([]string{args[0], "-dir", bad}, args[1:]...)...); code != exitUsage {
+			t.Errorf("%v on an unopenable -dir: exit %d, want %d (%s)", args, code, exitUsage, errw)
+		}
+	}
+}
+
 func TestReadableOutputIsLosslessInTextAndJSON(t *testing.T) {
 	// T20.
 	all := make([]byte, 256)
@@ -196,6 +225,14 @@ func TestReadableOutputIsLosslessInTextAndJSON(t *testing.T) {
 	}
 	out = mustRun(t, "", "tail", "-dir", dir, "-n", "2")
 	if !strings.HasPrefix(out, "8\t") || strings.Count(out, "\n") != 2 {
+		t.Fatalf("%q", out)
+	}
+	// -n larger than the head starts at the first record; -n 0 shows none.
+	out = mustRun(t, "", "tail", "-dir", dir, "-n", "50")
+	if !strings.HasPrefix(out, "1\t") || strings.Count(out, "\n") != len(payloads) {
+		t.Fatalf("%q", out)
+	}
+	if out = mustRun(t, "", "tail", "-dir", dir, "-n", "0"); out != "" {
 		t.Fatalf("%q", out)
 	}
 }
@@ -371,5 +408,27 @@ func TestCheckReportsUnhealthyWithExitThreeAndFlagsTheClock(t *testing.T) {
 	}
 	if _, err := parseTime("yesterday", time.Now()); err == nil {
 		t.Fatal("accepted nonsense")
+	}
+}
+
+func TestHelpDescribesDirAsTheParentOnlyForLs(t *testing.T) {
+	for _, v := range verbs {
+		if v.name == "reference" || v.name == "version" {
+			continue
+		}
+		var out bytes.Buffer
+		if code := run([]string{"help", v.name}, nil, &out, os.Stderr); code != exitOK {
+			t.Fatalf("help %s: exit %d", v.name, code)
+		}
+		want := "the log directory"
+		if v.name == "ls" {
+			want = "the parent directory holding the logs"
+		}
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("help %s does not describe -dir as %q:\n%s", v.name, want, out.String())
+		}
+		if v.name == "ls" && strings.Contains(out.String(), "the log directory") {
+			t.Errorf("help ls still calls -dir the log directory:\n%s", out.String())
+		}
 	}
 }

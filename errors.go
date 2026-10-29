@@ -7,9 +7,11 @@ import (
 
 // Errors returned by the package, matched with errors.Is. A *GapError is matched with errors.As.
 var (
-	// ErrCorrupt reports damage below the durable marker: a sealed segment that does not verify,
-	// or bytes of the newest segment below quill.tail.off that do not, or a marker whose sequence
-	// is above the last valid frame. Open refuses to write; the user guide has the procedure.
+	// ErrCorrupt reports damage below the durable marker. Open returns it for the newest segment
+	// (bytes below quill.tail.off that do not verify, a marker above the last valid frame, an
+	// overlap between segments, a damaged quill.tail or quill.format). A sealed segment that does
+	// not verify does not fail Open: it becomes a hole, reads return a *GapError over it, and
+	// Err() returns the *SegmentError, which matches ErrCorrupt. The user guide has the procedure.
 	ErrCorrupt = errors.New("quill: corrupt log")
 	// ErrFutureVersion reports a quill.format marker newer than this build knows.
 	ErrFutureVersion = errors.New("quill: log format is newer than this build")

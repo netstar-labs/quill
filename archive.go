@@ -1,14 +1,13 @@
 package quill
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"path/filepath"
 
+	"github.com/netstar-labs/quill/internal/atomicfile"
 	"github.com/netstar-labs/quill/internal/fsx"
 )
 
@@ -32,7 +31,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string, perm fs.FileMode) error {
 		return err
 	}
 	defer r.Close()
-	c, err := r.consumerStore().open(r, "_archive", ConsumerOptions{Protect: ProtectOn}, true)
+	c, err := r.consumerStore().open("_archive", ConsumerOptions{Protect: ProtectOn}, true)
 	if err != nil {
 		return err
 	}
@@ -128,7 +127,7 @@ func archiveDest(fsys fsx.FS, dstDir string, id logID, perm fs.FileMode) error {
 }
 
 // copySegment verifies a sealed segment whole, then copies it to the destination under its
-// own name by temp file, fsync, rename. A destination file of the same size is kept. It
+// own name through atomicfile.WriteFrom (temp file, fsync, rename). A destination file of the same size is kept. It
 // returns the size and the segment's last sequence.
 func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64, uint64, error) {
 	r, size, closer, err := s.open()
@@ -136,53 +135,22 @@ func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64
 		return 0, 0, err
 	}
 	defer closer()
-	info, err := verifySegment(r, size)
+	info, err := verifySegment(r, size, fmt.Sprintf("segment %d", s.id))
 	if err != nil {
-		var se *SegmentError
-		if errors.As(err, &se) {
-			se.Path = fmt.Sprintf("segment %d", s.id)
-		}
 		return 0, 0, err
 	}
 	dst := filepath.Join(dstDir, segmentName(s.id))
 	if di, err := fsys.Lstat(dst); err == nil && di.Mode().IsRegular() && di.Size() == size {
 		return size, info.last.Seq, nil
 	}
-	var suffix [8]byte
-	if _, err := rand.Read(suffix[:]); err != nil {
-		return 0, 0, err
-	}
-	tmp := filepath.Join(dstDir, tempPrefix+hex.EncodeToString(suffix[:]))
-	f, err := fsys.OpenFile(tmp, fsx.O_RDWR|fsx.O_CREATE|fsx.O_EXCL, perm)
-	if err != nil {
-		return 0, 0, err
-	}
-	err = f.Chmod(perm)
-	buf := make([]byte, windowChunk)
-	for pos := int64(0); err == nil && pos < size; {
-		n, rerr := r.ReadAt(buf[:min(int64(len(buf)), size-pos)], pos)
-		if n > 0 {
-			if _, werr := f.WriteAt(buf[:n], pos); werr != nil {
-				err = werr
-				break
-			}
-			pos += int64(n)
+	err = atomicfile.WriteFrom(fsys, dst, perm, func(f fsx.File) error {
+		n, err := io.CopyBuffer(io.NewOffsetWriter(f, 0), io.NewSectionReader(r, 0, size), make([]byte, windowChunk))
+		if err == nil && n < size {
+			err = io.ErrUnexpectedEOF
 		}
-		if rerr != nil && (rerr != io.EOF || pos < size) {
-			err = rerr
-		}
-	}
-	if err == nil {
-		err = f.Sync()
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = fsys.Rename(tmp, dst)
-	}
+		return err
+	})
 	if err != nil {
-		_ = fsys.Remove(tmp)
 		return 0, 0, err
 	}
 	return size, info.last.Seq, nil

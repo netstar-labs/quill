@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -458,4 +460,147 @@ func TestAReaderFollowingAWriterInAnotherProcessNeverOutrunsTheMarkerOrRecovery(
 		t.Fatalf("after new records: %d %v", len(all), err)
 	}
 	t.Logf("reader saw %d, acked %d, recovered %d", last, acked, recoveredLast)
+}
+
+func TestReaderSealedSegmentWithSeqZeroFirstFrameIsAHole(t *testing.T) {
+	// A sealed segment whose first frame decodes but carries seq 0 (decision 71: the first
+	// frame of a segment must be at least 1) is damage, reported as a hole like any other
+	// unreadable segment, not a crash.
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	if _, err := l.Append([]byte("one")); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Append([]byte("two")); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	f, err := s.OpenFile("/log/"+segmentName(0), fsx.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteAt(appendFrame(nil, &Record{Seq: 0, At: 1, Payload: []byte("zero")}), 0); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	r := openReaderSim(t, s)
+	defer r.Close()
+	var gap *GapError
+	recs, err := r.Read(1, 10)
+	if !errors.As(err, &gap) || gap.From != 1 || gap.To != 1 {
+		t.Fatalf("got %v %v, want a gap at 1", seqsOf(recs), err)
+	}
+}
+
+func TestConcurrentReadsOnOneReaderAreRaceFree(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 60 })
+	defer l.Close()
+	for i := 0; i < 8; i++ {
+		appendN(t, l, 4)
+		mustFlush(t, l) // eight sealed segments, 4i+1 .. 4i+4
+	}
+	r := openReaderSim(t, s)
+	defer r.Close()
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				recs, err := r.Read(7, 3)
+				if err != nil {
+					errs <- err
+					return
+				}
+				if len(recs) != 3 || recs[0].Seq != 7 || recs[1].Seq != 8 || recs[2].Seq != 9 {
+					errs <- fmt.Errorf("Read(7, 3) = %v", seqsOf(recs))
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+}
+
+func TestATransientOpenErrorIsNotCachedByTheReader(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 200 })
+	defer l.Close()
+	appendN(t, l, 30)
+	mustFlush(t, l)
+	if st, err := l.Stat(); err != nil || st.Segments < 2 {
+		t.Fatalf("want a sealed segment: %+v %v", st, err)
+	}
+	r := openReaderSim(t, s)
+	defer r.Close()
+	seg0 := "/log/" + segmentName(0)
+	fail := true
+	s.Inject = func(op fsx.Op, name string) error {
+		if fail && op == fsx.OpOpen && name == seg0 {
+			fail = false
+			return errors.New("too many open files")
+		}
+		return nil
+	}
+	_, err := r.Read(1, 5)
+	var ge *GapError
+	if !errors.As(err, &ge) {
+		t.Fatalf("first read: want a GapError, got %v", err)
+	}
+	s.Inject = nil
+	recs, err := r.Read(1, 5)
+	if err != nil || len(recs) != 5 || recs[0].Seq != 1 {
+		t.Fatalf("second read: %v %v", seqsOf(recs), err)
+	}
+	st, err := r.Stat()
+	if err != nil || len(st.Holes) != 0 {
+		t.Fatalf("stat: holes %v, err %v", st.Holes, err)
+	}
+}
+
+func TestADamagedSegmentStaysCachedAsBadAcrossReaderCalls(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 200 })
+	appendN(t, l, 30)
+	mustFlush(t, l)
+	_ = l.Close()
+	seg0 := "/log/" + segmentName(0)
+	if err := s.Remove(seg0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Mkdir(seg0, 0o755); err != nil { // a directory where a segment should be: not a regular file
+		t.Fatalf("mkdir: %v", err)
+	}
+	r := openReaderSim(t, s)
+	defer r.Close()
+	if _, err := r.Read(1, 5); err == nil {
+		t.Fatal("first read: want a gap")
+	}
+	opens := 0
+	s.Inject = func(op fsx.Op, name string) error {
+		if name == seg0 {
+			opens++
+		}
+		return nil
+	}
+	if _, err := r.Read(1, 5); err == nil {
+		t.Fatal("second read: want a gap")
+	}
+	if opens != 0 {
+		t.Fatalf("a damaged segment was examined again: %d operations on it", opens)
+	}
 }

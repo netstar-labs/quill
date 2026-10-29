@@ -54,10 +54,10 @@ func (e *SegmentError) Error() string {
 // Is makes a *SegmentError match ErrCorrupt.
 func (e *SegmentError) Is(target error) bool { return target == ErrCorrupt }
 
-// openSegment opens a segment file for reading: never through a symbolic link, a regular
-// file only (checked before the open, so a FIFO cannot block it, and after, so the open
-// file is what was checked), and at most maxSegmentBytes (guarantee 7).
-func openSegment(fsys fsx.FS, path string) (fsx.File, int64, error) {
+// openSegmentFlag opens a segment file with the given open flag: never through a symbolic
+// link, a regular file only (checked before the open, so a FIFO cannot block it, and
+// after, so the open file is what was checked), and at most maxSegmentBytes (guarantee 7).
+func openSegmentFlag(fsys fsx.FS, path string, flag int) (fsx.File, int64, error) {
 	info, err := fsys.Lstat(path)
 	if err != nil {
 		return nil, 0, err
@@ -65,7 +65,7 @@ func openSegment(fsys fsx.FS, path string) (fsx.File, int64, error) {
 	if !info.Mode().IsRegular() {
 		return nil, 0, &SegmentError{Path: path, Reason: "not a regular file"}
 	}
-	f, err := fsys.OpenFile(path, fsx.O_RDONLY, 0)
+	f, err := fsys.OpenFile(path, flag, 0)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -81,6 +81,11 @@ func openSegment(fsys fsx.FS, path string) (fsx.File, int64, error) {
 		return nil, 0, err
 	}
 	return f, info.Size(), nil
+}
+
+// openSegment opens a segment file for reading with the checks of openSegmentFlag.
+func openSegment(fsys fsx.FS, path string) (fsx.File, int64, error) {
+	return openSegmentFlag(fsys, path, fsx.O_RDONLY)
 }
 
 // window reads a segment through an io.ReaderAt in chunks, handing out slices of frames.
@@ -197,18 +202,19 @@ func walk(w *window, start int64, prev uint64, havePrev bool, fn func(rec Record
 
 // verifySegment checks a sealed segment whole: every byte is durable, so every frame must be
 // intact and contiguous, the last must end exactly at size, and there must be at least one.
-// Anything else is a *SegmentError (decision 39, decision 43).
-func verifySegment(r io.ReaderAt, size int64) (segInfo, error) {
+// Anything else is a *SegmentError (decision 39, decision 43) carrying path, which names the
+// segment for the caller's message.
+func verifySegment(r io.ReaderAt, size int64, path string) (segInfo, error) {
 	w := &window{r: r, size: size, chunk: windowChunk}
 	info, err := walk(w, 0, 0, false, nil)
 	if err != nil {
 		if !isFrameError(err) {
 			return info, err // I/O
 		}
-		return info, &SegmentError{Offset: info.end, Intact: info.end, Reason: reason(err)}
+		return info, &SegmentError{Path: path, Offset: info.end, Intact: info.end, Reason: reason(err)}
 	}
 	if info.frames == 0 {
-		return info, &SegmentError{Reason: "a sealed segment with no frames"}
+		return info, &SegmentError{Path: path, Reason: "a sealed segment with no frames"}
 	}
 	return info, nil
 }
@@ -218,10 +224,10 @@ func verifySegment(r io.ReaderAt, size int64) (segInfo, error) {
 // damage there is a *SegmentError (corruption). From durable it parses forward, accepting
 // each frame that is intact and contiguous, and stops at the first that is not: the returned
 // info.end is where the caller truncates, and cut reports whether anything was cut. Nothing
-// after the first bad frame is trusted, whatever it contains.
-func recoverSegment(r io.ReaderAt, size int64, durable int64) (info segInfo, cut bool, err error) {
+// after the first bad frame is trusted, whatever it contains. A *SegmentError carries path.
+func recoverSegment(r io.ReaderAt, size int64, durable int64, path string) (info segInfo, cut bool, err error) {
 	if durable > size {
-		return segInfo{}, false, &SegmentError{Offset: size, Intact: size, Reason: fmt.Sprintf("the file holds %d bytes but the marker says %d are durable", size, durable)}
+		return segInfo{}, false, &SegmentError{Path: path, Offset: size, Intact: size, Reason: fmt.Sprintf("the file holds %d bytes but the marker says %d are durable", size, durable)}
 	}
 	w := &window{r: r, size: durable, chunk: windowChunk}
 	info, err = walk(w, 0, 0, false, nil)
@@ -229,7 +235,7 @@ func recoverSegment(r io.ReaderAt, size int64, durable int64) (info segInfo, cut
 		if !isFrameError(err) {
 			return info, false, err // I/O
 		}
-		return info, false, &SegmentError{Offset: info.end, Intact: info.end, Reason: reason(err) + " below the durable offset"}
+		return info, false, &SegmentError{Path: path, Offset: info.end, Intact: info.end, Reason: reason(err) + " below the durable offset"}
 	}
 	w.size = size
 	tail, err := walk(w, durable, info.last.Seq, info.frames > 0, nil)
@@ -323,13 +329,9 @@ func (l *Log) load() error {
 	if tl.Seg == newest {
 		durable = int64(tl.Off)
 	}
-	info, cut, err := recoverSegment(f, size, durable)
+	info, cut, err := recoverSegment(f, size, durable, a.path)
 	if err != nil {
 		_ = f.Close()
-		var se *SegmentError
-		if errors.As(err, &se) {
-			se.Path = a.path // a *SegmentError matches ErrCorrupt
-		}
 		return err
 	}
 	if cut {
@@ -411,8 +413,9 @@ func (l *Log) load() error {
 	l.maxSeg = max(tl.MaxSeg, newest)
 	// Republish the marker from what was really on disk, and make it durable.
 	l.marker = tail{} // force a write
+	// From here l.active owns the descriptor (publishLocked may even have rotated it): a
+	// failure is returned with it open, and Open closes whatever l.active holds.
 	if err := l.publishLocked(); err != nil {
-		_ = f.Close()
 		return err
 	}
 	return l.fs.SyncDir(l.dir)
@@ -444,12 +447,8 @@ func (l *Log) loadSealed(id uint64) *segment {
 		return s
 	}
 	defer f.Close()
-	info, err := verifySegment(f, size)
+	info, err := verifySegment(f, size, s.path)
 	if err != nil {
-		var se *SegmentError
-		if errors.As(err, &se) {
-			se.Path = s.path
-		}
 		s.bad = err
 		return s
 	}
@@ -459,27 +458,5 @@ func (l *Log) loadSealed(id uint64) *segment {
 
 // openActive opens the newest segment read-write with the checks of openSegment.
 func openActive(fsys fsx.FS, path string) (fsx.File, int64, error) {
-	info, err := fsys.Lstat(path)
-	if err != nil {
-		return nil, 0, err
-	}
-	if !info.Mode().IsRegular() {
-		return nil, 0, &SegmentError{Path: path, Reason: "not a regular file"}
-	}
-	f, err := fsys.OpenFile(path, fsx.O_RDWR, 0)
-	if err != nil {
-		return nil, 0, err
-	}
-	info, err = f.Stat()
-	if err == nil && !info.Mode().IsRegular() {
-		err = &SegmentError{Path: path, Reason: "not a regular file"}
-	}
-	if err == nil && info.Size() > maxSegmentBytes {
-		err = &SegmentError{Path: path, Reason: fmt.Sprintf("%d bytes, over the %d limit", info.Size(), maxSegmentBytes)}
-	}
-	if err != nil {
-		_ = f.Close()
-		return nil, 0, err
-	}
-	return f, info.Size(), nil
+	return openSegmentFlag(fsys, path, fsx.O_RDWR)
 }
