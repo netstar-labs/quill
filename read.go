@@ -158,46 +158,43 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 	defer pool.Put(bufp)
 	stop := false
 	next := cursor{seq: cur}
+	// fail ends the scan with err, unless records were delivered and the caller leaves a gap
+	// for the next call (decision 38): then the records are the result and the gap is reported
+	// by that call.
+	fail := func(err error) (cursor, error) {
+		if count > 0 && !gapAfter {
+			return next, nil
+		}
+		return next, err
+	}
 	for !stop && cur <= v.head && (limit <= 0 || count < limit) && (maxBytes <= 0 || bytes < maxBytes) {
 		s, err := v.locate(cur)
 		if err != nil {
-			if count > 0 && !gapAfter {
-				return next, nil // the gap is reported by the next call
-			}
-			return next, err
+			return fail(err)
 		}
 		index := s.index
 		var holeTo uint64 // when a scan showed the segment ends before its derived range does
 		if index == nil && s.ensureIndex != nil {
 			var last uint64
 			if index, last, err = s.ensureIndex(); err != nil {
-				if count > 0 && !gapAfter {
-					return next, nil
-				}
-				return next, &GapError{From: cur, To: s.last}
+				return fail(&GapError{From: cur, To: s.last})
 			}
 			if last < s.last {
 				// The segment ends before the next one starts: a hole the first frames
 				// could not show. Serve up to its real end; the gap is reported past it.
 				holeTo, s.last = s.last, last
 				if cur > last {
-					if count > 0 && !gapAfter {
-						return next, nil
-					}
-					return next, &GapError{From: cur, To: holeTo}
+					return fail(&GapError{From: cur, To: holeTo})
 				}
 			}
 		}
 		r, size, closer, err := s.open()
 		if err != nil {
-			if count > 0 && !gapAfter {
-				return next, nil
-			}
 			var gap *GapError
 			if errors.As(err, &gap) {
 				err = &GapError{From: cur, To: gap.To} // a deleted segment: the gap starts at the request
 			}
-			return next, err
+			return fail(err)
 		}
 		// Start at the remembered position, or the last anchor at or below cur.
 		start := int64(0)
@@ -248,13 +245,10 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		*bufp = w.buf[:0]
 		closer()
 		if err != nil {
-			if count > 0 && !gapAfter {
-				return next, nil
-			}
 			if s.active {
-				return next, fmt.Errorf("%w: the active segment below the durable offset: %v", ErrCorrupt, err)
+				return fail(fmt.Errorf("%w: the active segment below the durable offset: %v", ErrCorrupt, err))
 			}
-			return next, &GapError{From: cur, To: s.last}
+			return fail(&GapError{From: cur, To: s.last})
 		}
 		if !done && cur <= s.last {
 			return next, fmt.Errorf("%w: segment %d ended at %d, expected %d", ErrCorrupt, s.id, cur-1, s.last)
@@ -262,10 +256,7 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		if cur > s.last {
 			next.valid = false // the next record is in another segment
 			if holeTo > 0 && cur <= holeTo {
-				if count > 0 && !gapAfter {
-					return next, nil
-				}
-				return next, &GapError{From: cur, To: holeTo}
+				return fail(&GapError{From: cur, To: holeTo})
 			}
 		}
 	}
