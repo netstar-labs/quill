@@ -202,7 +202,10 @@ func (r *Reader) segment(id uint64) *readerSegment {
 		s.size = size
 		w := &window{r: f, size: size}
 		rec, _, ferr := w.frameAt(0)
-		if ferr != nil || rec.Seq == 0 {
+		if ferr == nil && rec.Seq == 0 {
+			ferr = errBadFrame // a segment's first frame is at least 1 (decision 71)
+		}
+		if ferr != nil {
 			s.bad = &SegmentError{Path: path, Reason: "first frame: " + reason(ferr)}
 		} else {
 			s.first, s.at = rec.Seq, rec.At

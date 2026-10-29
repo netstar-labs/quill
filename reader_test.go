@@ -459,3 +459,41 @@ func TestAReaderFollowingAWriterInAnotherProcessNeverOutrunsTheMarkerOrRecovery(
 	}
 	t.Logf("reader saw %d, acked %d, recovered %d", last, acked, recoveredLast)
 }
+
+func TestReaderSealedSegmentWithSeqZeroFirstFrameIsAHole(t *testing.T) {
+	// A sealed segment whose first frame decodes but carries seq 0 (decision 71: the first
+	// frame of a segment must be at least 1) is damage, reported as a hole like any other
+	// unreadable segment, not a crash.
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	if _, err := l.Append([]byte("one")); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Append([]byte("two")); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	f, err := s.OpenFile("/log/"+segmentName(0), fsx.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteAt(appendFrame(nil, &Record{Seq: 0, At: 1, Payload: []byte("zero")}), 0); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	r := openReaderSim(t, s)
+	defer r.Close()
+	var gap *GapError
+	recs, err := r.Read(1, 10)
+	if !errors.As(err, &gap) || gap.From != 1 || gap.To != 1 {
+		t.Fatalf("got %v %v, want a gap at 1", seqsOf(recs), err)
+	}
+}
