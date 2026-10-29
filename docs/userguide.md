@@ -290,5 +290,5 @@ the highest id on disk).
 | Batch of more than one record | `MaxBatchBytes`, 16 MiB by default |
 | Segment file | 1.5 GiB (`SegmentBytes` at most 1 GiB) |
 | Consumer name | `[a-z0-9_-]`, 1 to 200 characters |
-| Sequence | 2^64 − 1, then `ErrSeqExhausted` |
+| Sequence | 2^64 − 2, then `ErrSeqExhausted` |
 | Timestamps | whole seconds, the writer's clock |

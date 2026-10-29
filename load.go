@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"runtime"
 	"slices"
 	"sync"
@@ -393,6 +394,10 @@ func (l *Log) load() error {
 	if hasFrames && head < tl.Seq {
 		_ = f.Close()
 		return fmt.Errorf("%w: the last valid sequence is %d but %s says %d is durable", ErrCorrupt, head, tailName, tl.Seq)
+	}
+	if head == math.MaxUint64 {
+		_ = f.Close()
+		return fmt.Errorf("%w: the log ends at sequence %d, which is never assigned (the ceiling is %d)", ErrCorrupt, uint64(math.MaxUint64), uint64(math.MaxUint64-1))
 	}
 	if a.frames == 0 {
 		a.first = head + 1

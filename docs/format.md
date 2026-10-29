@@ -31,7 +31,9 @@ body  = uvarint(seq) | uvarint(at) | uvarint(len(payload)) | payload
 ```
 
 - `uvarint` is the unsigned LEB128 of `encoding/binary` (`AppendUvarint`), at most ten bytes.
-- `seq` is the record's sequence number, per log, from 1.
+- `seq` is the record's sequence number, per log, from 1. The writer never assigns 2^64 − 1, so
+  the ceiling is 2^64 − 2 and `head + 1` never wraps; a log whose last frame (or whose marker)
+  names 2^64 − 1 is refused with `ErrCorrupt`, by a writable open and by a reader alike.
 - `at` is the writer's wall clock in whole Unix seconds, an `int64` written as
   `uvarint(uint64(at))`; a negative value therefore takes ten bytes.
 - `payload` is opaque bytes. The body is exactly three varints followed by exactly

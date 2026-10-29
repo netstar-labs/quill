@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -134,6 +135,10 @@ func (r *Reader) readTail() (tail, error) {
 		data, err := readState(r.fs, r.path(tailName))
 		if err == nil {
 			tl, err := decodeTail(data)
+			if err == nil && tl.Seq == math.MaxUint64 {
+				// The last sequence is never assigned, so head+1 cannot wrap (see appendLocked).
+				return tail{}, fmt.Errorf("%w: %s names sequence %d, which is never assigned", ErrCorrupt, tailName, tl.Seq)
+			}
 			if err == nil {
 				return tl, nil
 			}

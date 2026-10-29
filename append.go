@@ -3,6 +3,7 @@ package quill
 import (
 	"context"
 	"fmt"
+	"math"
 )
 
 // Append buffers one record and returns its sequence. The record is durable after the next
@@ -58,7 +59,9 @@ func (l *Log) appendLocked(payloads [][]byte, size int) (uint64, error) {
 		return 0, errDiskFull
 	}
 	n := uint64(len(payloads))
-	if l.nextSeq+n-1 < l.nextSeq || l.nextSeq == 0 {
+	// The ceiling is MaxUint64-1: the last sequence is never assigned, so last+1 (nextSeq, a
+	// read cursor, a consumer offset) never wraps. Open refuses a log whose head is MaxUint64.
+	if n > math.MaxUint64-l.nextSeq {
 		return 0, ErrSeqExhausted
 	}
 	if l.flushErr != nil && l.bufCount > 0 && len(l.buf)+size > l.cfg.MaxBufferBytes {

@@ -5,6 +5,13 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: at the sequence ceiling the API contradicted itself: after the record numbered 2^64-1 was
+  accepted, `Sync` of it returned `ErrBadSeq`, so did `Append` with `SyncAppends` although the record
+  was durable, and `Read` of it returned `ErrCorrupt`. The last sequence, 2^64-1, is now never
+  assigned; the ceiling is 2^64-2, after which `Append` returns `ErrSeqExhausted`. A log that
+  already ends at 2^64-1 (crafted or restored) is refused with `ErrCorrupt` by `Open` and
+  `OpenReader` instead of being opened with the same contradictions.
+
 - Fixed: `build/quill --dev` exited 1 with no output on a clean working tree, so the development
   build (and the CI step that runs it) produced nothing unless the tree was dirty; the version
   string is now computed without a failing command under errexit.
