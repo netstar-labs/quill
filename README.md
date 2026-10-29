@@ -32,7 +32,8 @@ sockets, no dependencies. Closer to "the SQLite of commit logs" than to a lightw
 - **Format**: [docs/format.md](docs/format.md), the normative on-disk format, frozen by golden
   tests.
 - **Audits**: [docs/audits/](docs/audits/): the test ledger, what the tests cannot show and why,
-  the benchmark baselines, the real power-loss runs, and the self-review before the audit.
+  the benchmark baselines, the real power-loss runs, the self-review before the audit, and the audit reports
+  and their findings.
 - **Start here**: [introduction](docs/introduction.md), [executive summary](docs/executive-summary.md).
 - **Deep dive**: [architecture](docs/architecture.md).
 - **Operations**: [user guide](docs/userguide.md), the generated [command reference](docs/reference.md).
@@ -50,7 +51,8 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `errors.go` | The exported errors |
 | `codec.go` | The frame: encode, decode, CRC |
 | `log.go` | `Log`, `Config`, defaults, validation, `Open` (the creation protocol), `Close` |
-| `load.go` | Segment verification, parse-forward recovery, the directory scan, hole detection |
+| `load.go` | Segment verification, parse-forward recovery, the directory scan |
+| `holes.go` | `contiguity`: turns the ordered good segments into holes and the first overlap |
 | `append.go` | `Append`, `AppendBatch`, the buffer and its bounds |
 | `flush.go` | `Flush`, the flush goroutine, the failure classes, rotation, `Roll`, `Sync` |
 | `read.go` | The read path shared by `Log`, `Reader` and `Consumer`: `Read`, `ReadWait`, `Scan`, `ScanAll`, segment ranges, gaps |

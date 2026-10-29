@@ -99,6 +99,7 @@ type Problem struct {
 	Fatal bool
 }
 
+// String renders the problem on one line: its kind, its path if any, and its detail.
 func (p Problem) String() string {
 	s := p.Kind
 	if p.Path != "" {

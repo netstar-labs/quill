@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: small documentation drift. The command reference said `ls` takes no `-dir` and then listed it; the README
+  layout table now lists `holes.go`; the `ErrPayloadTooLarge` comment now says it also covers an empty batch; and the
+  exported `ReadWait`, `Scan`, `ScanAll`, `ProtectOn`, `ProtectOff` and the `Error`/`String` methods have doc
+  comments. Documentation only; behaviour is unchanged.
+
 - Fixed: every `quill` error that came from the library printed a doubled prefix (`quill: quill: ...`); it now
   prints one. A `quill commit` that fails no longer leaves behind the consumer it had just created (the empty
   lock file stays, as for any consumer); a successful commit on a new name still registers it, now stated in

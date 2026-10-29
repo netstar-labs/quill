@@ -2,8 +2,8 @@
 
 *Generated from the verb table in `cmd/quill/verbs.go` (`quill reference`); a test keeps it current. Do not edit by hand.*
 
-`quill [-dir DIR] <verb> [flags]`. Every verb but `help`, `version` and `ls` takes `-dir`, the log directory
-(`ls` takes the parent). Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY.
+`quill [-dir DIR] <verb> [flags]`. Every verb but `help` and `version` takes `-dir`, the log directory
+(for `ls`, the parent directory holding the logs). Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY.
 
 | Verb | Lock | Summary |
 |---|---|---|

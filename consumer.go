@@ -19,7 +19,9 @@ type Protect int
 const (
 	// ProtectAsStored keeps the flag the consumer's file holds; a new consumer is unprotected.
 	ProtectAsStored Protect = iota
+	// ProtectOn makes retention keep the consumer's unread segments, and records the flag.
 	ProtectOn
+	// ProtectOff stops retention keeping them, and records the flag.
 	ProtectOff
 )
 
@@ -207,11 +209,15 @@ func (c *Consumer) Lag() (uint64, error) {
 	return head + 1 - c.state.Next, nil
 }
 
-// Read, ReadWait and Scan read from the consumer's offset, without committing.
+// Read reads from the consumer's offset, without committing; ReadWait and Scan follow.
 func (c *Consumer) Read(limit int) ([]Record, error) { return readFrom(c.src, c.Offset(), limit) }
+
+// ReadWait is Read, blocking until a record is available, ctx is done or the handle closes.
 func (c *Consumer) ReadWait(ctx context.Context, limit int) ([]Record, error) {
 	return readWait(ctx, c.src, c.Offset(), limit)
 }
+
+// Scan is the zero-copy Read from the consumer's offset, as Log.Scan, without committing.
 func (c *Consumer) Scan(limit int, fn func(Record) bool) error {
 	return scanFrom(c.src, c.Offset(), limit, fn)
 }

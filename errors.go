@@ -15,7 +15,8 @@ var (
 	ErrCorrupt = errors.New("quill: corrupt log")
 	// ErrFutureVersion reports a quill.format marker newer than this build knows.
 	ErrFutureVersion = errors.New("quill: log format is newer than this build")
-	// ErrPayloadTooLarge reports a payload above MaxPayloadBytes, or a batch above MaxBatchBytes.
+	// ErrPayloadTooLarge reports a payload above MaxPayloadBytes, a batch above MaxBatchBytes, or an
+	// empty batch (AppendBatch with no payloads).
 	ErrPayloadTooLarge = errors.New("quill: payload too large")
 	// ErrSeqExhausted reports that the log has used every sequence number.
 	ErrSeqExhausted = errors.New("quill: sequence numbers exhausted")
@@ -51,6 +52,7 @@ type GapError struct {
 	From, To uint64
 }
 
+// Error describes the missing range.
 func (e *GapError) Error() string {
 	return fmt.Sprintf("quill: records %d to %d are unavailable", e.From, e.To)
 }

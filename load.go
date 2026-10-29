@@ -48,6 +48,7 @@ type SegmentError struct {
 	Reason string
 }
 
+// Error names the segment, where the damage starts and where the intact bytes end.
 func (e *SegmentError) Error() string {
 	return fmt.Sprintf("quill: segment %s damaged at byte %d (intact to byte %d): %s", e.Path, e.Offset, e.Intact, e.Reason)
 }

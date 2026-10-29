@@ -159,14 +159,20 @@ func (r *Reader) Head() (uint64, error) {
 	return tl.Seq, err
 }
 
-// Read, ReadWait, Scan and ScanAll are the Log's, bounded by the marker.
+// Read is the Log's Read, bounded by the marker; ReadWait, Scan and ScanAll follow.
 func (r *Reader) Read(offset uint64, limit int) ([]Record, error) { return readFrom(r, offset, limit) }
+
+// ReadWait is Read, blocking until a record is available, ctx is done or the handle closes.
 func (r *Reader) ReadWait(ctx context.Context, offset uint64, limit int) ([]Record, error) {
 	return readWait(ctx, r, offset, limit)
 }
+
+// Scan is the zero-copy Read, as Log.Scan: at most limit records (limit <= 0: no limit), payloads valid only during fn.
 func (r *Reader) Scan(offset uint64, limit int, fn func(Record) bool) error {
 	return scanFrom(r, offset, limit, fn)
 }
+
+// ScanAll scans every retained record the marker names, in order.
 func (r *Reader) ScanAll(fn func(Record) bool) error { return scanFrom(r, 0, 0, fn) }
 
 func (r *Reader) maxReadBytes() int      { return r.opts.MaxReadBytes }
