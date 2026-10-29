@@ -37,7 +37,7 @@ its sequence numbers are reassigned to the next records. Three ways to pay for d
 
 | Mode | Cost | Use |
 |---|---|---|
-| Buffered (the default): `Append`, background flush every `FlushInterval` or `FlushBytes` | One fsync per flush, shared by every record in it | Throughput; a window of `FlushInterval` can be lost |
+| Buffered (the default): `Append`; an inline flush at `FlushBytes`, a background flush every `FlushInterval` | One fsync per flush, shared by every record in it | Throughput; a window of `FlushInterval` can be lost |
 | `Append` then `Sync(ctx, seq)` | One fsync per flush, shared by every producer waiting (group commit) | A durable write per call with many producers |
 | `Config.SyncAppends` | Every `Append` returns durable | The simplest durable writer |
 
