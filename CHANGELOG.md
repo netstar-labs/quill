@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `quill check` (and `Reader.Check`) reported a healthy log UNHEALTHY when retention deleted a
+  sealed segment after the check had listed the directory, as damage at byte 0 and, for a middle
+  one, a hole; a sealed segment that vanishes mid-scan is now skipped and the hole test restarts
+  at the next survivor. A segment missing from the listing is still a hole.
+
 - Fixed: `quill cat`, `read`, `tail`, `stat`, `check`, `ls` and `consumers` exited 0 when writing to
   standard output failed (a full disk, a closed descriptor) unless the output was over 4 KiB, so
   records could be lost without the exit status saying so; a failed write now exits 1 with the

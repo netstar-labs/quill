@@ -239,7 +239,8 @@ filesystems at the operator's risk. Linux and macOS only.
 
 **Checking.** `quill check` verifies every sealed segment whole and the active one up to the
 marker, finds holes, unparseable consumer files (or a `consumers/` directory that cannot be listed) and clock anomalies, and reports UNBOUNDED
-when neither cap is set. Exit 3 means UNHEALTHY.
+when neither cap is set. Exit 3 means UNHEALTHY. `check` takes no lock, so a sealed segment that
+retention deletes while it scans is skipped, not reported; one already missing from the listing is a hole.
 
 ## 10. Recovery and the manual corruption procedure
 

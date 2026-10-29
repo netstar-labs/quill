@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"path/filepath"
 	"time"
 )
@@ -151,6 +152,13 @@ func (r *Reader) Check() (CheckResult, error) {
 		path := r.path(n)
 		f, size, err := openSegment(r.fs, path)
 		if err != nil {
+			if id < tl.Seg && errors.Is(err, fs.ErrNotExist) {
+				// Retention deleted a sealed segment after the listing (decision 101). It
+				// deletes oldest first, so what was scanned before it is going too: start
+				// the contiguity test again at the next survivor.
+				havePrev = false
+				continue
+			}
 			fatal(Problem{Kind: "segment", Path: path, Detail: err.Error()})
 			continue
 		}
