@@ -190,7 +190,7 @@ successor. Lock files are never deleted.
 | Event | What is fsynced |
 |---|---|
 | Flush | The segment's data, then `quill.tail` (its temp file) before the rename. No directory fsync |
-| Rotation | The data, the new empty segment's creation (directory fsync), then `quill.tail` |
+| Rotation | The data, the new empty segment's creation (directory fsync), then `quill.tail`, then the directory again (decision 65), so the marker naming the new segment is durable |
 | Close | The data, `quill.tail`, then the directory |
 | Deletion | `quill.tail` is published and the directory fsynced **before** any segment is unlinked |
 | Commit | The consumer file's temp file before the rename; no directory fsync |
