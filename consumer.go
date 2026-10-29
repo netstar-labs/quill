@@ -47,9 +47,20 @@ type consumerStore struct {
 	dir  string
 	id   logID
 	perm fs.FileMode
-	// head and first are the log's current bounds, for Commit's range check.
-	head  func() (uint64, error)
-	first func() (uint64, error)
+	// src is the Log or Reader the store belongs to; consumers read through it, and first
+	// takes its view. head is the log's current head, for the offset range check.
+	src  source
+	head func() (uint64, error)
+}
+
+// first is the first retained sequence, where a new consumer starts.
+func (st *consumerStore) first() (uint64, error) {
+	v, release, err := st.src.view()
+	if err != nil {
+		return 0, err
+	}
+	release()
+	return v.first, nil
 }
 
 func (st *consumerStore) path(name string) string {
@@ -59,7 +70,7 @@ func (st *consumerStore) path(name string) string {
 // open takes the consumer's lock, creates its file if absent at the first retained
 // sequence, checks the log id and the offset, and applies the protect option. internal
 // allows the reserved leading underscore (the archiver).
-func (st *consumerStore) open(src source, name string, opts ConsumerOptions, internal bool) (*Consumer, error) {
+func (st *consumerStore) open(name string, opts ConsumerOptions, internal bool) (*Consumer, error) {
 	if internal {
 		if err := validName(strings.TrimPrefix(name, "_")); err != nil || !strings.HasPrefix(name, "_") {
 			return nil, fmt.Errorf("%w: %q", ErrInvalidName, name)
@@ -71,7 +82,7 @@ func (st *consumerStore) open(src source, name string, opts ConsumerOptions, int
 	if err != nil {
 		return nil, err
 	}
-	c := &Consumer{store: st, src: src, name: name, lock: lock}
+	c := &Consumer{store: st, src: st.src, name: name, lock: lock}
 	data, err := readState(st.fs, st.path(name))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
@@ -281,22 +292,14 @@ const lockSuffix = ".lock"
 // The Log's consumer API.
 
 func (l *Log) consumerStore() *consumerStore {
-	return &consumerStore{fs: l.fs, dir: l.dir, id: l.id, perm: l.cfg.Perm,
-		head: func() (uint64, error) { return l.Head(), nil },
-		first: func() (uint64, error) {
-			v, release, err := l.view()
-			if err != nil {
-				return 0, err
-			}
-			release()
-			return v.first, nil
-		}}
+	return &consumerStore{fs: l.fs, dir: l.dir, id: l.id, perm: l.cfg.Perm, src: l,
+		head: func() (uint64, error) { return l.Head(), nil }}
 }
 
 // Consumer takes a handle on a named consumer, creating its offset file at the first retained
 // sequence if absent. It holds the consumer's lock until Close.
 func (l *Log) Consumer(name string, opts ConsumerOptions) (*Consumer, error) {
-	return l.consumerStore().open(l, name, opts, false)
+	return l.consumerStore().open(name, opts, false)
 }
 
 // Consumers lists every consumer file.
@@ -309,21 +312,12 @@ func (l *Log) DeleteConsumer(name string) error { return l.consumerStore().remov
 // The Reader's consumer API.
 
 func (r *Reader) consumerStore() *consumerStore {
-	return &consumerStore{fs: r.fs, dir: r.dir, id: r.id, perm: 0o600,
-		head: r.Head,
-		first: func() (uint64, error) {
-			v, release, err := r.view()
-			if err != nil {
-				return 0, err
-			}
-			release()
-			return v.first, nil
-		}}
+	return &consumerStore{fs: r.fs, dir: r.dir, id: r.id, perm: 0o600, src: r, head: r.Head}
 }
 
 // Consumer takes a handle on a named consumer through a Reader: an external consumer.
 func (r *Reader) Consumer(name string, opts ConsumerOptions) (*Consumer, error) {
-	return r.consumerStore().open(r, name, opts, false)
+	return r.consumerStore().open(name, opts, false)
 }
 
 // Consumers lists every consumer file.

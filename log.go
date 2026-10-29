@@ -307,7 +307,7 @@ func Open(cfg Config) (*Log, error) {
 	}
 	// Protected consumers exist, protected, before any consumer process starts (decision 67).
 	for _, name := range cfg.ProtectedConsumers {
-		c, err := l.consumerStore().open(l, name, ConsumerOptions{Protect: ProtectOn}, false)
+		c, err := l.consumerStore().open(name, ConsumerOptions{Protect: ProtectOn}, false)
 		if err != nil {
 			_ = l.active.f.Close()
 			_ = lock.Close()

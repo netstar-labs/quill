@@ -182,10 +182,10 @@ func TestConsumerLifecycleProtectionFlagsLocksAndNames(t *testing.T) {
 		}
 	}
 	// The reserved name works through the internal path.
-	if _, err := l.consumerStore().open(l, "_archive", ConsumerOptions{Protect: ProtectOn}, false); !errors.Is(err, ErrInvalidName) {
+	if _, err := l.consumerStore().open("_archive", ConsumerOptions{Protect: ProtectOn}, false); !errors.Is(err, ErrInvalidName) {
 		t.Fatalf("reserved through the public path: %v", err)
 	}
-	a, err := l.consumerStore().open(l, "_archive", ConsumerOptions{Protect: ProtectOn}, true)
+	a, err := l.consumerStore().open("_archive", ConsumerOptions{Protect: ProtectOn}, true)
 	if err != nil || !a.Protected() {
 		t.Fatalf("internal: %v", err)
 	}

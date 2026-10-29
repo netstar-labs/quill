@@ -32,7 +32,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string, perm fs.FileMode) error {
 		return err
 	}
 	defer r.Close()
-	c, err := r.consumerStore().open(r, "_archive", ConsumerOptions{Protect: ProtectOn}, true)
+	c, err := r.consumerStore().open("_archive", ConsumerOptions{Protect: ProtectOn}, true)
 	if err != nil {
 		return err
 	}
