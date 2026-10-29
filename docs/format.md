@@ -100,9 +100,9 @@ Retention deletes only the oldest segments, so a middle hole is always damage.
 
 ## State files
 
-Every state file except `quill.policy` is written by temp file, fsync, rename, and refused when
-malformed: unknown fields, a missing field, trailing data, a duplicate key, invalid UTF-8, a
-lone surrogate escape, a number with a sign, a leading zero or a fraction are all refused.
+Every state file is written by temp file, fsync, rename. Every one except `quill.policy` is
+refused when malformed: unknown fields, a missing field, trailing data, a duplicate key, invalid
+UTF-8, a lone surrogate escape, a number with a sign, a leading zero or a fraction are all refused.
 A write has no directory fsync unless stated, so after a power loss a state file may be the
 previous version, never a torn one.
 
