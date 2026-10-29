@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the user guide said `quill prune` refuses a log whose policy it cannot read, and the architecture
+  document said every offline verb opens with no caps. `prune` refuses only when there is neither a readable
+  `quill.policy` nor a retention flag, and it applies the policy's caps. Documentation only; behaviour is
+  unchanged.
+
 - Fixed: the `SegmentMaxAge` documentation said it never rotates when `Retention` is negative; that holds
   only for the default, and an explicit positive value rotates quiet segments whatever `Retention` is.
   Documentation only; behaviour is unchanged.

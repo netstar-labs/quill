@@ -179,8 +179,8 @@ beside the error on stderr. A verb that could not write its output to standard o
 a closed descriptor) exits 1 instead of 0. Offline verbs run with
 background maintenance off and never rewrite `quill.policy`; `append`, `roll` and `recover` take
 the segment size from it (the 1 GiB ceiling when it cannot be read), so they do not seal a large
-active segment; `roll` seals regardless. `prune` uses `quill.policy` or the retention flags and
-refuses a log whose policy it cannot read. Numeric flags (`commit -offset`, `prune -max-bytes`,
+active segment; `roll` seals regardless. `prune` needs `quill.policy` or at least one retention flag
+and refuses otherwise. Numeric flags (`commit -offset`, `prune -max-bytes`,
 `-min-free-bytes`, `-max-records`, and `@<unix seconds>`) take plain decimal integers; `1e6`,
 `1M`, `0x10`, `-1` and trailing text are usage errors, not guesses.
 

@@ -114,9 +114,10 @@ every seal.
 
 `quill.policy` records the last writer's settings (retention, caps, segment size, payload limit)
 for tools that see only the directory. An open with `NoMaintenance`, which is how the offline
-verbs `append`, `roll`, `prune` and `recover` open, never writes it; those verbs open with no
-caps and take the segment size and payload limit from it, so opening does not seal a segment the
-writer's own size allows (decision 99).
+verbs `append`, `roll`, `prune` and `recover` open, never writes it. All four take the segment
+size and payload limit from it, so opening does not seal a segment the writer's own size allows
+(decision 99). `append`, `roll` and `recover` open with no caps; `prune` opens with the policy's
+caps, overridden by any retention flag, and needs the policy or a flag (decision 68).
 
 ## 7. Testing
 
