@@ -1,8 +1,12 @@
 package quill
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,6 +80,100 @@ func TestArchiveCopiesSealedSegmentsVerifiedIdempotentlyAndTheDestinationReadsTh
 	defer other.Close()
 	if err := archive(s, "/other", "/arch", 0o600); !errors.Is(err, ErrWrongLog) {
 		t.Fatalf("%v", err)
+	}
+}
+
+func TestArchiveCopiesEverySegmentByteForByteIncludingOneSpanningSeveralCopyChunks(t *testing.T) {
+	compare := func(t *testing.T, s *fsx.Sim, src, dst string, want int) {
+		t.Helper()
+		ids := segmentFiles(t, s, src)
+		if len(ids) < want {
+			t.Fatalf("source has %d segments, want at least %d", len(ids), want)
+		}
+		sealed := 0
+		for _, id := range ids {
+			got := segmentFiles(t, s, dst)
+			if !slices.Contains(got, id) {
+				continue // the active segment is not archived
+			}
+			sealed++
+			a := fileBytes(t, s, filepath.Join(src, segmentName(id)))
+			b := fileBytes(t, s, filepath.Join(dst, segmentName(id)))
+			if !bytes.Equal(a, b) {
+				t.Fatalf("segment %d: copy of %d bytes differs from its %d byte source", id, len(b), len(a))
+			}
+		}
+		if sealed < want {
+			t.Fatalf("compared %d segments, want at least %d", sealed, want)
+		}
+	}
+	t.Run("many small segments", func(t *testing.T) {
+		s := fsx.NewSim()
+		clk := newClock()
+		l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
+		defer l.Close()
+		fillSegments(t, l, clk, 5)
+		if err := archive(s, "/log", "/arch", 0o600); err != nil {
+			t.Fatal(err)
+		}
+		compare(t, s, "/log", "/arch", 5)
+	})
+	t.Run("one record spanning chunks", func(t *testing.T) {
+		s := fsx.NewSim()
+		l := openSim(t, s, func(c *Config) { c.MaxPayloadBytes = 4 * windowChunk })
+		defer l.Close()
+		big := []byte(strings.Repeat("0123456789abcdef", (2*windowChunk+123)/16+1))
+		if _, err := l.Append(big); err != nil {
+			t.Fatal(err)
+		}
+		if err := l.Roll(); err != nil {
+			t.Fatal(err)
+		}
+		if err := archive(s, "/log", "/arch", 0o600); err != nil {
+			t.Fatal(err)
+		}
+		compare(t, s, "/log", "/arch", 1)
+	})
+}
+
+func TestArchiveFailsOnAShortWriteAndLeavesNoTempFileInTheDestination(t *testing.T) {
+	s := fsx.NewSim()
+	clk := newClock()
+	l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
+	defer l.Close()
+	fillSegments(t, l, clk, 3)
+	if err := s.Mkdir("/arch", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpWrite && filepath.Dir(name) == "/arch" && strings.HasPrefix(filepath.Base(name), tempPrefix) {
+			return &fsx.ShortWrite{N: 5}
+		}
+		return nil
+	}
+	err := archive(s, "/log", "/arch", 0o600)
+	s.Inject = nil
+	if !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("archive with a short write: %v", err)
+	}
+	names, rerr := s.ReadDir("/arch")
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	for _, n := range names {
+		if strings.HasPrefix(n, tempPrefix) {
+			t.Fatalf("temp file %q left in the destination: %v", n, names)
+		}
+	}
+	if ids := segmentFiles(t, s, "/arch"); len(ids) != 0 {
+		t.Fatalf("a segment was published after a failed copy: %v", ids)
+	}
+	// With the fault gone the same archive completes.
+	if err := archive(s, "/log", "/arch", 0o600); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if ids := segmentFiles(t, s, "/arch"); len(ids) != 3 {
+		t.Fatalf("after the retry: %v", ids)
 	}
 }
 

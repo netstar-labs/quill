@@ -157,20 +157,12 @@ func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64
 	if err != nil {
 		return 0, 0, err
 	}
-	err = f.Chmod(perm)
-	buf := make([]byte, windowChunk)
-	for pos := int64(0); err == nil && pos < size; {
-		n, rerr := r.ReadAt(buf[:min(int64(len(buf)), size-pos)], pos)
-		if n > 0 {
-			if _, werr := f.WriteAt(buf[:n], pos); werr != nil {
-				err = werr
-				break
-			}
-			pos += int64(n)
+	if err = f.Chmod(perm); err == nil {
+		n, cerr := io.CopyBuffer(io.NewOffsetWriter(f, 0), io.NewSectionReader(r, 0, size), make([]byte, windowChunk))
+		if cerr == nil && n < size {
+			cerr = io.ErrUnexpectedEOF
 		}
-		if rerr != nil && (rerr != io.EOF || pos < size) {
-			err = rerr
-		}
+		err = cerr
 	}
 	if err == nil {
 		err = f.Sync()
