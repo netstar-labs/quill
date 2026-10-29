@@ -5,7 +5,9 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
-Nothing yet.
+- Fixed: `quill tail -follow` held its output in a 4 KiB buffer, so to a pipe or file nothing
+  appeared until the buffer filled or the command was interrupted; each record is now written
+  as it is read.
 
 ## v0.1.0
 

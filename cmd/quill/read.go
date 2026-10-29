@@ -149,6 +149,11 @@ func printRecords(c *cli, r *quill.Reader, from uint64, follow bool) int {
 		if err := p.print(rec); err != nil {
 			return c.errorf("%v", err)
 		}
+		if follow {
+			// The next step may block for as long as the log is quiet, so what has been
+			// printed must not wait in the buffer for it.
+			p.flush()
+		}
 		n++
 		if c.limit > 0 && n >= c.limit {
 			return exitOK

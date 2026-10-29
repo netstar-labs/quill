@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -430,5 +432,47 @@ func TestHelpDescribesDirAsTheParentOnlyForLs(t *testing.T) {
 		if v.name == "ls" && strings.Contains(out.String(), "the log directory") {
 			t.Errorf("help ls still calls -dir the log directory:\n%s", out.String())
 		}
+	}
+}
+
+// lockedBuffer is a writer one goroutine writes and another reads.
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+func TestTailFollowPrintsAtOnceNotAtExit(t *testing.T) {
+	// A follow that has printed a record and is now waiting must have delivered it to the
+	// writer: output to a pipe or file was held in a 4 KiB buffer until interrupt (A1-42).
+	dir := newLog(t, 1, func(i int) []byte { return []byte("first") })
+	var out, errw lockedBuffer
+	done := make(chan int, 1)
+	go func() { done <- run([]string{"tail", "-dir", dir, "-follow"}, strings.NewReader(""), &out, &errw) }()
+	deadline := time.Now().Add(10 * time.Second)
+	for !strings.Contains(out.String(), "first") && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	got := out.String()
+	// Stop the follow (the command stops on SIGINT) whether or not the record arrived.
+	if err := syscall.Kill(os.Getpid(), syscall.SIGINT); err != nil {
+		t.Fatal(err)
+	}
+	if code := <-done; code != exitOK {
+		t.Fatalf("exit %d: %s", code, errw.String())
+	}
+	if !strings.Contains(got, "first") {
+		t.Fatalf("the record was not written while the follow was waiting; before the interrupt: %q, after: %q", got, out.String())
 	}
 }
