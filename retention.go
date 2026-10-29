@@ -258,7 +258,8 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 	}
 	l.sealed = l.sealed[n:]
 	first := l.firstRetainedLocked()
-	kept := l.holes[:0]
+	// A fresh slice: segViews and Stat snapshots alias l.holes, so it is only ever reassigned.
+	kept := make([]Hole, 0, len(l.holes))
 	for _, h := range l.holes {
 		if h.To >= first {
 			kept = append(kept, h)
