@@ -11,8 +11,10 @@ in a public issue. Expect an acknowledgement within a week.
 ## What quill defends against
 
 - **Hostile or damaged files on disk.** A declared frame length over 64 MiB, a segment file over
-  1.5 GiB, an oversize payload or batch is refused before it is allocated. Every state file is
-  parsed strictly; unknown shapes are refused, not guessed.
+  1.5 GiB, an oversize payload or batch is refused before it is allocated. Every state file the log
+  depends on (`quill.tail`, `quill.format`, consumer files) is parsed strictly; unknown shapes are
+  refused, not guessed. `quill.policy` is informational and parsed tolerantly: unknown fields are
+  ignored, and a file that does not parse never blocks `Open`.
 - **Symlink substitution.** Every file in a log directory is opened without following symbolic
   links, and segments are accepted only as regular files.
 - **Silent corruption.** Every frame carries a CRC; damage is reported as a gap and never served.

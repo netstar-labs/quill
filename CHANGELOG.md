@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `SECURITY.md` said every state file is parsed strictly. `quill.policy` is informational and parsed
+  tolerantly (decisions 29 and 48); the other state files are strict. Documentation only; behaviour is
+  unchanged.
+
 - Fixed: the user guide said `quill prune` refuses a log whose policy it cannot read, and the architecture
   document said every offline verb opens with no caps. `prune` refuses only when there is neither a readable
   `quill.policy` nor a retention flag, and it applies the policy's caps. Documentation only; behaviour is
