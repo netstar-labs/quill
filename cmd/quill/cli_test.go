@@ -198,6 +198,14 @@ func TestReadableOutputIsLosslessInTextAndJSON(t *testing.T) {
 	if !strings.HasPrefix(out, "8\t") || strings.Count(out, "\n") != 2 {
 		t.Fatalf("%q", out)
 	}
+	// -n larger than the head starts at the first record; -n 0 shows none.
+	out = mustRun(t, "", "tail", "-dir", dir, "-n", "50")
+	if !strings.HasPrefix(out, "1\t") || strings.Count(out, "\n") != len(payloads) {
+		t.Fatalf("%q", out)
+	}
+	if out = mustRun(t, "", "tail", "-dir", dir, "-n", "0"); out != "" {
+		t.Fatalf("%q", out)
+	}
 }
 
 func TestTheVerbsRunBesideALiveWriterAndShowNothingBeyondTheMarker(t *testing.T) {

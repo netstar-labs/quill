@@ -175,13 +175,7 @@ func cmdTail(c *cli, args []string) int {
 		if err != nil {
 			return c.errorf("%v", err)
 		}
-		from = st.Head + 1
-		if c.n > 0 && st.Head >= c.n {
-			from = st.Head + 1 - c.n
-		} else if c.n > 0 {
-			from = 1
-		}
-		from = max(from, st.First)
+		from = max(st.Head+1-min(c.n, st.Head), st.First)
 	}
 	return printRecords(c, r, from, c.follow)
 }
