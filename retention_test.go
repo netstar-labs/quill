@@ -300,14 +300,24 @@ func TestDiskBoundsMaxBytesHoldsUnderAFastWriterAndMinFreeBytesDeletesOnlyThisLo
 	l := openRetention(t, s, clk, func(c *Config) {
 		c.SegmentBytes = segBytes
 		c.MaxBytes = maxBytes
-		c.FlushBytes = 1 << 20
+		// Small, explicit limits keep the bound of decision 69 within a small factor of what the
+		// traffic below reaches; at the defaults (1 MiB flush, 16 MiB buffer) it sits orders of
+		// magnitude above a few KB of traffic and a cap several times too lax would pass.
+		c.FlushBytes = 100
+		c.MaxBufferBytes = 300
 		c.MaxBatchBytes = 400
+		c.MaxPayloadBytes = 800 // above MaxBatchBytes: the single-record term of the bound applies
 	})
 	defer l.Close()
-	bound := int64(maxBytes + segBytes + l.cfg.MaxBufferBytes + l.cfg.MaxBatchBytes)
+	bound := int64(maxBytes + segBytes + l.cfg.MaxBufferBytes + max(l.cfg.MaxBatchBytes, l.cfg.MaxPayloadBytes+34))
 	var peak int64
 	for i := 0; i < 300; i++ {
-		if i%5 == 0 {
+		if i%50 == 49 {
+			// One record larger than MaxBatchBytes: a single record is not subject to it.
+			if _, err := l.Append(bytes.Repeat([]byte("y"), l.cfg.MaxPayloadBytes)); err != nil {
+				t.Fatal(err)
+			}
+		} else if i%5 == 0 {
 			if _, err := l.AppendBatch([][]byte{payloadFor(1), payloadFor(2), payloadFor(3)}); err != nil {
 				t.Fatal(err)
 			}
