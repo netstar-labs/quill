@@ -33,7 +33,7 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `-dir` | `—` | the log directory |
+| `-dir` | `—` | the parent directory holding the logs |
 
 ## `quill stat`
 

@@ -410,3 +410,25 @@ func TestCheckReportsUnhealthyWithExitThreeAndFlagsTheClock(t *testing.T) {
 		t.Fatal("accepted nonsense")
 	}
 }
+
+func TestHelpDescribesDirAsTheParentOnlyForLs(t *testing.T) {
+	for _, v := range verbs {
+		if v.name == "reference" || v.name == "version" {
+			continue
+		}
+		var out bytes.Buffer
+		if code := run([]string{"help", v.name}, nil, &out, os.Stderr); code != exitOK {
+			t.Fatalf("help %s: exit %d", v.name, code)
+		}
+		want := "the log directory"
+		if v.name == "ls" {
+			want = "the parent directory holding the logs"
+		}
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("help %s does not describe -dir as %q:\n%s", v.name, want, out.String())
+		}
+		if v.name == "ls" && strings.Contains(out.String(), "the log directory") {
+			t.Errorf("help ls still calls -dir the log directory:\n%s", out.String())
+		}
+	}
+}

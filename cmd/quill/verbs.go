@@ -23,6 +23,7 @@ type verb struct {
 	name    string
 	summary string
 	lock    string // "log", "consumer" or "none": what the verb takes (decision 53)
+	dirDoc  string // the -dir meaning in help and the reference; empty: "the log directory"
 	flags   func(fs *flag.FlagSet, c *cli)
 	run     func(c *cli, args []string) int
 }
@@ -56,7 +57,7 @@ var verbs []verb
 func init() {
 	verbs = []verb{
 		{name: "ls", summary: "list the logs under a parent directory, with bytes, segments, retention and caps from quill.policy", lock: "none",
-			run: cmdLs},
+			dirDoc: "the parent directory holding the logs", run: cmdLs},
 		{name: "stat", summary: "print a log's head, first retained sequence, segments, bytes, records, holes and marker age", lock: "none",
 			flags: func(fs *flag.FlagSet, c *cli) { fs.BoolVar(&c.json, "json", false, "one JSON object") },
 			run:   cmdStat},
@@ -174,7 +175,11 @@ func run(args []string, in io.Reader, out, errw io.Writer) int {
 func (v *verb) flagSet(c *cli, dirDefault string) *flag.FlagSet {
 	fs := flag.NewFlagSet(v.name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	fs.StringVar(&c.dir, "dir", dirDefault, "the log directory")
+	dirDoc := v.dirDoc
+	if dirDoc == "" {
+		dirDoc = "the log directory"
+	}
+	fs.StringVar(&c.dir, "dir", dirDefault, dirDoc)
 	if v.flags != nil {
 		v.flags(fs, c)
 	}
