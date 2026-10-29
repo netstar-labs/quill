@@ -15,7 +15,7 @@ one with `ErrFutureVersion`. The module version and the format version are separ
 {log}/quill.lock             the writer's exclusive flock (advisory; the file is empty)
 {log}/consumers/{name}       "<log id> <next> <protect>", one line
 {log}/consumers/{name}.lock  held while a process has the consumer open; never deleted
-{log}/**/.tmp-*              temp files; ignored by every scan; the writer removes those older than an hour
+{log}/**/.tmp-*              temp files; ignored by every scan; the writer removes those older than an hour; so does `Archive`, in its destination
 ```
 
 The directory's base name is the topic name; it is not stored anywhere inside. Once

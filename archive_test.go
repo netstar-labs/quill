@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -469,5 +470,68 @@ func TestArchiveSurvivesEverySingleLostItemAfterASuccessfulRun(t *testing.T) {
 		if ids := segmentFiles(t, s, "/arch"); len(ids) != 5 {
 			t.Fatalf("dropping item %d of %d: the destination holds segments %v after the second archive, want 5", drop, n, ids)
 		}
+	}
+}
+
+// A run killed in the middle of a segment copy leaves its temp file in the destination, where
+// no writer's Open ever looks. The next run removes the ones older than an hour and keeps a
+// younger one, which may belong to a live archiver (decision 67).
+func TestArchiveRemovesStaleTempFilesFromTheDestinationAfterAKilledRun(t *testing.T) {
+	s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
+	defer l.Close()
+	fillSegments(t, l, clk, 3)
+	if err := s.Mkdir("/arch", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// The kill: from the first write to a temp file in the destination on, every operation
+	// fails, so neither the error path nor anything else removes the file.
+	var killed atomic.Bool
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpWrite && filepath.Dir(name) == "/arch" && strings.HasPrefix(filepath.Base(name), tempPrefix) {
+			killed.Store(true)
+		}
+		if killed.Load() {
+			return syscall.EIO
+		}
+		return nil
+	}
+	s.Clock = func() time.Time { return time.Now().Add(-2 * time.Hour) } // the killed run began two hours ago
+	if err := archive(s, "/log", "/arch"); err == nil {
+		t.Fatal("the killed run succeeded")
+	}
+	s.Inject = nil
+	tempFiles := func() []string {
+		names, err := s.ReadDir("/arch")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var temps []string
+		for _, n := range names {
+			if strings.HasPrefix(n, tempPrefix) {
+				temps = append(temps, n)
+			}
+		}
+		return temps
+	}
+	stale := tempFiles()
+	if len(stale) != 1 {
+		t.Fatalf("temp files after the killed run: %v, want exactly one", stale)
+	}
+	// A younger temp file, as a live archiver's copy in flight would leave.
+	s.Clock = time.Now
+	young := tempPrefix + "young"
+	f, err := s.OpenFile(filepath.Join("/arch", young), fsx.O_RDWR|fsx.O_CREATE|fsx.O_EXCL, DefaultPerm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+	if err := archive(s, "/log", "/arch"); err != nil {
+		t.Fatalf("the re-run: %v", err)
+	}
+	if got := tempFiles(); len(got) != 1 || got[0] != young {
+		t.Fatalf("temp files after the re-run: %v, want only %q (the stale %v removed)", got, young, stale)
+	}
+	if ids := segmentFiles(t, s, "/arch"); len(ids) != 3 {
+		t.Fatalf("segments after the re-run: %v", ids)
 	}
 }

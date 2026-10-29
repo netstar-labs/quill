@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a process killed in the middle of copying a segment in `Archive` (or `quill archive`) left a
+  `.tmp-*` file in the destination that nothing removed; the next run now removes those older than an
+  hour from the destination, the rule the writer applies to its own directory.
+
 - Fixed: `Archive` (and `quill archive`) created the destination directory without syncing it into its
   parent, so after a power loss the destination could vanish while the `_archive` consumer's committed
   offset still said every segment was copied, and the next run copied nothing; it now syncs the parent

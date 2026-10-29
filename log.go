@@ -535,18 +535,23 @@ func (l *Log) ID() string { return string(l.id) }
 func (l *Log) removeStaleTemps() {
 	cutoff := l.cfg.clock().Add(-time.Hour)
 	for _, dir := range []string{l.dir, l.path(consumersDir)} {
-		names, err := l.fs.ReadDir(dir)
-		if err != nil {
+		removeTempsBefore(l.fs, dir, cutoff)
+	}
+}
+
+// removeTempsBefore deletes the .tmp-* files in dir last modified before cutoff, best effort.
+func removeTempsBefore(fsys fsx.FS, dir string, cutoff time.Time) {
+	names, err := fsys.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, n := range names {
+		if !strings.HasPrefix(n, tempPrefix) {
 			continue
 		}
-		for _, n := range names {
-			if !strings.HasPrefix(n, tempPrefix) {
-				continue
-			}
-			p := filepath.Join(dir, n)
-			if info, err := l.fs.Lstat(p); err == nil && info.ModTime().Before(cutoff) {
-				_ = l.fs.Remove(p)
-			}
+		p := filepath.Join(dir, n)
+		if info, err := fsys.Lstat(p); err == nil && info.ModTime().Before(cutoff) {
+			_ = fsys.Remove(p)
 		}
 	}
 }

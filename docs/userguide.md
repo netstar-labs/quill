@@ -215,7 +215,7 @@ orders/
 
 Segment files are binary: inspect them with `quill cat`, never with `cat`. Every other file
 is one line of text or JSON. Temp files are `.tmp-*`; the writer removes those older than an
-hour when it opens the log.
+hour when it opens the log, and `Archive` does the same in its destination before it copies.
 
 ## 9. Operations
 

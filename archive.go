@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/netstar-labs/quill/internal/atomicfile"
 	"github.com/netstar-labs/quill/internal/fsx"
@@ -40,7 +41,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 	}
 	defer c.Close()
 	dstDir = filepath.Clean(dstDir)
-	if err := archiveDest(fsys, srcDir, dstDir, r.id); err != nil {
+	if err := archiveDest(fsys, srcDir, dstDir, r.id, r.opts.clock().Add(-time.Hour)); err != nil {
 		return err
 	}
 	v, release, err := r.view()
@@ -94,8 +95,10 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 }
 
 // archiveDest refuses a destination that has a writer of its own, then creates the
-// destination if needed and checks or writes its format marker.
-func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID) error {
+// destination if needed and checks or writes its format marker. It also removes the .tmp-*
+// files in it last modified before staleBefore: a killed copy leaves one, and no writer's Open
+// sweeps this directory (decision 67).
+func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, staleBefore time.Time) error {
 	// quill.tail has one writer, the lock holder (decisions 8, 62), and Archive writes the
 	// destination's. The source is such a destination when the two paths name one directory
 	// (os.SameFile follows a symbolic link in the path, which comparing strings would not).
@@ -151,6 +154,7 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID) error {
 	} else if err != nil {
 		return err
 	}
+	removeTempsBefore(fsys, dstDir, staleBefore)
 	return fsys.SyncDir(dstDir)
 }
 
