@@ -270,11 +270,12 @@ with, so offline tools and `quill ls` can show and apply it (decision 29).
 **Aging out consumers.** The reference has no consumer expiry: a registered consumer that never commits pins
 segments until someone calls `DeleteConsumer` (**reported**, its user guide). Quill adds `ConsumerTTL`
 (default off). It matters only for protected consumers. At each prune pass, a protected consumer is
-**stale** when it has been **behind** (`offset ≤ Head`) for longer than the TTL, counted from the later of its offset
-file's modification time and the first pass that saw it behind (kept in memory, reset when it catches up). Each
+**stale** when it is **behind** (`offset ≤ Head`) and both its offset file's modification time and the `At` of the
+record at its offset (or of the first retained record when a cap already deleted it, decision 82) are older than the
+TTL; the prune pass reads that one frame and keeps no state between passes (decision 45). Each
 `Commit` writes a new file and creating a handle writes one, so the modification time is the last commit or
 creation (**inferred** from temp-and-rename, to be tested); `cp` and `rsync` reset it. A stale consumer stops protecting
-segments, is counted in `Stat().StaleConsumers` and logged once per pass change, and keeps its file, so it
+segments, is counted in `Stat().StaleConsumers` and logged at every prune pass while stale, and keeps its file, so it
 resumes from its offset if it returns and its data still exists. A consumer that is caught up is never
 stale, because it pins nothing. Set the TTL longer than the longest time a live consumer can go between
 commits while it has work to do.
