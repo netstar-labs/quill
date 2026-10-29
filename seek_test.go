@@ -118,9 +118,7 @@ func TestOffsetForTimeEqualsALinearScanForEverySecond(t *testing.T) {
 }
 
 func TestOffsetForTimeOnDamageEmptyLogsAndNonMonotonicTimes(t *testing.T) {
-	s := fsx.NewSim()
-	clk := newClock()
-	l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
+	s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
 	defer l.Close()
 	if off, err := l.OffsetForTime(clk.Now()); err != nil || off != 1 {
 		t.Fatalf("empty log: %d %v", off, err)

@@ -74,6 +74,16 @@ func openRetention(t *testing.T, s *fsx.Sim, clk *testClock, mut func(*Config)) 
 	})
 }
 
+// retentionLog is the usual retention-test prologue: a fresh simulator and test clock and
+// a log opened on them by openRetention. It registers no cleanup, so tests that close
+// and reopen the log keep control; callers defer l.Close() themselves.
+func retentionLog(t *testing.T, mut func(*Config)) (*fsx.Sim, *testClock, *Log) {
+	t.Helper()
+	s := fsx.NewSim()
+	clk := newClock()
+	return s, clk, openRetention(t, s, clk, mut)
+}
+
 // fillSegments appends and flushes n sealed segments of four records, one per minute.
 func fillSegments(t *testing.T, l *Log, clk *testClock, n int) {
 	t.Helper()
@@ -85,9 +95,7 @@ func fillSegments(t *testing.T, l *Log, clk *testClock, n int) {
 }
 
 func TestTheAgeSweepDeletesExpiredSealedSegmentsNeverTheActiveOneAndNeverReusesAnID(t *testing.T) {
-	s := fsx.NewSim()
-	clk := newClock()
-	l := openRetention(t, s, clk, nil)
+	s, clk, l := retentionLog(t, nil)
 	defer l.Close()
 	fillSegments(t, l, clk, 6)                              // segments 0..5 sealed at minutes 0..5, 6 active and empty
 	clk.Advance(time.Hour - 3*time.Minute - 30*time.Second) // now 62.5 min: the segments of minutes 0..2 are older than an hour
@@ -176,9 +184,7 @@ func TestTheAgeSweepDeletesExpiredSealedSegmentsNeverTheActiveOneAndNeverReusesA
 }
 
 func TestAProtectedConsumerKeepsItsUnreadSegmentsAndACapOverridesItCountingDropped(t *testing.T) {
-	s := fsx.NewSim()
-	clk := newClock()
-	l := openRetention(t, s, clk, nil)
+	s, clk, l := retentionLog(t, nil)
 	defer l.Close()
 	fillSegments(t, l, clk, 6)
 	p, err := l.Consumer("protected", ConsumerOptions{Protect: ProtectOn})
@@ -474,9 +480,7 @@ func TestConsumerAgingUnderConsumerTTL(t *testing.T) {
 
 func TestSizeAccountingIsMeasured(t *testing.T) {
 	// T17, across rotations, deletions, a crash and a reopen.
-	s := fsx.NewSim()
-	clk := newClock()
-	l := openRetention(t, s, clk, nil)
+	s, clk, l := retentionLog(t, nil)
 	check := func(l *Log, label string) {
 		t.Helper()
 		st, err := l.Stat()
@@ -618,9 +622,7 @@ func TestTheBackgroundPassRunsUnlessMaintenanceIsOff(t *testing.T) {
 // is already done, and the segments behind it still have to go.
 func TestASealedSegmentRemovedBehindTheWritersBackDoesNotStopRetention(t *testing.T) {
 	t.Run("age sweep", func(t *testing.T) {
-		s := fsx.NewSim()
-		clk := newClock()
-		l := openRetention(t, s, clk, nil)
+		s, clk, l := retentionLog(t, nil)
 		defer l.Close()
 		fillSegments(t, l, clk, 6) // segments 0..5 sealed, 6 active and empty
 		if err := s.Remove("/log/" + segmentName(0)); err != nil {

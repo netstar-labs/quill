@@ -17,9 +17,7 @@ import (
 // T15: archive.
 
 func TestArchiveCopiesSealedSegmentsVerifiedIdempotentlyAndTheDestinationReadsTheSame(t *testing.T) {
-	s := fsx.NewSim()
-	clk := newClock()
-	l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
+	s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
 	defer l.Close()
 	fillSegments(t, l, clk, 5)
 	appendN(t, l, 1) // in the active segment: not archived
@@ -109,9 +107,7 @@ func TestArchiveCopiesEverySegmentByteForByteIncludingOneSpanningSeveralCopyChun
 		}
 	}
 	t.Run("many small segments", func(t *testing.T) {
-		s := fsx.NewSim()
-		clk := newClock()
-		l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
+		s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
 		defer l.Close()
 		fillSegments(t, l, clk, 5)
 		if err := archive(s, "/log", "/arch"); err != nil {
@@ -138,9 +134,7 @@ func TestArchiveCopiesEverySegmentByteForByteIncludingOneSpanningSeveralCopyChun
 }
 
 func TestArchiveFailsOnAShortWriteAndLeavesNoTempFileInTheDestination(t *testing.T) {
-	s := fsx.NewSim()
-	clk := newClock()
-	l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
+	s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
 	defer l.Close()
 	fillSegments(t, l, clk, 3)
 	if err := s.Mkdir("/arch", 0o700); err != nil {
@@ -179,9 +173,7 @@ func TestArchiveFailsOnAShortWriteAndLeavesNoTempFileInTheDestination(t *testing
 }
 
 func TestArchiveFailsWhenTheDestinationCannotSyncAndLeavesNoTempFile(t *testing.T) {
-	s := fsx.NewSim()
-	clk := newClock()
-	l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
+	s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
 	defer l.Close()
 	fillSegments(t, l, clk, 3)
 	if err := s.Mkdir("/arch", 0o700); err != nil {
@@ -208,9 +200,7 @@ func TestArchiveFailsWhenTheDestinationCannotSyncAndLeavesNoTempFile(t *testing.
 }
 
 func TestArchiveStopsAtACorruptSegmentAndReportsASourceHole(t *testing.T) {
-	s := fsx.NewSim()
-	clk := newClock()
-	l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1 })
+	s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
 	defer l.Close()
 	fillSegments(t, l, clk, 6)
 	seg2 := "/log/" + segmentName(2)
@@ -298,9 +288,7 @@ func TestArchiveStopsAtACorruptSegmentAndReportsASourceHole(t *testing.T) {
 }
 
 func TestTheArchiverIsAProtectedConsumerUntilACapOverridesIt(t *testing.T) {
-	s := fsx.NewSim()
-	clk := newClock()
-	l := openRetention(t, s, clk, nil)
+	s, clk, l := retentionLog(t, nil)
 	defer l.Close()
 	fillSegments(t, l, clk, 4)
 	if err := archive(s, "/log", "/arch"); err != nil {
