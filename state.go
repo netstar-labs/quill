@@ -41,15 +41,8 @@ func parseSegmentName(name string) (uint64, bool) {
 	if !ok || len(digits) != 10 {
 		return 0, false
 	}
-	var id uint64
-	for i := 0; i < len(digits); i++ {
-		c := digits[i]
-		if c < '0' || c > '9' {
-			return 0, false
-		}
-		id = id*10 + uint64(c-'0')
-	}
-	return id, true
+	id, err := strconv.ParseUint(digits, 10, 64)
+	return id, err == nil
 }
 
 // formatVersion is the version this build writes and the highest it reads.
@@ -269,13 +262,8 @@ func decodeConsumer(data []byte) (consumerState, error) {
 // parseUint is strconv.ParseUint restricted to plain decimal digits: no sign, no leading
 // zeros except "0" itself, no underscores.
 func parseUint(s string) (uint64, error) {
-	if s == "" || (len(s) > 1 && s[0] == '0') {
+	if len(s) > 1 && s[0] == '0' {
 		return 0, strconv.ErrSyntax
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return 0, strconv.ErrSyntax
-		}
 	}
 	return strconv.ParseUint(s, 10, 64)
 }

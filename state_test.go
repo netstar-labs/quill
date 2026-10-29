@@ -179,6 +179,20 @@ func TestParseUintIsPlainDecimalOnly(t *testing.T) {
 	}
 }
 
+func TestParseSegmentNameIsTenDigitsAndLog(t *testing.T) {
+	for name, want := range map[string]uint64{"0000000000.log": 0, "0000000001.log": 1, "9999999999.log": 9999999999} {
+		if id, ok := parseSegmentName(name); !ok || id != want {
+			t.Errorf("%q: got %d, %v; want %d", name, id, ok, want)
+		}
+	}
+	for _, name := range []string{"", ".log", "1.log", "000000001.log", "00000000001.log", "0000000001", "0000000001.logx",
+		"+000000001.log", "-000000001.log", "000000_001.log", "0x00000001.log", "000000000１.log", "0000000001.tmp"} {
+		if id, ok := parseSegmentName(name); ok {
+			t.Errorf("%q accepted as %d", name, id)
+		}
+	}
+}
+
 func TestStateFilesAreWrittenAtomicallyAndReadWithoutFollowingLinks(t *testing.T) {
 	s := fsx.NewSim()
 	if err := s.Mkdir("/log", 0o700); err != nil {
