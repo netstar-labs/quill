@@ -118,6 +118,12 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID) error {
 	if err := fsys.Mkdir(dstDir, dirPerm); err != nil && !errors.Is(err, fs.ErrExist) {
 		return err
 	}
+	// The directory's own entry lives in its parent: syncing dstDir below makes what is inside
+	// it durable, not the name that reaches it. Without this a power loss can keep the committed
+	// _archive offset and lose the destination. Also done when an earlier run made the directory.
+	if err := fsys.SyncDir(filepath.Dir(dstDir)); err != nil {
+		return err
+	}
 	data, err := readState(fsys, filepath.Join(dstDir, formatName))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):

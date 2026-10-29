@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `Archive` (and `quill archive`) created the destination directory without syncing it into its
+  parent, so after a power loss the destination could vanish while the `_archive` consumer's committed
+  offset still said every segment was copied, and the next run copied nothing; it now syncs the parent
+  before copying or committing.
+
 - Fixed: `Sync` of a sequence that had not been assigned read the last assigned sequence for its `ErrBadSeq`
   message after releasing the log's lock, a data race with concurrent appends that the race detector
   reported; the number is now read under the lock.

@@ -440,3 +440,34 @@ func TestArchiveRefusesADestinationHeldByALiveWriter(t *testing.T) {
 		t.Fatalf("the live destination's marker changed from %q to %q (%v)", before, after, err)
 	}
 }
+
+// A power loss that persists the committed _archive offset but not the destination's own
+// directory entry must not leave the archive empty: for every single unsynced item a crash
+// could drop, a second Archive run ends with every sealed segment in the destination.
+func TestArchiveSurvivesEverySingleLostItemAfterASuccessfulRun(t *testing.T) {
+	setup := func() *fsx.Sim {
+		s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
+		fillSegments(t, l, clk, 5)
+		if err := l.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := archive(s, "/log", "/arch"); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	n := setup().Unsynced()
+	if n == 0 {
+		t.Fatal("the simulator reports nothing unsynced after an archive")
+	}
+	for drop := 0; drop < n; drop++ {
+		s := setup()
+		s.Crash(func(i, _ int) bool { return i != drop })
+		if err := archive(s, "/log", "/arch"); err != nil {
+			t.Fatalf("dropping item %d of %d: second archive: %v", drop, n, err)
+		}
+		if ids := segmentFiles(t, s, "/arch"); len(ids) != 5 {
+			t.Fatalf("dropping item %d of %d: the destination holds segments %v after the second archive, want 5", drop, n, ids)
+		}
+	}
+}
