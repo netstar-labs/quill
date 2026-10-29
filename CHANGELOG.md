@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the `SegmentMaxAge` documentation said it never rotates when `Retention` is negative; that holds
+  only for the default, and an explicit positive value rotates quiet segments whatever `Retention` is.
+  Documentation only; behaviour is unchanged.
+
 - Fixed: a process killed in the middle of copying a segment in `Archive` (or `quill archive`) left a
   `.tmp-*` file in the destination that nothing removed; the next run now removes those older than an
   hour from the destination, the rule the writer applies to its own directory.

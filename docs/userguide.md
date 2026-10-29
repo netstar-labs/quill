@@ -136,7 +136,7 @@ arrives during creation retries).
 | `SyncAppends` | off | Every append returns durable |
 | `MaxBufferBytes` | 16 × `FlushBytes` | The buffer bound while flushes are failing |
 | `SegmentBytes` | 8 MiB (≤ 1 GiB) | Rotation size; a segment passes it by the flush that seals it |
-| `SegmentMaxAge` | `Retention` | Rotates a quiet active segment so retention can reach it |
+| `SegmentMaxAge` | `Retention` | Rotates a quiet active segment so retention can reach it. The default is never when `Retention` is negative; an explicit positive value rotates whatever `Retention` is |
 | `MaxBytes` | off | Cap on segment bytes, checked at every seal and pass; ≥ 2 × `SegmentBytes` |
 | `MinFreeBytes` | off | Free-space floor (`statfs`); below it the log deletes its own oldest segments, then refuses appends with `ENOSPC` |
 | `MaxRecords` | off | Keep roughly the newest N records |

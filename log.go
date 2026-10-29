@@ -35,8 +35,9 @@ type Config struct {
 	MaxBufferBytes int
 	// SegmentBytes is the rotation size (8 MiB), at most 1 GiB.
 	SegmentBytes int64
-	// SegmentMaxAge rotates a quiet active segment so retention can delete it (Retention);
-	// never when Retention is negative.
+	// SegmentMaxAge rotates a quiet active segment so retention can delete it (Retention).
+	// Left at zero it takes Retention's value, so it is never when Retention is negative; an
+	// explicit positive value still rotates, whatever Retention is, and a negative one is never.
 	SegmentMaxAge time.Duration
 	// MaxBytes caps this log's segment bytes (0: off). Below twice SegmentBytes is refused.
 	MaxBytes int64
