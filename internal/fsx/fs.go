@@ -1,3 +1,5 @@
+//go:build linux || darwin
+
 // Package fsx is the file-system seam every file operation in quill goes through: an interface,
 // a real implementation (OS) and a crash simulator (Sim) that models what a power loss does to
 // unsynced writes, so recovery can be tested against outcomes a SIGKILL cannot produce.

@@ -39,6 +39,7 @@ func TestUnmarshalRefusesEveryDamagedShape(t *testing.T) {
 		"lone high":          `{"seq":1,"seg":2,"off":3,"maxseg":4,"x":"\ud800"}`,
 		"high then non-low":  `{"seq":1,"seg":2,"off":3,"maxseg":4,"x":"\ud800A"}`,
 		"array":              `[1,2,3,4]`,
+		"duplicate key":      `{"seq":1,"seq":2,"seg":2,"off":3,"maxseg":4}`,
 	}
 	for name, in := range cases {
 		var v tail
@@ -52,6 +53,15 @@ func TestUnmarshalRefusesEveryDamagedShape(t *testing.T) {
 	}
 	if err := Unmarshal([]byte("\"\xff\""), new(string)); !errors.Is(err, ErrBadString) {
 		t.Fatalf("invalid utf-8: %v", err)
+	}
+	var nested struct {
+		A map[string]any `json:"a"`
+	}
+	if err := Unmarshal([]byte(`{"a":{"x":1,"y":{"x":2,"x":3}}}`), &nested); !errors.Is(err, ErrDuplicateKey) {
+		t.Fatalf("nested duplicate: %v", err)
+	}
+	if err := Unmarshal([]byte(`{"a":{"x":1,"y":{"x":2},"z":[{"x":1},{"x":2}]}}`), &nested); err != nil {
+		t.Fatalf("same key in different objects: %v", err)
 	}
 }
 

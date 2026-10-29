@@ -1,3 +1,5 @@
+//go:build linux || darwin
+
 // Package strictjson parses a state file and refuses anything but exactly what was expected:
 // unknown fields, trailing data, invalid UTF-8 and lone surrogate escapes (which
 // encoding/json would silently turn into U+FFFD). Unknown shapes are refused, not guessed
@@ -19,14 +21,20 @@ var ErrBadString = errors.New("strictjson: invalid UTF-8 or a lone surrogate esc
 // ErrTrailing is returned when more than one JSON value is present.
 var ErrTrailing = errors.New("strictjson: trailing data after the value")
 
+// ErrDuplicateKey is returned when an object repeats a key; the decoder would keep the last.
+var ErrDuplicateKey = errors.New("strictjson: duplicate key")
+
 // Unmarshal decodes exactly one JSON value into v. v should be a pointer to a struct:
-// fields the struct does not declare are an error, as are a second value, invalid UTF-8
-// anywhere in data, and a \u escape that is a lone surrogate.
+// fields the struct does not declare are an error, as are a repeated key, a second value,
+// invalid UTF-8 anywhere in data, and a \u escape that is a lone surrogate.
 func Unmarshal(data []byte, v any) error {
 	if !utf8.Valid(data) {
 		return ErrBadString
 	}
 	if err := checkEscapes(data); err != nil {
+		return err
+	}
+	if err := checkDuplicateKeys(data); err != nil {
 		return err
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
@@ -74,6 +82,56 @@ func checkEscapes(data []byte) error {
 		}
 	}
 	return nil
+}
+
+// checkDuplicateKeys walks the tokens and refuses an object that repeats a key. Syntax
+// errors are left to the decoder, which reports them better.
+func checkDuplicateKeys(data []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	type frame struct {
+		object    bool
+		keys      map[string]bool
+		expectKey bool
+	}
+	var stack []*frame
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return nil // the decoder will report the syntax error
+		}
+		top := (*frame)(nil)
+		if len(stack) > 0 {
+			top = stack[len(stack)-1]
+		}
+		switch t := tok.(type) {
+		case json.Delim:
+			switch t {
+			case '{':
+				stack = append(stack, &frame{object: true, keys: map[string]bool{}, expectKey: true})
+				continue
+			case '[':
+				stack = append(stack, &frame{})
+				continue
+			default:
+				stack = stack[:len(stack)-1]
+			}
+		case string:
+			if top != nil && top.object && top.expectKey {
+				if top.keys[t] {
+					return ErrDuplicateKey
+				}
+				top.keys[t] = true
+				top.expectKey = false
+				continue
+			}
+		}
+		if top != nil && top.object {
+			top.expectKey = true // a value was consumed; the next string is a key
+		}
+	}
 }
 
 func hex4(b []byte) (uint64, bool) {

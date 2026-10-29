@@ -1,3 +1,5 @@
+//go:build linux || darwin
+
 // Package atomicfile replaces a file the way a crash cannot half-observe: the data goes to a
 // temp file beside the target, is fsynced, and is renamed over the target. Every operation
 // goes through the fsx seam, so the crash simulator can test it.
