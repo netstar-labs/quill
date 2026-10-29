@@ -83,41 +83,42 @@ func (st *consumerStore) open(name string, opts ConsumerOptions, internal bool) 
 		return nil, err
 	}
 	c := &Consumer{store: st, src: st.src, name: name, lock: lock}
+	if err := c.init(opts); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
+	return c, nil
+}
+
+// init loads or creates the consumer's file and applies the options. It leaves the lock to
+// its caller, which releases it on any error.
+func (c *Consumer) init(opts ConsumerOptions) error {
+	st, name := c.store, c.name
 	data, err := readState(st.fs, st.path(name))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		first, ferr := st.first()
-		if ferr != nil {
-			_ = lock.Close()
-			return nil, ferr
+		first, err := st.first()
+		if err != nil {
+			return err
 		}
 		c.state = consumerState{ID: st.id, Next: first, Protect: opts.Protect == ProtectOn}
-		if err := c.write(true); err != nil {
-			_ = lock.Close()
-			return nil, err
-		}
-		return c, nil
+		return c.write(true)
 	case err != nil:
-		_ = lock.Close()
-		return nil, err
+		return err
 	}
 	state, err := decodeConsumer(data)
 	if err != nil {
-		_ = lock.Close()
-		return nil, fmt.Errorf("%w: consumer %q: %v", ErrCorrupt, name, err)
+		return fmt.Errorf("%w: consumer %q: %v", ErrCorrupt, name, err)
 	}
 	if state.ID != st.id {
-		_ = lock.Close()
-		return nil, fmt.Errorf("%w: consumer %q is from log %s, this is %s", ErrWrongLog, name, state.ID, st.id)
+		return fmt.Errorf("%w: consumer %q is from log %s, this is %s", ErrWrongLog, name, state.ID, st.id)
 	}
 	head, err := st.head()
 	if err != nil {
-		_ = lock.Close()
-		return nil, err
+		return err
 	}
 	if state.Next > head+1 {
-		_ = lock.Close()
-		return nil, fmt.Errorf("%w: consumer %q is at %d, the head is %d", ErrAhead, name, state.Next, head)
+		return fmt.Errorf("%w: consumer %q is at %d, the head is %d", ErrAhead, name, state.Next, head)
 	}
 	c.state = state
 	want := state.Protect
@@ -129,12 +130,9 @@ func (st *consumerStore) open(name string, opts ConsumerOptions, internal bool) 
 	}
 	if want != state.Protect {
 		c.state.Protect = want
-		if err := c.write(false); err != nil {
-			_ = lock.Close()
-			return nil, err
-		}
+		return c.write(false)
 	}
-	return c, nil
+	return nil
 }
 
 // write persists the state: temp, fsync, rename; syncDir when the file is new, so a

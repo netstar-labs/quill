@@ -109,6 +109,27 @@ func TestAConsumerAheadOfTheLogOrFromAnotherLogIsRefused(t *testing.T) {
 	}
 }
 
+func TestAFailedConsumerOpenReleasesItsLock(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	defer l.Close()
+	writeFile(t, s, "/log/consumers/other", encodeConsumer(consumerState{ID: testID, Next: 1}))
+	if _, err := l.Consumer("other", ConsumerOptions{}); !errors.Is(err, ErrWrongLog) {
+		t.Fatalf("first open: %v", err)
+	}
+	// A second attempt must reach the same verdict, not ErrLocked from a leaked lock.
+	if _, err := l.Consumer("other", ConsumerOptions{}); !errors.Is(err, ErrWrongLog) {
+		t.Fatalf("second open: %v", err)
+	}
+	// Once the file is repaired the name opens.
+	writeFile(t, s, "/log/consumers/other", encodeConsumer(consumerState{ID: logID(l.ID()), Next: 1}))
+	c, err := l.Consumer("other", ConsumerOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = c.Close()
+}
+
 // T9: lifecycle.
 
 func TestConsumerLifecycleProtectionFlagsLocksAndNames(t *testing.T) {
