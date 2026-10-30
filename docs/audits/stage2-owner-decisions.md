@@ -1,6 +1,6 @@
 # Stage 2 audit: decisions held for the owner
 
-Date 2026-10-29, against HEAD 1da37fc. The stage 2 audit (pass A1, round 2: adversarial audit in four
+Date 2026-10-29, against HEAD 1da37fc; updated 2026-10-30 (pass A1h) with the owner's approvals and what became of each. The stage 2 audit (pass A1, round 2: adversarial audit in four
 dimensions) applied every finding that is behaviour-preserving, or that fixes a clear defect with a regression
 test, and held back every finding whose fix changes observable behaviour, an exported error class, an exit code,
 a CLI grammar, an on-disk or output shape, or the wording of a guarantee. This file lists those held items, one
@@ -9,31 +9,39 @@ is already written. The full items (grounds, warrant, backing, rebuttal, skeptic
 the per-dimension reports: [correctness](a1-round2-correctness.md), [docs](a1-round2-docs.md) and
 [dedup](a1-round2-dedup.md); the counts are in [a1-round2-findings.md](a1-round2-findings.md).
 
-The recommended answers are the recorder's reading of the auditor's proposed fix and the skeptics' notes; they are
-recommendations, not decisions. No held item has a fix committed. Where a fix is written out below it is the
-proposed fix, or a prototype in the session's scratch area that passed the suite and was not committed. Ranked by
-severity, then reach.
+The recommended answers are the recorder's reading of the auditor's proposed fix and the skeptics' notes; they were
+recommendations when written. Ranked by severity, then reach.
 
-| id | sev | one line | recommended |
-|----|-----|----------|-------------|
-| A1-67 | high | the documented `quill commit` rewind of an ahead consumer fails with ErrAhead | fix the doc now; approve letting `commit` rewind |
-| A1-80 | high | a live protected consumer stops the writer from restarting | approve |
-| A1-25 | medium | after a failed rotation the active segment can outgrow the 1.5 GiB limit | approve a ceiling |
-| A1-32 | medium | the reserved `_archive` consumer cannot be removed or rewound | approve |
-| A1-47 | medium | extra positional arguments are silently ignored | approve (exit 2) |
-| A1-48 | medium | `-from`, `-limit`, `-n` parse base 0 (`010` is octal) | approve |
-| A1-82 | medium | a read I/O error becomes ErrCorrupt or a skippable gap | approve |
-| A1-85 | medium | Reader-created consumer files ignore the log's Perm | approve |
-| A1-13 | medium | Archive returns ErrCorrupt, not ErrFutureVersion, for a newer destination | approve |
-| A1-69 | medium | MaxBatchBytes is checked against a 34-byte-per-record estimate | document only |
-| A1-2 | low | a case-variant duplicate key in quill.tail wins silently | fix the duplicate check; document the rest |
-| A1-29 | low | Open refuses a symlinked Dir that OpenReader accepts | follow the symlink |
-| A1-35 | low | one future-stamped segment pins age expiry of every newer one | warn and document |
-| A1-50 | low | `-json` passes C1 control characters raw | approve |
-| A1-52 | low | Read can exceed MaxReadBytes by one record | reword the docs |
-| A1-57 | low | `stat -json` holes use capitalised keys and `null` | approve before release |
-| A1-87 | low | the clock guard rounds up where the text says "at most 25%" | reword the text |
-| A1-91 | low | a quill.policy of `{}` is acted on as retention 0 | approve, low priority |
+**Update 2026-10-30.** The owner approved the recommended answer for 17 of the items below (every A1 item in the table
+except A1-67 and A1-80, plus A4-1) on 2026-10-30. Each section keeps its recommendation text as first written (its
+"Fix written" paragraph is the state on 2026-10-29) and now carries an **Owner approval** and a **Disposition**
+paragraph, which are current. Result: 15 fixed, each in its own commit, each FIXED-VERIFIED by a fix-skeptic (102 lens
+verdicts, all pass); 2 fix-failed, with the fix written and rejected and the item still held for the owner (A1-82 and
+A4-1, each with its recommended next step). A1-67, A1-80, A1-62 and A1-59 are not in the ledger this update was written
+from: commits for them exist in the tree (ba7c650, b5ad955, 2978378 and 7ef431c, verified from `git log`), but their
+sections and table rows are unchanged here. The per-item argument, reproduction and fix-skeptic outcome are in
+[a1-round2-findings.md](a1-round2-findings.md), section "Pass A1h".
+
+| id | sev | one line | recommended | status 2026-10-30 |
+|----|-----|----------|-------------|----|
+| A1-67 | high | the documented `quill commit` rewind of an ahead consumer fails with ErrAhead | fix the doc now; approve letting `commit` rewind | not in the A1h ledger; unchanged here |
+| A1-80 | high | a live protected consumer stops the writer from restarting | approve | not in the A1h ledger; unchanged here |
+| A1-25 | medium | after a failed rotation the active segment can outgrow the 1.5 GiB limit | approve a ceiling | approved; fixed c18a27a (FIXED-VERIFIED, 7 of 7 lenses) |
+| A1-32 | medium | the reserved `_archive` consumer cannot be removed or rewound | approve | approved; fixed a3955cd (FIXED-VERIFIED, 7 of 7) |
+| A1-47 | medium | extra positional arguments are silently ignored | approve (exit 2) | approved; fixed 2c4e4f4 (FIXED-VERIFIED, 7 of 7) |
+| A1-48 | medium | `-from`, `-limit`, `-n` parse base 0 (`010` is octal) | approve | approved; fixed b4fe935 (FIXED-VERIFIED, 7 of 7) |
+| A1-82 | medium | a read I/O error becomes ErrCorrupt or a skippable gap | approve | approved; fix-failed (a5707a8 rejected by the fix-skeptic; held) |
+| A1-85 | medium | Reader-created consumer files ignore the log's Perm | approve | approved; fixed 279d7ce (FIXED-VERIFIED, 7 of 7) |
+| A1-13 | medium | Archive returns ErrCorrupt, not ErrFutureVersion, for a newer destination | approve | approved; fixed b529db5 (FIXED-VERIFIED, 7 of 7) |
+| A1-69 | medium | MaxBatchBytes is checked against a 34-byte-per-record estimate | document only | approved; fixed 5b30e7f, documentation only (FIXED-VERIFIED, 6 of 6) |
+| A1-2 | low | a case-variant duplicate key in quill.tail wins silently | fix the duplicate check; document the rest | approved; fixed 89957ae (FIXED-VERIFIED, 7 of 7) |
+| A1-29 | low | Open refuses a symlinked Dir that OpenReader accepts | follow the symlink | approved; fixed 8c0c531 (FIXED-VERIFIED, 7 of 7) |
+| A1-35 | low | one future-stamped segment pins age expiry of every newer one | warn and document | approved; fixed 19c0996 (FIXED-VERIFIED, 7 of 7) |
+| A1-50 | low | `-json` passes C1 control characters raw | approve | approved; fixed fd52463 (FIXED-VERIFIED, 7 of 7) |
+| A1-52 | low | Read can exceed MaxReadBytes by one record | reword the docs | approved; fixed 25e96c2, documentation only (FIXED-VERIFIED, 6 of 6) |
+| A1-57 | low | `stat -json` holes use capitalised keys and `null` | approve before release | approved; fixed c91329c (FIXED-VERIFIED, 7 of 7) |
+| A1-87 | low | the clock guard rounds up where the text says "at most 25%" | reword the text | approved; fixed 50201e1, documentation only (FIXED-VERIFIED, 6 of 6) |
+| A1-91 | low | a quill.policy of `{}` is acted on as retention 0 | approve, low priority | approved; fixed 5c603fc (FIXED-VERIFIED, 7 of 7) |
 
 ## A1-67: the documented rewind of an ahead consumer, `quill commit`, cannot work (high)
 
@@ -94,6 +102,19 @@ watch `Err()`.
 
 **Fix written.** None.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in c18a27a; fix-skeptic FIXED-VERIFIED (7 of 7 lenses pass). While rotation keeps failing, an
+Append or AppendBatch that would push the active segment past SegmentBytes + max(FlushBytes, MaxBufferBytes) +
+max(MaxBatchBytes, MaxPayloadBytes+34) is refused with the rotation error and takes no sequence number; Open refuses
+(ErrConfig) a Config whose ceiling reaches the 1.5 GiB limit; a segment file over the limit is reported as "refused
+without being read" by Open, Check and `quill check`, not as "damaged at byte 0". Decisions 16 and 60(d), the user
+guide, format.md, scope.md and architecture.md are amended and CHANGELOG has a Fixed line. Reproduction before and
+after (verified, macOS): a 1,677,729,073-byte segment and a refused Open before; 398 of 400 appends refused, an
+8,388,644-byte segment and a successful reopen after. Not changed: docs/design/build-prompt.md keeps the historical
+keep-appending wording (a build record); `quill check` still prints "damaged at byte 0" for a segment that is not a
+regular file.
+
 ## A1-32: the reserved `_archive` consumer cannot be removed or rewound (medium)
 
 **Claim.** The consumer `quill archive` creates is protected, and `register`, `unregister`, `commit` and the library's
@@ -110,6 +131,16 @@ archiver name (a second validator), or give `quill archive` a `-reset` option; d
 
 **Fix written.** None.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in a3955cd; fix-skeptic FIXED-VERIFIED (7 of 7). One unexported validator accepts exactly
+`_archive` on `Consumer` (Log and Reader), `DeleteConsumer`, and the CLI `register`, `unregister` and `commit`; every
+other leading-underscore name is still refused, and so is `_archive` in `Config.ProtectedConsumers`. The built binary
+rewinds an ahead `_archive` with `commit -name _archive -offset 1`, then `quill archive` succeeds. No `-reset` flag
+was added. Decisions 16, 41 and 67, the user guide, format.md, scope.md, build-prompt.md and CHANGELOG are amended.
+Consequence of the approved answer: `register -no-protect -name _archive` unprotects the archiver until the next
+`quill archive`.
+
 ## A1-47: extra positional arguments are silently ignored (medium)
 
 **Claim.** Every verb except `append` ignores positional arguments, and Go's flag parsing stops at the first one, so
@@ -123,6 +154,14 @@ exempt.
 
 **Fix written.** None; the proposed change is one check in cmd/quill/verbs.go.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in 2c4e4f4; fix-skeptic FIXED-VERIFIED (7 of 7). A verb other than `append` and `help` given a
+positional argument exits 2 with `unexpected argument "X"; flags go before arguments`, before anything is opened; the
+exemption is one unexported flag on the verb table. Decision 53, the user guide and CHANGELOG are amended. Left as is,
+inside the approved exemption: `help read x` ignores the second positional and `append x -sync=false` records the flag
+as a line.
+
 ## A1-48: `-from`, `-limit` and `-n` parse numbers in base 0 (medium)
 
 **Claim.** `-n 010` is 8 records, `-from 0x10` is 16 and `-limit 1_0` is 10, while `-offset`, `-max-bytes`,
@@ -135,6 +174,14 @@ do. The silent octal reading of a zero-padded number is the dangerous part; hex 
 CLI is simpler to document.
 
 **Fix written.** None.
+
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in b4fe935; fix-skeptic FIXED-VERIFIED (7 of 7). The three flags take plain base-10 through a
+small `decimalFlag` over `parseDecimal`: `010` is ten; `0x10`, `1_0`, `0b1`, `0o7`, signs and exponents exit 2 with
+nothing on stdout. Decision 96, the user guide and CHANGELOG are amended. Cosmetic: `help` shows `value` where it
+showed `uint`. The full gate could not complete `go mod tidy` in a git-archive copy (no repository there); every other
+gate step passed.
 
 ## A1-82: a read I/O error is reported as ErrCorrupt or a skippable gap (medium)
 
@@ -152,6 +199,20 @@ decision 38, but the active-segment half contradicts decision 79 outright.
 
 **Fix written.** None.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fix written (a5707a8, branch `stage2/A1-82-a2`) and rejected by the fix-skeptic; not integrated; held
+for the owner. The fix returns an I/O error as itself from `scanSource`, `ensureIndex`, `OffsetForTime` and the
+Reader's active-segment probe, and amends decisions 38, 79 and 94, scope.md, the user guide and CHANGELOG. It leaves
+one path: a Reader's sealed first-frame probe (reader.go view()) still reports one EIO as a `*GapError` over the whole
+segment. Reproduced by the fix-skeptic (verified): with EIO injected on reads of sealed segment 2, `Reader.Read(21,
+1)` returns `*quill.GapError: records 21 to 32 are unavailable`; segment 1 gives "records 1 to 20". That is the harm
+in the claim (the resume idiom skips the segment). The new test discards that error, and the new text saying an I/O
+error is never a gap is false for this path. **Recommended next step** (inferred from the objection): return the
+probe's I/O error from `view()` or from any read that needs that segment, because reading a first frame is a read, not
+an open (decision 94 is for EMFILE and EACCES at open), assert the class in the test, and re-run the fix-skeptic. If
+the owner would rather accept the residual, qualify every document that now says "not a gap".
+
 ## A1-85: Reader-created consumer files ignore the log's Perm (medium)
 
 **Claim.** `Reader.consumerStore` hard-codes 0o600 and `Archive` hard-codes 0o600; `ReaderOptions` has no Perm. In the group
@@ -166,6 +227,16 @@ flag.
 files, inferred as the least-surprise source), or add `ReaderOptions.Perm` and a CLI flag; use the same for Archive; document it.
 
 **Fix written.** None.
+
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in 279d7ce; fix-skeptic FIXED-VERIFIED (7 of 7). `OpenReader` reads the permission bits of
+`quill.tail` once (the writer sets them to Config.Perm exactly), ORs in 0o600, and the Reader's consumer files and
+everything `Archive` creates use that mode; default-mode logs still get 0600. This is the first of the two options
+recommended; no `ReaderOptions` field or flag was added. Decisions 41, 51 and 67, scope.md, format.md, the user guide,
+the doc comments and CHANGELOG are amended. Not shown: a real second account (the cross-user case could not be run
+because creating a user on the shared box was refused); the effect is shown by file modes and the passing tests. A
+Reader-created lock file follows the umask (disclosed in the docs).
 
 ## A1-13: Archive returns ErrCorrupt, not ErrFutureVersion, for a newer destination format (medium)
 
@@ -182,6 +253,14 @@ marker is ErrCorrupt" for Archive, keep archive.go's wrapping and merge only the
 **Fix written.** A prototype (the two helpers in state.go, six sites switched, +42/-42 lines) passed the full suite in a scratch
 copy; it was not committed. A test that Archive into a `quill/2` destination matches ErrFutureVersion is proposed.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in b529db5; fix-skeptic FIXED-VERIFIED (7 of 7). `Archive` into a `quill/2` destination now
+returns ErrFutureVersion; the three `quill.format` loads (load.go, reader.go, archive.go) go through one `loadFormat`
+in state.go. The `quill.tail` half (`loadTail`) was not done. Decisions 6 and 85 and CHANGELOG are amended and the
+Archive doc comment says so. Cosmetic: the ErrCorrupt text for a damaged destination marker no longer says
+"destination".
+
 ## A1-69: MaxBatchBytes is checked against a 34-byte-per-record estimate (medium)
 
 **Claim.** The docs call MaxBatchBytes the largest encoded batch, but append.go:30 checks `34 + len(payload)` per record, so 500,000
@@ -196,6 +275,15 @@ encoded size) and that `quill append` from stdin is subject to it (about 480,000
 the check conservative; the disk-bound formula depends on the over-count. Chunking stdin is optional and gives up atomicity.
 
 **Fix written.** None.
+
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in 5b30e7f; fix-skeptic FIXED-VERIFIED (6 of 6). Documentation only, as recommended:
+MaxBatchBytes is described as checked against `len(payload)+34` per record (an upper bound of the encoded size) and
+`quill append` from stdin as one batch subject to it; the check is unchanged. The figure written is "about 479,000"
+one-byte records at the default, not the "about 480,000" in the recommendation: the fix-skeptic measured 479,349
+accepted and 479,350 refused (verified). Decision 46, scope.md, the user guide, the Config and AppendBatch comments,
+the `append` verb summary and docs/reference.md (regenerated) and CHANGELOG are amended.
 
 ## A1-2: a case-variant duplicate key in quill.tail wins silently (low)
 
@@ -212,6 +300,13 @@ canonical-only question unless taking A1-1.
 
 **Fix written.** None.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in 89957ae; fix-skeptic FIXED-VERIFIED (7 of 7). The duplicate-key check compares keys by the
+case folding `encoding/json` uses, so `{"seq":1,"SEQ":2,...}` is refused; format.md lists the non-canonical shapes the
+strict parser still accepts (whitespace, order, a missing newline). Decision 105's canonical-only question was not
+reopened. Decisions 72 and 105 and CHANGELOG are amended.
+
 ## A1-29: Open refuses a symlinked Dir that OpenReader accepts (low)
 
 **Claim.** `mkdirAll` uses Lstat, so `Open(Config{Dir: link})` returns ErrNoLog "is not a directory" for a symlink to a directory, while
@@ -227,6 +322,15 @@ symbolic link" in the error.
 
 **Fix written.** None.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in 8c0c531; fix-skeptic FIXED-VERIFIED (7 of 7), after an earlier attempt that missed a link in
+an ancestor of a Dir that does not exist yet. `Open` follows a symbolic link anywhere in Dir (an unexported
+`resolveDirLink` resolves it once with `filepath.EvalSymlinks`); a link to a file or to nothing stays ErrNoLog and the
+message says "symbolic link"; files inside the log are still opened with O_NOFOLLOW. Decisions 51 and 62, scope.md,
+the user guide, SECURITY.md and CHANGELOG are amended. A link swapped after open is not re-checked (inferred to be
+inside the threat SECURITY.md excludes).
+
 ## A1-35: one future-stamped segment pins age expiry of every newer one (low)
 
 **Claim.** The age sweep is a strict prefix rule (`if s.lastAt > cutoff { break }`), so a segment whose last record is stamped in the
@@ -239,6 +343,13 @@ forward. Nothing is logged. The caps still bound disk and `quill check` flags th
 and document the hazard beside decision 44. Do not change the prefix rule.
 
 **Fix written.** None.
+
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in 19c0996; fix-skeptic FIXED-VERIFIED (7 of 7). The prefix rule is unchanged; when the sweep
+stops at a sealed segment whose newest record is stamped more than 24 h ahead, the prune pass logs a warning (segment
+id, last_at, kept count). Decision 44, scope.md, the user guide and CHANGELOG are amended. The CLI sets no logger, so
+`quill prune` shows no warning (as with the existing clock-guard warning); `quill check` still reports the record.
 
 ## A1-50: `-json` passes C1 control characters raw (low)
 
@@ -254,6 +365,13 @@ either way.
 
 **Fix written.** None.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in fd52463; fix-skeptic FIXED-VERIFIED (7 of 7). `-json` writes DEL and U+0080 to U+009F as
+`\u00XX` in `payload`; the JSON stays valid and lossless (round-tripped through `encoding/json`). Decision 35,
+scope.md, the user guide and CHANGELOG are amended. Whether a terminal honours 8-bit C1 in UTF-8 mode was not tested,
+as the recommendation said.
+
 ## A1-52: Read can exceed MaxReadBytes by one record (low)
 
 **Claim.** The cap is checked after each record, so a read returns up to cap plus one record (at defaults about 16 MiB plus up to 64 MiB - 32),
@@ -267,6 +385,13 @@ exceed the cap unless `count == 0` is the alternative.
 
 **Fix written.** None.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in 25e96c2; fix-skeptic FIXED-VERIFIED (6 of 6). Documentation only: Read, ReadWait, Records
+and Follow are documented as stopping once at least MaxReadBytes of payload have been returned, overshooting by at
+most one record; a test pins the rule. Doc comments, the user guide, scope.md, decisions 50 and 79 and CHANGELOG are
+amended.
+
 ## A1-57: `stat -json` holes use capitalised keys and `null` (low)
 
 **Claim.** `quill stat -json` serialises a hole as `{"From":..,"To":..}` and an empty list as `null`, while every other CLI JSON key is
@@ -278,6 +403,13 @@ lowercase; no document fixes the stat, check or consumers schema.
 stat, check and consumers JSON schemas in the reference.
 
 **Fix written.** None.
+
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in c91329c; fix-skeptic FIXED-VERIFIED (7 of 7). `quill stat -json` writes holes as
+`[{"from":N,"to":N}]`, always an array, through a function-local tagged type (`quill.Hole` gains no tags); the stat,
+check and consumers JSON schemas are documented in scope.md and pointed to from the user guide. Decision 35 and
+CHANGELOG are amended.
 
 ## A1-87: the clock guard rounds up where the text says "at most 25%" (low)
 
@@ -291,6 +423,12 @@ stat, check and consumers JSON schemas in the reference.
 
 **Fix written.** None.
 
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in 50201e1; fix-skeptic FIXED-VERIFIED (6 of 6). Documentation only: every statement now reads
+"at most a quarter of the sealed segments, rounded up (at least one)"; the code and retention_test.go are unchanged.
+Decision 44 and CHANGELOG are amended.
+
 ## A1-91: a quill.policy of `{}` is acted on as retention 0 (low)
 
 **Claim.** `{}`, `null` and `{"unknown":1}` parse as a valid policy of zeros; `quill ls` shows RETENTION 0s and `quill prune` runs with the default
@@ -303,6 +441,15 @@ tools must not prune with default retention. v0.1.0 writers always write every f
 the retention as "unknown" in `ls`. Declining is defensible.
 
 **Fix written.** None.
+
+**Owner approval.** Approved on 2026-10-30, as recommended.
+
+**Disposition.** Fixed in 5c603fc; fix-skeptic FIXED-VERIFIED (7 of 7). `decodePolicy` fails when `retention` is
+absent or empty, so `{}`, `null`, unknown fields only, or caps without retention are unparseable: `prune` refuses
+without explicit flags, `ls` shows `?` and "policy unreadable" (the existing convention, not the word "unknown" the
+recommendation used), `check` warns "cannot be parsed". Decisions 29, 48, 68 and 87, format.md, the `ReadPolicy`
+comment and CHANGELOG are amended. Weakest point: a policy with `retention` present and every cap missing still parses
+as caps of zero.
 
 ## Not held, but unresolved
 
@@ -326,12 +473,12 @@ The A4 pass (record: [supply-chain.md](supply-chain.md)) held back four items. T
 owner can take before a public release; one is a written fix that did not reach main. The recommended answers are the recorder's reading of
 the auditor's proposed fix and the skeptics' notes, not decisions. Ranked by what the public flip needs.
 
-| id | sev | one line | recommended |
-|----|-----|----------|-------------|
-| A4-5 | low | the release archives ship the Go runtime and standard library with no copy of its licence | add the Go licence text at the flip; reword decisions 22 and 15 |
-| A4-4 | medium | a workspace path is still in the v0.1.0 tag and in earlier history (the tip is fixed) | decide squash or filter, or accept, before pushing |
-| A4-3 | medium | the private reporting channel named in `SECURITY.md` exists only if the setting is enabled | enable private vulnerability reporting |
-| A4-1 | medium | the Go toolchain pin is enforced by the gate only; the fix is written and not on main | land the fix, rebased, with a fix-skeptic |
+| id | sev | one line | recommended | status 2026-10-30 |
+|----|-----|----------|-------------|----|
+| A4-5 | low | the release archives ship the Go runtime and standard library with no copy of its licence | add the Go licence text at the flip; reword decisions 22 and 15 | not in the A1h ledger; unchanged |
+| A4-4 | medium | a workspace path is still in the v0.1.0 tag and in earlier history (the tip is fixed) | decide squash or filter, or accept, before pushing | not in the A1h ledger; unchanged |
+| A4-3 | medium | the private reporting channel named in `SECURITY.md` exists only if the setting is enabled | enable private vulnerability reporting | not in the A1h ledger; unchanged |
+| A4-1 | medium | the Go toolchain pin is enforced by the gate only; the fix is written and not on main | land the fix, rebased, with a fix-skeptic | approved; fix-failed (532f39d rejected by the fix-skeptic; held) |
 
 ## A4-5: the archives ship the Go runtime with no copy of its licence (low)
 
@@ -403,6 +550,24 @@ half, and reword README, CONTRIBUTING and the `ci.yml` comment to say that CI fl
 **Fix written.** f800bb7: `build/quill` derives and exports `GOTOOLCHAIN` from go.mod's toolchain line as the gate does; `ci.yml` sets one workflow-level
 `GOTOOLCHAIN` literal and corrects the comment; two tests (`toolchain_pin_test.go` and an edit to `build_script_test.go`) fail if the literal, the script
 and go.mod drift apart (5 files, 159 insertions, 3 deletions).
+
+**Owner approval.** Approved on 2026-10-30, as recommended (with its stated alternative of keeping only the
+`build/quill` half).
+
+**Disposition.** Fix written and rejected by the fix-skeptic; not integrated; held for the owner. The recommended fix
+f800bb7 was superseded: 532f39d (branch `stage2/A4-1-a2`) makes `build/quill` derive and export `GOTOOLCHAIN` from
+go.mod's toolchain line, as `hack/gate.sh` does, so the release binaries and the SBOM come from the pinned compiler.
+The CI half (a workflow-level `GOTOOLCHAIN` literal and its test) was dropped because the workflow now pins setup-go
+v7.0.0, which the fix-skeptic reports reads the toolchain line before the go line unless `GOTOOLCHAIN=local`
+(reported; the tree's ci.yml does carry v7.0.0 at lines 24, 44, 54, 74 and 86). The fix-skeptic found the code change
+correct (the test fails without it, gate steps clean, API and golden files unchanged) and rejected it on one lens,
+no-new-gap: the commit leaves the audit record stale and self-contradicting. **Recommended next step:** rewrite the
+A4-1 item heading and Disposition, the ranked action 4 and the setup-go wording in [supply-chain.md](supply-chain.md),
+and this table row and the intro to this table, so that they state the landed `build/quill`-only fix and mark the CI
+claim refuted; then re-run the fix-skeptic (it expects FIXED-VERIFIED after that). The false comment at ci.yml:65-66
+is true again under setup-go v7.0.0 (inferred from the report above). In this tree the fix is not landed, so the
+statements in supply-chain.md and in the rows above remain accurate; supply-chain.md was outside this update's file
+list and is unchanged.
 
 ## Not held, but worth a line at the flip
 

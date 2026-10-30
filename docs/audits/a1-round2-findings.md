@@ -1,6 +1,9 @@
 # A1 adversarial audit, round 2: findings
 
 Date 2026-10-29, against HEAD 1da37fc (v0.1.0 plus one docs-only commit; working tree clean).
+Updated 2026-10-30 with pass A1h (the owner-approved held items), recorded first below; the dispositions in the
+index and in the tables are current as of that update, and the text under "Top line at first writing" is kept as
+written on 2026-10-29.
 Round 2 of the A1 audit, run with fresh eyes before a public release: eight independent
 auditors in four dimensions (simplify, dedup, correctness, docs), every candidate attacked by
 two to four skeptic votes that read the code and reran the reproductions, and every fix
@@ -18,7 +21,408 @@ audited tree 1da37fc; the fixes have since moved some lines. Reproduction progra
 throwaway copies of the repository in the session scratch area (written `scratch/<label>` below);
 nothing under audit was edited by an auditor or skeptic.
 
-## Top line
+## Pass A1h (2026-10-30): the owner-approved held items
+
+Pass A1h is a continuation of pass A1 (and of A4-1 from pass A4). On 2026-10-30 the owner approved the
+recommended answer for each of the 17 items below, all of which wave 1 had held for the owner; a fix was
+then written for each, one commit per item, and each fix was re-attacked by a fix-skeptic. Two of the 17
+(A1-82 and A4-1) are not finished: a fix exists, the fix-skeptic rejected it, and it is not in this tree.
+This pass raised no new candidate items and cast no new item votes; the verdicts and votes below are
+wave 1's.
+
+### Top line (pass A1h)
+
+17 items, all verdict **CONFIRMED** (verified from the ledger; for A1-91 see the note under the table).
+
+| disposition | items | ids |
+|-------------|-------|-----|
+| fixed, fix-skeptic FIXED-VERIFIED | 15 | A1-25, A1-32, A1-85, A1-47, A1-48, A1-13, A1-69, A1-2, A1-29, A1-35, A1-50, A1-52, A1-57, A1-87, A1-91 |
+| fix-failed (fix written and rejected, not in this tree; held for the owner with a recommended next step) | 2 | A1-82, A4-1 |
+| held with no fix / deliberately not changed | 0 | |
+
+- Fix commits: 15, all ancestors of the tree this record is written on (verified: each appears in `git log` of
+  HEAD 5c603fc). The two rejected fixes are a5707a8 (branch `stage2/A1-82-a2`) and 532f39d (branch
+  `stage2/A4-1-a2`); neither is an ancestor of HEAD (verified with `git branch --contains`).
+- Fix-skeptic verdicts: 15 FIXED-VERIFIED and 2 rejections. The 15 accepted fixes were each attacked through six
+  or seven lenses (12 through seven, three through six: A1-69, A1-52 and A1-87, which are documentation fixes
+  and had no independent-route lens), 102 lens verdicts in all, and every one is "pass" (derived by counting the
+  ledger). The two rejections come with a stated objection but no per-lens table in the ledger.
+- Item skeptic votes cast in this pass: 0. Wave 1 had judged the 16 A1 items with 33 votes (31 CONFIRMED, 1
+  PLAUSIBLE, 1 REFUTED; derived from the index below: A1-91 had three votes, P, R and C, and the other 15 items two
+  CONFIRMED each), and A4-1 with two CONFIRMED votes (supply-chain record), 35 votes for the 17 items.
+- Reproduced by execution: 14 of the 16 A1 items were reproduced by a wave-1 skeptic (all but A1-35 and A1-87;
+  A1-35 was then reproduced by the fix-skeptic's own test of the warning, and A1-87 is a wording item with a
+  mutant check instead). A4-1: 0 reproduced in wave 1 (the auditor's experiment was not re-run).
+  Every accepted code fix was also shown red before and green after by the fix-skeptic. For the three
+  documentation-only fixes (A1-69, A1-52, A1-87) behaviour does not change, so the fix-skeptic used a mutant instead.
+- Verdict note for A1-91: wave 1 recorded it PLAUSIBLE (votes P, R, C; the REFUTED voter held that code and spec
+  agree). The A1h ledger carries CONFIRMED. The fix-skeptic then reproduced the defect with built binaries (`ls`
+  showing RETENTION 0s and `prune` exiting 0 on a policy of `{}`, before the fix). Inferred: the upgrade rests on
+  that reproduction and the owner's approval, not on a new vote. The whole-round counts below use CONFIRMED.
+
+### Whole round 2 after pass A1h
+
+73 distinct items (unchanged). Verdicts: CONFIRMED 59 (was 58), PLAUSIBLE 2 (A1-18 and A1-37, was 3), REFUTED 5,
+prior-deliberate 7.
+
+| disposition | items | what it means |
+|-------------|-------|---------------|
+| fixed | 57 | 42 from 2026-10-29 plus the 15 above; each passed the fix-skeptic |
+| fix-failed | 2 | A1-62 (rejected on 2026-10-29) and A1-82 (rejected in A1h); not integrated |
+| held for the owner | 2 | A1-67 and A1-80, which this ledger does not carry |
+| refuted | 5 | not changed, because the claim does not hold |
+| round-1-decided | 7 | deliberately not changed in round 1 |
+
+Not carried by this ledger, and so not re-judged here: A1-67, A1-80, A1-62 and A1-59. Commits for them exist in the
+tree (ba7c650 A1-67, b5ad955 A1-80, 2978378 A1-62r, 7ef431c A1-59; verified from `git log`), but their fix-skeptic
+outcomes are not in the ledger this record was written from, so the table above keeps them at their 2026-10-29
+disposition. Whoever records those commits should move them.
+
+| dimension | items | fixed | fix-failed | held | refuted | round-1-decided |
+|-----------|-------|-------|------------|------|---------|-----------------|
+| simplify | 9 | 6 | 0 | 0 | 1 | 2 |
+| dedup | 12 | 11 | 0 | 0 | 1 | 0 |
+| correctness | 37 | 26 | 2 | 1 | 3 | 5 |
+| docs | 15 | 14 | 0 | 1 | 0 | 0 |
+| total | 73 | 57 | 2 | 2 | 5 | 7 |
+
+### Coverage (pass A1h)
+
+The ledger for this pass carries no auditor reports: its "clean checks" list is empty and no auditor is listed as
+failing to return, because this pass ran no auditors. The auditor coverage in the Coverage section below is the
+coverage of the findings; this section covers only what the fix-skeptics checked on the fixes.
+
+Checked on every accepted fix (verified, per the fix-skeptic reports in the ledger): that a new test fails without
+the fix and passes with it (a mutant for the documentation fixes); that the root cause is closed, including sibling
+forms; that gofmt and `go vet` are clean and `go test -race -count=1 ./...` passes in every package; that no golden
+bytes changed and `go doc -all` differs only where intended; that the amended decisions, the user guide,
+scope.md, format.md, architecture.md (where each applies) and CHANGELOG.md agree with the code; that the changed code is reached by the
+public path or the built binary.
+
+Not covered, or covered only in part (verified from the fix-skeptic reports unless marked):
+
+- staticcheck v0.8.2 and deadcode v0.52.0 were run, clean, for A1-32, A1-85, A1-47 and A1-91; for A1-48 through
+  `hack/gate.sh` with FUZZTIME=0, which passed every step but `go mod tidy` (an artifact of the git-archive copy, which
+  has no repository); staticcheck only for A1-35. They were not run, or not reported, for A1-25, A1-13, A1-69, A1-2,
+  A1-29, A1-50, A1-52, A1-57 and A1-87. The fixers' own gate runs are reported only in some summaries (A1-13 states
+  gofmt, vet, race, staticcheck and deadcode clean); this recorder re-ran none of it (docs only, nothing heavy).
+- The fuzz step of the gate was not run by any fix-skeptic (A1-32 and A1-48 say so; none of the changes touches a
+  parser or the format, except A1-2's key-folding in `internal/strictjson`, whose differential test over all 2,994
+  runes with a fold orbit replaced it).
+- Linux x86-64 box runs: A1-25 (simulator tests only; the chmod reproduction cannot run as root), A1-32, A1-85 (tests;
+  the cross-user `setpriv` case could not be run because creating a user on the shared box was refused), A1-48, A1-13,
+  A1-2, A1-29, A1-50, A1-91. Not run on Linux: A1-47, A1-69, A1-35, A1-52, A1-57, A1-87 (platform-independent code
+  paths, inferred).
+- Not run by anyone: a real second account for A1-85, a terminal that honours 8-bit C1 for A1-50, and the no-fault
+  variant of A1-25 on a real filesystem (it is covered by a configuration-validation test).
+- Auditors that failed to return: none. Auditors that returned nothing: none.
+
+### Items
+
+Each item states the wave-1 argument briefly (the full text is in the dimension report named in the heading), the
+verdict, the reproduction, and what was done. "Fix-skeptic" outcomes are FIXED-VERIFIED unless said otherwise.
+
+#### A1-25: after a failed rotation the active segment can outgrow the 1.5 GiB limit (medium, correctness report item 8; CONFIRMED, 2 votes; fixed c18a27a)
+
+- **Claim.** While rotation keeps failing, decision 60(d) keeps appending and nothing bounds the active segment, so it
+  can pass the 1.5 GiB limit that Open and readers enforce; the log then cannot be opened though every record was
+  acknowledged durable.
+- **Grounds.** flush.go records a rotation error and carries on; append.go and flush.go never look at the active segment
+  size; load.go refuses a file over `maxSegmentBytes` (1536 MiB). The same overshoot is reachable with no fault when
+  SegmentBytes is 1 GiB and FlushBytes or MaxBufferBytes exceeds 512 MiB (read, not run).
+- **Warrant.** Decision 60(d) accepts appends after a failed rotation with no ceiling; decision 16 and format.md refuse a
+  file over the limit. Rotation can fail (EMFILE, a permission change) while the open descriptor keeps working.
+- **Backing.** Decisions 60(d), 16, 46, 69; guarantee 7.
+- **Rebuttal.** The choice was deliberate and `Err()` reports it; reaching the limit needs about 1.5 GiB of writes under
+  a persistent fault.
+- **Reproduction (verified, macOS).** SegmentBytes 1 MiB, the log directory made read-only after Open, 400 appends of
+  4 MiB: a 1,677,729,073-byte segment, and Open then returns "damaged at byte 0 (intact to byte 0)". After the fix, the
+  same program on the real filesystem: 2 appends accepted, 398 refused with the permission error ("active segment would
+  reach 12582982 bytes, ceiling 9437218"), a segment of 8,388,644 bytes, reopen succeeds at head 2.
+- **Disposition.** Owner approved the ceiling on 2026-10-30. Fixed in c18a27a, fix-skeptic FIXED-VERIFIED (7 of 7
+  lenses). While rotation is failing, an append that would push the segment past SegmentBytes +
+  max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes, MaxPayloadBytes+34) is refused with the rotation error and takes
+  no sequence number; Open refuses (ErrConfig) a Config whose ceiling reaches the limit; an oversize intact file is
+  reported as "refused without being read" by Open, Check and `quill check`. Decisions 16 and 60(d), the user guide,
+  format.md, scope.md and architecture.md are amended; CHANGELOG has a Fixed line. No new exported symbol. Left as
+  is: docs/design/build-prompt.md still describes the historical keep-appending behaviour (a build record, not a
+  spec); `quill check` still prints "damaged at byte 0" for a segment that is not a regular file.
+
+#### A1-82: a read I/O error is reported as ErrCorrupt or a skippable gap (medium, correctness report item 12; CONFIRMED, 2 votes; fix-failed, a5707a8 not integrated)
+
+- **Claim.** In `scanSource`, any error from `walk` becomes ErrCorrupt (active segment, cause flattened) or a
+  `*GapError` over the whole sealed segment, so a consumer following the resume idiom ("iterate again from To + 1")
+  skips a segment after one transient EIO.
+- **Grounds.** read.go:249-257 in the audited tree; only the load path had a test.
+- **Warrant.** Decision 79 says an I/O error met while scanning is returned as that error and never as ErrCorrupt;
+  scope.md's resume idiom plus guarantee 14.
+- **Backing.** Decisions 79 and 38; scope.md guarantees 6 and 14.
+- **Rebuttal.** Decision 94 maps open-time I/O failures to a per-view hole, and decision 38 lists "unreadable" among
+  hole causes, so the sealed half is arguable; the active half is not.
+- **Reproduction (verified, macOS, simulator returning EIO on reads).** Sealed segment: a `*GapError` over its range, no
+  ErrCorrupt and no EIO match. Active segment: `corrupt log: the active segment below the durable offset: input/output
+  error`, `Is(ErrCorrupt)` true, `Is(EIO)` false.
+- **Disposition.** Owner approved on 2026-10-30. Fix written (a5707a8, branch `stage2/A1-82-a2`, on top of the A1-25
+  commit) and **rejected by the fix-skeptic**; held for the owner. The fix makes `scanSource`, `ensureIndex`,
+  `OffsetForTime` and the Reader's active-segment probe return an I/O error as itself. The rejection: the Reader's
+  sealed first-frame probe (reader.go view(), around :241-244) still turns one EIO into a `*GapError` over the whole
+  segment. Reproduced by the fix-skeptic against the changed tree: with EIO injected on reads of sealed segment 2,
+  `Reader.Read(21, 1)` returns `*quill.GapError: records 21 to 32 are unavailable`, and for segment 1 `Read(1, 1)`
+  gives "records 1 to 20". The new test discards that error (`_, _ = r.Read(mid, 1)`) and asserts only that the next
+  read recovers, and the new text in scope.md guarantee 14, the user guide and decision 38 says an I/O error is never a
+  gap, which is false for this path while the CHANGELOG and the docs disagree. The rest of the change (scanSource,
+  ensureIndex, OffsetForTime, the active probe) was judged correct and the race tests pass.
+  **Recommended next step (inferred from the fix-skeptic's objection):** return the probe's I/O error from `view()` (or
+  from any read that needs that segment) instead of treating it as a hole, because reading a first frame is a read, not
+  an open, and decision 94 was written for EMFILE and EACCES at open; assert the error class in the test; then re-run
+  the fix-skeptic. Alternative: the owner accepts the residual in writing and every document that now says "not a gap"
+  is qualified.
+
+#### A1-32: the reserved `_archive` consumer cannot be removed or rewound (medium, correctness report item 9; CONFIRMED, 2 votes; fixed a3955cd)
+
+- **Claim.** `register`, `unregister`, `commit` and `DeleteConsumer` refuse `_archive` ("a leading underscore is
+  reserved"); after a restore leaves it ahead of the head, `quill archive` fails with ErrAhead and the user guide's
+  remedy is refused for exactly this consumer.
+- **Grounds.** consumer.go skipped `validName` for the underscore name only for Archive's internal path, and `remove`
+  validated unconditionally; retention keeps every segment at or above a protected consumer's offset.
+- **Warrant.** A protected consumer whose offset file cannot be moved holds retention at its offset and wedges the
+  archiver. **Backing.** Decisions 57, 36, 41, 67; user guide section 9.
+- **Rebuttal.** Deleting `consumers/_archive` by hand or ConsumerTTL clears it; after an archive the offset is head+1.
+- **Reproduction (verified, macOS).** `quill archive` then `unregister`, `register` and `commit -name _archive -offset 1`
+  each exit 1 with the reserved-name error; with the offset file rewritten to 99, `quill archive` exits 1 with ErrAhead.
+  After the fix, the built binary: `commit -name _archive -offset 1` prints `_archive 1`, `quill archive` succeeds,
+  `unregister -name _archive` exits 0, and `register -name _other` is still refused.
+- **Disposition.** Owner approved on 2026-10-30. Fixed in a3955cd, fix-skeptic FIXED-VERIFIED (7 of 7 lenses): one
+  unexported validator, `validConsumerName`, accepts exactly `_archive`; `Config.ProtectedConsumers` still refuses it.
+  Decisions 16, 41 and 67, the user guide, format.md, scope.md, build-prompt.md and CHANGELOG amended. Consequence the
+  fix-skeptic noted and the owner's answer implies: `register -no-protect -name _archive` unprotects the archiver until the
+  next `quill archive`.
+
+#### A1-85: Reader-created consumer files ignore the log's Perm (medium, correctness report item 13; CONFIRMED, 2 votes; fixed 279d7ce)
+
+- **Claim.** `Reader.consumerStore` and `Archive` hard-code 0600, so in the group arrangement scope.md describes, a
+  consumer in another account creates a file the writer cannot read, and retention treats the consumer as broken.
+- **Grounds.** consumer.go and archive.go hard-coded 0o600; `ReaderOptions` has no Perm. **Warrant.** scope.md's group
+  arrangement; retention protects every segment from an unreadable consumer file. **Backing.** Decisions 41, 51, 67.
+- **Rebuttal.** Single-user deployments are unaffected; the failure is on the safe side.
+- **Reproduction (verified).** Linux box, writer Perm 0660 in a setgid directory, a reader run as another group member:
+  the consumer file is created 0600, the writer's `Consumers()` returns permission denied, and `Prune(true)` keeps the
+  segment it would otherwise delete.
+- **Disposition.** Owner approved on 2026-10-30. Fixed in 279d7ce, fix-skeptic FIXED-VERIFIED (7 of 7 lenses):
+  `OpenReader` reads the permission bits of `quill.tail` once (the writer sets them to Config.Perm exactly), ORs in
+  0o600, and the Reader's consumer files and everything Archive creates use that mode. No new exported symbol, flag or
+  option. Decisions 41, 51 and 67 amended. Residuals: the real cross-user case was not re-run (inferred from file
+  modes and the passing tests); a lock file created by a Reader follows the umask (disclosed in the docs), so a second
+  process of the same name from another group member could not open it read-write.
+
+#### A1-47: extra positional arguments are silently ignored (medium, correctness report item 10; CONFIRMED, 2 votes; fixed 2c4e4f4)
+
+- **Claim.** Every verb but `append` ignores positionals and flag parsing stops at the first one, so `quill -dir L read
+  100` prints from the first record and `tail 5 -json` prints text, both exit 0.
+- **Grounds.** cmd/quill/verbs.go parsed flags then never read the arguments. **Warrant.** The user's intent is dropped
+  with status 0. **Backing.** scope.md exit code 2 is "usage".
+- **Rebuttal.** The documented grammar is flags only; the change turns a previously successful, misdirected call into
+  exit 2. `help` takes a verb name, so it is exempt with `append`.
+- **Reproduction (verified, macOS).** 13 records; `read 10` starts at seq 1, exit 0; `tail 5 -json` prints ten text
+  lines; `stat -json extra` and `version foo` exit 0.
+- **Disposition.** Owner approved on 2026-10-30. Fixed in 2c4e4f4, fix-skeptic FIXED-VERIFIED (7 of 7 lenses):
+  any other verb given a positional exits 2 with `unexpected argument "X"; flags go before arguments`, before anything
+  is opened; one unexported `args` flag on the verb table exempts `append` and `help`. Decision 53, the user guide and
+  CHANGELOG amended. Left as is (inside the approved exemption): `help read x` ignores the second positional, and
+  `append x -sync=false` records the flag as a line.
+
+#### A1-48: `-from`, `-limit` and `-n` parse numbers in base 0 (medium, correctness report item 11; CONFIRMED, 2 votes; fixed b4fe935)
+
+- **Claim.** `-n 010` is 8, `-from 0x10` is 16, `-limit 1_0` is 10, while every other number flag is plain decimal.
+- **Grounds.** `flag.Uint64Var` (base 0) in verbs.go against `parseDecimal` in read.go. **Warrant.** A zero-padded script
+  variable silently becomes octal. **Backing.** `parseDecimal`'s comment and the refused-numbers table; decision 96.
+- **Rebuttal.** It is the standard flag package's behaviour and hex may be a feature; only octal `010` is plainly
+  dangerous; the harm is limited to read-only verbs.
+- **Reproduction (verified, macOS and, after the fix, Debian).** 12 records: `tail -n 010` gives 8 lines, `-n 08` exits 2,
+  `cat -from 0x2` starts at seq 2, `cat -limit 1_0` gives 10 lines. After the fix `tail -n 010` gives 10; `0x10`, `1_0`,
+  `0b1`, `1e1`, `-1`, `+5`, an empty value and 2^64 all exit 2 with empty stdout; 2^64-1 is accepted.
+- **Disposition.** Owner approved on 2026-10-30. Fixed in b4fe935, fix-skeptic FIXED-VERIFIED (7 of 7 lenses): a small
+  `decimalFlag` value calls `parseDecimal`. Decision 96, the user guide and CHANGELOG amended. Cosmetic: help shows
+  `-n value` where it showed `uint`.
+
+#### A1-13: Archive returns ErrCorrupt, not ErrFutureVersion, for a newer destination (medium, dedup report item 1; CONFIRMED, 2 votes; fixed b529db5)
+
+- **Claim.** The state-file load is written out three times for `quill.format`; Archive's copy wraps every decode error as
+  ErrCorrupt, so a `quill/2` destination gives ErrCorrupt where Open and OpenReader give ErrFutureVersion.
+- **Grounds.** load.go, reader.go and archive.go. **Warrant.** Two copies carry the rule and the third drifted.
+  **Backing.** Decision 6, errors.go and format.md.
+- **Rebuttal.** The prototype was net zero lines; it changes an exported error class.
+- **Reproduction (verified).** A destination whose `quill.format` is `quill/2` gives `corrupt log: destination
+  quill.format: ... newer than this build`, ErrFutureVersion false, ErrCorrupt true; after the fix the built CLI returns
+  the ErrFutureVersion message.
+- **Disposition.** Owner approved on 2026-10-30. Fixed in b529db5, fix-skeptic FIXED-VERIFIED (7 of 7 lenses): one
+  `loadFormat` in state.go serves the three sites. Decisions 6 and 85 and CHANGELOG amended. Not done, by design: the
+  `quill.tail` half of the dedup (`loadTail`). Cosmetic: the ErrCorrupt text for a damaged destination marker no longer
+  says "destination".
+
+#### A1-69: MaxBatchBytes is checked against a 34-byte-per-record estimate (medium, docs report item 4; CONFIRMED, 2 votes; fixed 5b30e7f)
+
+- **Claim.** The docs call MaxBatchBytes the largest encoded batch but append.go checks `34 + len(payload)` per record,
+  so 500,000 one-byte records (about 7.5 MB encoded) are refused and `quill append` from stdin refuses everything.
+- **Grounds.** append.go:30-33; `quill append` sends all stdin lines as one `AppendBatch`. **Warrant.** The documented
+  limit is on encoded bytes; the enforced one over-counts, and the disk-bound formula depends on the over-count.
+  **Backing.** Decision 46, scope.md. **Rebuttal.** The error says "about" and the estimate is deliberately
+  conservative; an exact check changes behaviour.
+- **Reproduction (verified, macOS and Linux).** 400,000 one-byte records accepted; 500,000 lines piped to `quill append`
+  refused ("batch of about 17500000 bytes"), exit 1, nothing appended. After the fix the same CLI accepts 479,349 and
+  refuses 479,350, which agrees with 16 MiB / 35.
+- **Disposition.** Owner approved the documentation-only answer on 2026-10-30. Fixed in 5b30e7f, fix-skeptic
+  FIXED-VERIFIED (6 of 6 lenses): the limit is now described as checked against `len(payload)+34` per record, and
+  `quill append` from stdin as one batch subject to it. The check is unchanged. The text says "about 479,000"; the
+  recommended answer had said "about 480,000", which the measured 479,349 does not support. Decision 46, scope.md, the
+  user guide, the Config and AppendBatch comments, the `append` verb summary, docs/reference.md (regenerated) and
+  CHANGELOG amended. Residual: errors.go still says only "a batch above MaxBatchBytes" (not wrong).
+
+#### A1-2: a case-variant duplicate key in quill.tail wins silently (low, docs report item 5; CONFIRMED, 2 votes; fixed 89957ae)
+
+- **Claim.** `{"seq":1,"SEQ":2,...}` resolves to Seq 2 with no error because `checkDuplicateKeys` compares exact strings
+  while `encoding/json` matches field names case-insensitively; format.md says a duplicate key is refused.
+- **Grounds.** strictjson.go:30-49 and :123, state.go:138-158. **Warrant.** The rule "a duplicate key is refused" is
+  broken for case variants. **Backing.** format.md, guarantee 9, decisions 8, 48, 72.
+- **Rebuttal.** No writer emits such a file; decision 105 deliberately preserved the slow path; whitespace, order and a
+  missing newline are not listed refusals.
+- **Reproduction (verified, macOS).** `decodeTail` on that input returns Seq 2 and nil; after the fix it returns the
+  duplicate-key error, and the built `quill stat` and `quill check` print it for a tampered file.
+- **Disposition.** Owner approved on 2026-10-30. Fixed in 89957ae, fix-skeptic FIXED-VERIFIED (7 of 7 lenses): keys
+  are compared after the case folding `encoding/json` uses (smallest rune of the `unicode.SimpleFold` orbit; a
+  differential test over all 2,994 rune orbits found no mismatch). format.md now lists the shapes the strict parser
+  still accepts. Decisions 72 and 105 amended. Residual: the fold also applies to map-typed targets, which `quill`
+  never decodes into.
+
+#### A1-29: Open refuses a symlinked Dir that OpenReader accepts (low, correctness report item 27; CONFIRMED, 2 votes; fixed 8c0c531)
+
+- **Claim.** `Open(Config{Dir: link})` returns ErrNoLog "is not a directory" for a symlink to a directory while
+  `OpenReader(link)` and a symlinked parent work.
+- **Grounds.** `mkdirAll` uses Lstat (log.go:340-343 in the audited tree). **Warrant.** Decision 51's no-follow rule
+  covers files inside the log, not the directory itself. **Backing.** Decisions 51, 62, scope.md. **Rebuttal.** It may be
+  hardening against a planted link; nothing in the tree says so.
+- **Reproduction (verified, macOS).** `Open` on a link and on `link/sub` both return the error; `OpenReader(link)` works.
+- **Disposition.** Owner approved following the link on 2026-10-30. Fixed in 8c0c531, fix-skeptic FIXED-VERIFIED (7 of 7
+  lenses), after an earlier attempt that missed a link in an ancestor of a Dir that does not exist yet. An unexported
+  `resolveDirLink` resolves the deepest existing part of Dir once with `filepath.EvalSymlinks`; a link to a file or to
+  nothing stays ErrNoLog and the message says "symbolic link"; files inside the log are still opened with O_NOFOLLOW.
+  Decisions 51 and 62, scope.md, the user guide, SECURITY.md and CHANGELOG amended. Residual: the link is resolved
+  once at open, so a swap afterwards is not re-checked (inside the threat SECURITY.md excludes; inferred).
+
+#### A1-35: one future-stamped segment pins age expiry of every newer one (low, correctness report item 28; CONFIRMED, 2 votes; fixed 19c0996)
+
+- **Claim.** The age sweep is a strict prefix, so a segment whose last record is stamped in the future blocks expiry of
+  everything after it until the clock catches up; nothing is logged.
+- **Grounds.** retention.go:111-123 in the audited tree. **Warrant.** The sweep stops at the first segment newer than the
+  cutoff. **Backing.** Decision 44; scope.md. **Rebuttal.** Prefix deletion is deliberate; the caps still bound disk;
+  `quill check` flags the record.
+- **Reproduction (reported by the auditor, not re-run in wave 1).** Segment 2 stamped a year ahead, then +48 h at
+  Retention 1 h: after 8 forced prunes `segs=8 first=21 head=90` and no log. The fix-skeptic reproduced the warning
+  with its own scenario after the fix (verified).
+- **Disposition.** Owner approved the minimum (warn and document) on 2026-10-30. Fixed in 19c0996, fix-skeptic
+  FIXED-VERIFIED (7 of 7 lenses): when the sweep stops at a sealed segment whose newest record is stamped more than 24 h
+  ahead, the prune pass logs a warning (segment id, last_at, kept count) through the configured logger. The prefix rule
+  is unchanged. Decision 44, scope.md, the user guide and CHANGELOG amended. Residual: `quill` sets no logger, so a CLI
+  prune shows no warning (as with the existing clock-guard warning); it repeats each pass while the pin lasts.
+
+#### A1-50: `-json` passes C1 control characters raw (low, correctness report item 29; CONFIRMED, 2 votes; fixed fd52463)
+
+- **Claim.** `-json` copies U+0080 to U+009F (for example the CSI introducer U+009B) and DEL raw although the guide and
+  scope.md say no raw control character reaches the terminal; the text form escapes them.
+- **Grounds.** `appendJSONString` in cmd/quill/print.go. **Warrant.** A terminal that honours 8-bit C1 in UTF-8 mode would
+  act on U+009B (inferred, not tested). **Backing.** user guide and scope.md. **Rebuttal.** `encoding/json` also leaves C1
+  raw; the payload author must already write to the log.
+- **Reproduction (verified, macOS).** `quill cat -json` of `a\xc2\x9b31mred\xc2\x85b` emits bytes 302 233 and 302 205
+  unescaped; the text form emits `\u009b` and `\u0085`.
+- **Disposition.** Owner approved on 2026-10-30. Fixed in fd52463, fix-skeptic FIXED-VERIFIED (7 of 7 lenses): DEL and
+  U+0080 to U+009F are written as `\u00XX` in `payload`; the JSON stays valid and lossless (round-tripped through
+  `encoding/json`); `cat`, `read` and `tail` share the printer. Decision 35, scope.md, the user guide and CHANGELOG
+  amended. Not covered: the effect on a real terminal. Residual: non-payload JSON (file names in `check`) still goes
+  through `json.Marshal`.
+
+#### A1-52: Read can exceed MaxReadBytes by one record (low, correctness report item 30; CONFIRMED, 2 votes; fixed 25e96c2)
+
+- **Claim.** The cap is checked after each record, so a read returns up to cap plus one record, contradicting "at most
+  `limit` records and `MaxReadBytes` of payload, but always at least one".
+- **Grounds.** read.go:161, :235, :242 in the audited tree. **Warrant.** A record is admitted whenever the running total is
+  below the cap. **Backing.** read.go doc comment, scope.md, guarantee 7. **Rebuttal.** The overshoot is bounded by one
+  record; the shorter wordings already read as "stop once reached".
+- **Reproduction (verified, macOS).** MaxReadBytes 16384, five 10 KiB records: 2 records, 20480 bytes; a 1 MiB cap with
+  one 1 MiB-1 record and two 5 MiB records: 2 records, 6,291,455 bytes.
+- **Disposition.** Owner approved the rewording on 2026-10-30. Fixed in 25e96c2, fix-skeptic FIXED-VERIFIED (6 of 6
+  lenses): Read, ReadWait, Records and Follow are documented as stopping once at least MaxReadBytes of payload have been
+  returned, overshooting by at most one record. A test pins the rule and a mutant of the check was caught by it. The doc
+  comments, user guide, scope.md and decisions 50 and 79 amended; CHANGELOG has a Changed line. Residual: the user guide's
+  short wording at section 3 omits "at least"; the Config table has the full rule.
+
+#### A1-57: `stat -json` holes use capitalised keys and `null` (low, correctness report item 31; CONFIRMED, 2 votes; fixed c91329c)
+
+- **Claim.** `quill stat -json` writes a hole as `{"From":..,"To":..}` and an empty list as `null`, while every other CLI
+  JSON key is lowercase; no document fixes the stat, check or consumers schema.
+- **Grounds.** cmd/quill/read.go marshals `[]quill.Hole`, which has no tags. **Warrant.** The first public release freezes
+  whatever scripts parse. **Backing.** scope.md fixes only the per-record schema. **Rebuttal.** The shapes are
+  undocumented, so there is no contract to break yet, which is the reason to settle it before release.
+- **Reproduction (verified).** Wave 1 used a marshal program on an equivalent type; the fix-skeptic ran the built binary
+  before and after: `"holes":null` became `"holes":[]`, and `[{"From":1,"To":72}]` became `[{"from":1,"to":72}]`.
+- **Disposition.** Owner approved before release on 2026-10-30. Fixed in c91329c, fix-skeptic FIXED-VERIFIED (7 of 7
+  lenses): holes are written through a function-local tagged type, always as an array; `quill.Hole` gains no tags. The
+  stat, check and consumers JSON schemas are documented in scope.md and pointed to from the user guide. Decision 35 and
+  CHANGELOG amended. Left as is (deliberate, A1-56): `stat` shows no hole for a deleted middle segment.
+
+#### A1-87: the clock guard rounds up where the text says "at most 25%" (low, docs report item 6; CONFIRMED, 2 votes; fixed 50201e1)
+
+- **Claim.** `limit := (len(l.sealed) + 3) / 4` deletes the ceiling of a quarter (2 of 5, 4 of 15) where decision 44 and
+  scope.md say "at most 25% (at least one)"; a test pins the larger number.
+- **Grounds.** retention.go:139 and retention_test.go:266 in the audited tree; a `max(1, n/4)` mutant fails that line.
+  **Warrant.** "At most 25 percent" is a floor with a minimum of one. **Backing.** Decision 44, scope.md, T21.
+  **Rebuttal.** Rounding up is defensible for tiny logs; the difference is at most three segments.
+- **Reproduction.** Hand arithmetic (verified by the skeptics); the fix-skeptic re-ran the mutant: the test fails at the
+  second pass (13 left, 12 expected).
+- **Disposition.** Owner approved the rewording on 2026-10-30. Fixed in 50201e1, fix-skeptic FIXED-VERIFIED (6 of 6
+  lenses): every statement now reads "at most a quarter of the sealed segments, rounded up (at least one)". No code
+  change. Decision 44 and CHANGELOG amended. Cosmetic: a missing comma in decision 44.
+
+#### A1-91: a quill.policy of `{}` is acted on as retention 0 (low, correctness report item 32; CONFIRMED in the A1h ledger, PLAUSIBLE in wave 1; fixed 5c603fc)
+
+- **Claim.** `{}`, `null` and `{"unknown":1}` parse as a valid policy of zeros; `quill ls` shows RETENTION 0s and `quill
+  prune` runs with the default 24 h and no caps.
+- **Grounds.** state.go:300 `decodePolicy` accepts any object. **Warrant.** Decision 68's reason is that offline tools must
+  not prune with default retention; a version-skewed policy would produce such a file. **Backing.** Decisions 29, 48,
+  68, 99. **Rebuttal.** It needs a hand-edited or future-format file; v0.1.0 writers always write every field (an off
+  retention is `-1ns`); one wave-1 skeptic held that code and spec agree.
+- **Reproduction (verified, macOS).** `{}`, `null` and `{"unknown":1}` give RETENTION 0s and a `prune` that exits 0;
+  `{"retention":"bogus"}` and an empty file are refused with exit 1.
+- **Disposition.** Owner approved (low priority) on 2026-10-30. Fixed in 5c603fc, fix-skeptic FIXED-VERIFIED (7 of 7
+  lenses): `decodePolicy` fails when `retention` is absent or empty, so such a policy is unparseable; `ReadPolicy` returns
+  ok == false, `prune` refuses without explicit flags, `ls` shows `?` and "policy unreadable", `check` warns "cannot be
+  parsed". Decisions 29, 48, 68 and 87, format.md, the `ReadPolicy` comment and CHANGELOG amended. Differences from the
+  recommendation: `ls` shows `?` (the existing unreadable-policy convention), not "unknown". Weakest point: a policy with
+  `retention` present and every cap missing (for example a skewed `{"retention":"1h"}`) still parses as caps of zero.
+
+#### A4-1: the Go toolchain pin is enforced only by the gate (medium, supply-chain report; CONFIRMED, 2 votes, 0 reproduced; fix-failed, 532f39d not integrated)
+
+- **Claim.** The `toolchain go1.27.3` line in go.mod is a pin only in `hack/gate.sh`; `build/quill` uses whatever `go` is on
+  PATH, and (at the audited tree) CI installed the newest 1.27.x.
+- **Grounds.** `hack/gate.sh` exports `GOTOOLCHAIN` from go.mod; `build/quill` did not. Under `GOTOOLCHAIN=auto` the toolchain
+  line is a minimum. The CI half rested on setup-go v5.6.0 not reading the toolchain line (reported by the auditor from
+  its source; not reproduced). **Warrant.** README.md and CONTRIBUTING.md call the go.mod toolchain the one supported
+  version, and the release binary's bytes depend on the compiler. **Backing.** Decisions 70 and 88.
+- **Rebuttal.** All places resolved to go1.27.3 at the time; the SBOM discloses the Go used.
+- **Disposition.** Owner approved landing the pin on 2026-10-30 (the recommended answer, with its stated alternative of
+  dropping the CI half). A fix was written (532f39d, branch `stage2/A4-1-a2`): `build/quill` derives and exports
+  `GOTOOLCHAIN` from go.mod's toolchain line as the gate does; the CI literal and its test were dropped, because the
+  workflow now pins setup-go v7.0.0, which the fix-skeptic reports reads the toolchain line before the go line unless
+  `GOTOOLCHAIN=local` (reported, not re-verified here; the tree's ci.yml does carry v7.0.0 at lines 24, 44, 54, 74 and 86).
+  **Rejected by the fix-skeptic** on the no-new-gap lens only: the code change is correct, the test fails without it, the
+  gate steps are clean, the API is unchanged and golden files are untouched, but the commit leaves the audit record
+  stale and self-contradicting (supply-chain.md still says "fix written, not on main", describes the workflow-level
+  literal, says setup-go ignores the toolchain line, and its ranked list says "Land the A4-1 fix"; the owner-decisions
+  table row and intro said the same). **Held for the owner; recommended next step:** rewrite those places so they state
+  the landed `build/quill`-only fix, mark the CI claim as refuted where it appears, then re-run the fix-skeptic (the
+  objection expects FIXED-VERIFIED after that). The record files above state the truth for this tree, in which the fix
+  is not landed; supply-chain.md was outside this pass's file list and is unchanged.
+
+## Top line at first writing (2026-10-29)
 
 97 candidate ids were raised by the auditors; 24 were merged into 20 other items as duplicates,
 leaving **73 distinct items** (verified: arithmetic over the ledger, 73 + 24 = 97). They were
@@ -56,10 +460,12 @@ more panics every Reader call) and A1-66 (the documented manual-corruption proce
 `quill recover`), all fixed; and A1-67 (the documented `quill commit` rewind of an ahead consumer
 cannot work) and A1-80 (a live protected consumer stops the writer from restarting), both held.
 
-**What matters most for release.** Held, not fixed: A1-80 and A1-67 (above), A1-25 (after a failed
+**What matters most for release (as written 2026-10-29; updated by pass A1h above).** Held, not fixed: A1-80 and A1-67 (above), A1-25 (after a failed
 rotation the active segment can outgrow the 1.5 GiB limit, and the log then cannot be reopened),
 A1-82 (a transient read error is reported as ErrCorrupt, or as a gap that the documented resume
-idiom skips) and A1-32 (the reserved archiver consumer cannot be removed or rewound). Fixed, and
+idiom skips) and A1-32 (the reserved archiver consumer cannot be removed or rewound). Since then A1-25 and
+A1-32 are fixed (c18a27a, a3955cd) and A1-82 has a rejected fix (a5707a8): the Reader's sealed
+first-frame probe still reports one EIO as a whole-segment gap. Fixed, and
 worth the owner's eye because they change an error class, an exit code or the fsync count: A1-26
 (the last sequence number is no longer assignable), A1-46 (a failed write to stdout now exits 1),
 A1-64 (Archive refuses its own source as a destination) and A1-31 (a directory fsync before each
@@ -255,7 +661,8 @@ A1-70 raced only ./examples/...). Only some fix-skeptics ran staticcheck and dea
 reports a failure. Their objections that stand, none of which blocks a fix, are in the dimension
 reports under each item. All 42 commits are ancestors of the tree this record is written on
 (verified with git). The one fix that did not pass is A1-62 (commit fdcd880, which is not in this
-tree).
+tree). Pass A1h added 15 more fixes (all FIXED-VERIFIED, see its top line) and one more rejected fix, A1-82
+(a5707a8, not in this tree).
 
 ## Index
 
@@ -273,12 +680,12 @@ reproduced it by execution; the commit is shown by its first 7 characters.
 | A1-60 | reader.go:250-265 | medium | CONFIRMED | CC | Y | fixed c8fb07b |
 | A1-46 | cmd/quill/read.go:133, print.go:32 | medium | CONFIRMED | CC | Y | fixed 9c6a8c3 |
 | A1-51 | stat.go:138-186 | medium | CONFIRMED | CC | Y | fixed 89211cc |
-| A1-25 | flush.go:104-130, load.go:76 | medium | CONFIRMED | CC | Y | held |
-| A1-32 | consumer.go:73-79, 267-269 | medium | CONFIRMED | CC | Y | held |
-| A1-47 | cmd/quill/verbs.go:159-169 | medium | CONFIRMED | CC | Y | held |
-| A1-48 | cmd/quill/verbs.go:71, 124-125 | medium | CONFIRMED | CC | Y | held |
-| A1-82 | read.go:249-257 | medium | CONFIRMED | CC | Y | held |
-| A1-85 | consumer.go:313, archive.go:25 | medium | CONFIRMED | CC | Y | held |
+| A1-25 | flush.go:104-130, load.go:76 | medium | CONFIRMED | CC | Y | fixed c18a27a |
+| A1-32 | consumer.go:73-79, 267-269 | medium | CONFIRMED | CC | Y | fixed a3955cd |
+| A1-47 | cmd/quill/verbs.go:159-169 | medium | CONFIRMED | CC | Y | fixed 2c4e4f4 |
+| A1-48 | cmd/quill/verbs.go:71, 124-125 | medium | CONFIRMED | CC | Y | fixed b4fe935 |
+| A1-82 | read.go:249-257 | medium | CONFIRMED | CC | Y | fix-failed (a5707a8, not integrated; held) |
+| A1-85 | consumer.go:313, archive.go:25 | medium | CONFIRMED | CC | Y | fixed 279d7ce |
 | A1-34 | consumer.go:245-260, retention.go:38-41 | medium | REFUTED | RCR | Y | refuted |
 | A1-49 | cmd/quill/write.go:19-41 | medium | REFUTED | CRR | Y | refuted |
 | A1-59 | read.go:295-296 | medium | prior-deliberate | - | N | round-1-decided (decision 103); revisit |
@@ -292,12 +699,12 @@ reproduced it by execution; the commit is shown by its first 7 characters.
 | A1-63 | archive.go:96, 126 | low | CONFIRMED | CC | Y | fixed 7672a8d |
 | A1-65 | archive.go:146 | low | CONFIRMED | CC | N | fixed db30a94 |
 | A1-78 | cmd/quill/verbs.go:45-47 | low | CONFIRMED | CC | Y | fixed 8449425 |
-| A1-29 | log.go:338-358 | low | CONFIRMED | CC | Y | held |
-| A1-35 | retention.go:111-123 | low | CONFIRMED | CC | N | held |
-| A1-50 | cmd/quill/print.go:81-107 | low | CONFIRMED | CC | Y | held |
-| A1-52 | read.go:161-242 | low | CONFIRMED | CC | Y | held |
-| A1-57 | cmd/quill/read.go:81-82 | low | CONFIRMED | CC | Y | held |
-| A1-91 | state.go:300 | low | PLAUSIBLE | PRC | Y | held |
+| A1-29 | log.go:338-358 | low | CONFIRMED | CC | Y | fixed 8c0c531 |
+| A1-35 | retention.go:111-123 | low | CONFIRMED | CC | N | fixed 19c0996 |
+| A1-50 | cmd/quill/print.go:81-107 | low | CONFIRMED | CC | Y | fixed fd52463 |
+| A1-52 | read.go:161-242 | low | CONFIRMED | CC | Y | fixed 25e96c2 |
+| A1-57 | cmd/quill/read.go:81-82 | low | CONFIRMED | CC | Y | fixed c91329c |
+| A1-91 | state.go:300 | low | PLAUSIBLE, CONFIRMED in A1h | PRC | Y | fixed 5c603fc |
 | A1-27 | flush.go:61 | low | REFUTED | CRRR | Y | refuted |
 | A1-30 | flush.go:17-24 | low | prior-deliberate | - | N | round-1-decided (decision 13) |
 | A1-54 | reader.go:281-303 | low | prior-deliberate | - | N | round-1-decided (decision 101) |
@@ -311,7 +718,7 @@ reproduced it by execution; the commit is shown by its first 7 characters.
 | A1-66 | docs/userguide.md:243-271 | high | CONFIRMED | CC | Y | fixed 3439946 |
 | A1-67 | consumer.go:120-122, docs/userguide.md:98 | high | CONFIRMED | CC | Y | held |
 | A1-68 | build/quill:25 | medium | CONFIRMED | CC | Y | fixed df7af4f |
-| A1-69 | append.go:30-33 | medium | CONFIRMED | CC | Y | held |
+| A1-69 | append.go:30-33 | medium | CONFIRMED | CC | Y | fixed 5b30e7f |
 | A1-70 | examples/README.md:3-4 | low | CONFIRMED | CC | N | fixed 4aec960 |
 | A1-71 | log.go:38-39, retention.go:97 | low | CONFIRMED | CC | N | fixed 88a44b9 |
 | A1-72 | docs/userguide.md:181-182 | low | CONFIRMED | CC | N | fixed da4d1ce |
@@ -321,14 +728,14 @@ reproduced it by execution; the commit is shown by its first 7 characters.
 | A1-94 | retention_test.go:289-330 | low | CONFIRMED | CC | Y | fixed 47a5ebb |
 | A1-95 | retention.go:238, 126, flush.go:130 | low | CONFIRMED | CC | Y | fixed 9810a56 |
 | A1-97 | docs/format.md:179 and others | low | CONFIRMED | CC | N | fixed f1df4ae |
-| A1-2 | strictjson.go:30-49, state.go:138-158 | low | CONFIRMED | CC | Y | held |
-| A1-87 | retention.go:139 | low | CONFIRMED | CC | N | held |
+| A1-2 | strictjson.go:30-49, state.go:138-158 | low | CONFIRMED | CC | Y | fixed 89957ae |
+| A1-87 | retention.go:139 | low | CONFIRMED | CC | N | fixed 50201e1 |
 
 ### Dedup (12 items, a1-round2-dedup.md)
 
 | id | anchor | sev | verdict | votes | repro | disposition |
 |----|--------|-----|---------|-------|-------|-------------|
-| A1-13 | load.go:277-296, archive.go:99-111 | medium | CONFIRMED | CC | Y | held |
+| A1-13 | load.go:277-296, archive.go:99-111 | medium | CONFIRMED | CC | Y | fixed b529db5 |
 | A1-9 | archive.go:95 | low | CONFIRMED | CC | Y | fixed 48e7491 |
 | A1-14 | flush.go:167-171, log.go:483-493, read.go:333-341 | low | CONFIRMED | CC | Y | fixed afe3daa |
 | A1-16 | load.go:413-427 and four more sites | low | CONFIRMED | CC | Y | fixed d39a915 |
