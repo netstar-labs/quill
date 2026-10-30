@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Changed: a verb other than `append` and `help` given a positional argument (`quill -dir L read 100`, `quill -dir L tail 5 -json`,
+  `stat -json extra`) now exits 2 with `unexpected argument ...; flags go before arguments`. It used to ignore the argument, and flag parsing
+  stops at the first positional, so every flag after it was ignored too: `read 100` printed from the first retained record and
+  `tail 5 -json` printed text, both exiting 0. Put flags before arguments, and give `read` its offset as `-from`. Decision 53 is amended.
+
 - Fixed: a consumer file created through a `Reader` or the CLI (`register`, `commit`, `archive`) was always mode 0600, and so were the
   files and directories `Archive` created, so in the group arrangement the scope describes (`Config.Perm` 0660, a consumer in another
   account) the writer could not read the consumer's file, retention protected every segment and `check` reported UNHEALTHY. They now take the

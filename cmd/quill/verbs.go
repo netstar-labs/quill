@@ -26,6 +26,7 @@ type verb struct {
 	dirDoc  string // the -dir meaning in help and the reference; empty: "the log directory"
 	noDir   bool   // runs without -dir, and has no flags of its own to document
 	hidden  bool   // left out of the help list and the reference
+	args    bool   // takes positional arguments (append: the records; help: a verb name); any other verb refuses one
 	flags   func(fs *flag.FlagSet, c *cli)
 	run     func(c *cli, args []string) int
 }
@@ -74,7 +75,7 @@ func init() {
 				fs.Uint64Var(&c.n, "n", 10, "how many of the last records")
 				fs.BoolVar(&c.follow, "follow", false, "keep printing new records until interrupted")
 			}, run: cmdTail},
-		{name: "append", summary: "append the arguments as records, or each line of stdin; needs the writer's lock", lock: "log",
+		{name: "append", summary: "append the arguments as records, or each line of stdin; needs the writer's lock", lock: "log", args: true,
 			flags: func(fs *flag.FlagSet, c *cli) {
 				fs.BoolVar(&c.sync, "sync", true, "return only once the records are durable")
 			},
@@ -116,7 +117,7 @@ func init() {
 			run:   cmdArchive},
 		{name: "recover", summary: "open the log writable, which repairs a torn tail and republishes quill.tail, then close it", lock: "log",
 			run: cmdRecover},
-		{name: "help", summary: "print this list, or a verb's flags", lock: "none", noDir: true, run: cmdHelp},
+		{name: "help", summary: "print this list, or a verb's flags", lock: "none", noDir: true, args: true, run: cmdHelp},
 		{name: "version", summary: "print the version", lock: "none", noDir: true,
 			run: func(c *cli, args []string) int { fmt.Fprintln(c.out, "quill", version); return exitOK }},
 		{name: "reference", summary: "print docs/reference.md", lock: "none", noDir: true, hidden: true, run: cmdReference},
@@ -192,6 +193,9 @@ func dispatch(args []string, in io.Reader, out, errw io.Writer) int {
 			return exitOK
 		}
 		return c.usage("%s: %v", v.name, err)
+	}
+	if extra := fs.Args(); !v.args && len(extra) > 0 {
+		return c.usage("%s: unexpected argument %q; flags go before arguments", v.name, extra[0])
 	}
 	if !v.noDir && c.dir == "" {
 		return c.usage("%s: -dir is required", v.name)

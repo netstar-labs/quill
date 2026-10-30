@@ -185,7 +185,10 @@ future or earlier than their predecessor.
 | `commit`, `register`, `unregister`, `archive` | the consumer's | yes |
 | `append`, `roll`, `prune`, `recover` | the writer's | no: `ErrLocked` |
 
-Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. `append` exits 1 when closing
+Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. Only `append` (the records) and `help` (a verb name)
+take positional arguments; any other verb given one, as in `quill read 100` or `quill tail 5 -json`, is a usage error (exit 2,
+"unexpected argument ...; flags go before arguments"): flag parsing stops at the first positional, so the flags after it
+would otherwise be dropped. `append` exits 1 when closing
 the log fails (with `-sync=false` that close is the only flush that can report an error); with
 `-sync=true` the records were already durable, so it still prints the last sequence to stdout
 beside the error on stderr. A verb that could not write its output to standard output (a full disk,
