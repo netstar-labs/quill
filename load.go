@@ -282,19 +282,12 @@ func reason(err error) string {
 // load reads the state files, scans the directory and recovers the newest segment (decision
 // 39), then republishes the marker. The lock is held and creation is complete.
 func (l *Log) load() error {
-	data, err := readState(l.fs, l.path(formatName))
+	id, err := loadFormat(l.fs, l.path(formatName))
 	if err != nil {
 		return err
 	}
-	id, err := decodeFormat(data)
-	if err != nil {
-		if errors.Is(err, ErrFutureVersion) {
-			return err
-		}
-		return fmt.Errorf("%w: %v", ErrCorrupt, err)
-	}
 	l.id = id
-	data, err = readState(l.fs, l.path(tailName))
+	data, err := readState(l.fs, l.path(tailName))
 	if err != nil {
 		return err
 	}

@@ -473,6 +473,42 @@ func TestArchiveSurvivesEverySingleLostItemAfterASuccessfulRun(t *testing.T) {
 	}
 }
 
+// A destination whose quill.format names a newer version is ErrFutureVersion, as Open and
+// OpenReader report it; any other unusable marker is ErrCorrupt. Neither marker is touched.
+func TestArchiveIntoADestinationOfANewerFormatIsErrFutureVersionAndOtherDamageIsErrCorrupt(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "log")
+	l := openDir(t, src, func(c *Config) { c.SegmentBytes = 256 })
+	defer l.Close()
+	appendN(t, l, 8)
+	mustFlush(t, l)
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name   string
+		marker string
+		future bool
+	}{
+		{"newer", "quill/2 0123456789abcdef0123456789abcdef\n", true},
+		{"garbage", "not a marker\n", false},
+	} {
+		dst := filepath.Join(t.TempDir(), "arch")
+		if err := os.Mkdir(dst, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dst, formatName), []byte(c.marker), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		err := Archive(src, dst)
+		if errors.Is(err, ErrFutureVersion) != c.future || errors.Is(err, ErrCorrupt) == c.future {
+			t.Fatalf("%s: Archive = %v, want ErrFutureVersion %v and ErrCorrupt %v", c.name, err, c.future, !c.future)
+		}
+		if got, err := os.ReadFile(filepath.Join(dst, formatName)); err != nil || string(got) != c.marker {
+			t.Fatalf("%s: the destination's marker is now %q (%v)", c.name, got, err)
+		}
+	}
+}
+
 // A run killed in the middle of a segment copy leaves its temp file in the destination, where
 // no writer's Open ever looks. The next run removes the ones older than an hour and keeps a
 // younger one, which may belong to a live archiver (decision 67).

@@ -21,7 +21,9 @@ import (
 // segment. When the source has lost segments the destination holds the same hole, and
 // Archive returns a *GapError naming it after copying what exists. It refuses, before
 // writing to it, a destination that is the source log itself and a destination whose
-// writer lock is held (ErrLocked): quill.tail is the writer's file.
+// writer lock is held (ErrLocked): quill.tail is the writer's file. A destination whose
+// quill.format is newer than this build is ErrFutureVersion, another log's is ErrWrongLog,
+// and any other unusable marker is ErrCorrupt.
 //
 // Everything Archive creates in the destination, and the source's consumer files, takes the
 // source log's file mode, read from its quill.tail (decision 51).
@@ -130,7 +132,7 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, perm fs.FileMode,
 	if err := fsys.SyncDir(filepath.Dir(dstDir)); err != nil {
 		return err
 	}
-	data, err := readState(fsys, filepath.Join(dstDir, formatName))
+	have, err := loadFormat(fsys, filepath.Join(dstDir, formatName))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		if err := writeState(fsys, filepath.Join(dstDir, formatName), encodeFormat(id), perm); err != nil {
@@ -139,10 +141,6 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, perm fs.FileMode,
 	case err != nil:
 		return err
 	default:
-		have, err := decodeFormat(data)
-		if err != nil {
-			return fmt.Errorf("%w: destination %s: %v", ErrCorrupt, formatName, err)
-		}
 		if have != id {
 			return fmt.Errorf("%w: the destination archives log %s, the source is %s", ErrWrongLog, have, id)
 		}

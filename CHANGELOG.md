@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `Archive` into a destination whose `quill.format` is newer than this build (`quill/2`) returned `ErrCorrupt`, where `Open` and
+  `OpenReader` return `ErrFutureVersion` as decision 6 says; it now returns `ErrFutureVersion`. Any other unusable destination marker is still
+  `ErrCorrupt`. Decisions 6 and 85 are amended.
+
 - Changed: `-from`, `-limit` and `-n` (`read`, `cat`, `tail`) take plain decimal integers, like `commit -offset`, `prune -max-bytes` and the
   `@unix` times. They used to parse in base 0, so `-n 010` printed 8 records (octal), `-from 0x10` started at 16 and `-limit 1_0` meant 10;
   now `010` is 10 and `0x10`, `1_0`, `0b1`, `0o7`, signs and exponents are usage errors (exit 2). Decision 96 is amended.

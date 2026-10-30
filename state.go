@@ -217,6 +217,25 @@ func decodeFormat(data []byte) (logID, error) {
 	return logID(id), nil
 }
 
+// loadFormat reads and parses the quill.format at path, the one place the rule is written: a
+// marker newer than this build is ErrFutureVersion, any other damage is ErrCorrupt (decision 6).
+// A read failure, fs.ErrNotExist included, is returned as readState gives it, for the caller to
+// classify.
+func loadFormat(fsys fsx.FS, path string) (logID, error) {
+	data, err := readState(fsys, path)
+	if err != nil {
+		return "", err
+	}
+	id, err := decodeFormat(data)
+	if err != nil {
+		if errors.Is(err, ErrFutureVersion) {
+			return "", err
+		}
+		return "", fmt.Errorf("%w: %v", ErrCorrupt, err)
+	}
+	return id, nil
+}
+
 // consumerState is one consumer file: "<log id> <next> <protect>\n".
 type consumerState struct {
 	ID      logID

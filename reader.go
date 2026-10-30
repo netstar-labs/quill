@@ -94,19 +94,12 @@ func OpenReader(dir string, opts ReaderOptions) (*Reader, error) {
 	}
 	r := &Reader{fs: opts.fs, dir: filepath.Clean(dir), opts: opts, segs: map[uint64]*readerSegment{}}
 	r.bufPool.New = func() any { b := make([]byte, 0, windowChunk); return &b }
-	data, err := readState(r.fs, r.path(formatName))
+	id, err := loadFormat(r.fs, r.path(formatName))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("%w: %s has no %s", ErrNoLog, r.dir, formatName)
 		}
 		return nil, err
-	}
-	id, err := decodeFormat(data)
-	if err != nil {
-		if errors.Is(err, ErrFutureVersion) {
-			return nil, err
-		}
-		return nil, fmt.Errorf("%w: %v", ErrCorrupt, err)
 	}
 	r.id = id
 	if _, err := r.readTail(); err != nil {
