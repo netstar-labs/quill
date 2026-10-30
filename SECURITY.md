@@ -5,8 +5,12 @@ files in one directory. It opens no sockets and runs no service.
 
 ## Reporting
 
-Report a vulnerability privately to the repository owner (see `.github/CODEOWNERS`) rather than
-in a public issue. Expect an acknowledgement within a week.
+Report a vulnerability privately, through the repository's Security tab: choose "Report a
+vulnerability" (GitHub private vulnerability reporting), rather than opening a public issue. If that
+option is not shown, the repository has not enabled it; open an issue that asks for a private contact
+and says nothing about the problem itself. Expect an acknowledgement within a week.
+
+Only the latest release is supported; quill versions are `v0.y.z`, and a fix ships as a new release.
 
 ## What quill defends against
 
