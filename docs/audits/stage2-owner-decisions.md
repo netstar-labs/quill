@@ -319,3 +319,94 @@ take the cheaper route and document that the handler runs under the log's lock a
 independently by two fresh auditors, with a real-concurrency reproduction (raw ENOENT in 25 of 1,601 reads on macOS and 17 of 1,483 on Linux). Recommended
 answer: reopen the decision and take the one-line mapping at read.go:295, amending decision 103's sentence "a deleted one fails at its open as before", which
 contradicts guarantee 14. See [a1-round2-correctness.md](a1-round2-correctness.md), item 16.
+
+## Pass A4: dependency, supply-chain and release hygiene
+
+The A4 pass (record: [supply-chain.md](supply-chain.md)) held back four items. Three of them are decisions or actions that only the
+owner can take before a public release; one is a written fix that did not reach main. The recommended answers are the recorder's reading of
+the auditor's proposed fix and the skeptics' notes, not decisions. Ranked by what the public flip needs.
+
+| id | sev | one line | recommended |
+|----|-----|----------|-------------|
+| A4-5 | low | the release archives ship the Go runtime and standard library with no copy of its licence | add the Go licence text at the flip; reword decisions 22 and 15 |
+| A4-4 | medium | a workspace path is still in the v0.1.0 tag and in earlier history (the tip is fixed) | decide squash or filter, or accept, before pushing |
+| A4-3 | medium | the private reporting channel named in `SECURITY.md` exists only if the setting is enabled | enable private vulnerability reporting |
+| A4-1 | medium | the Go toolchain pin is enforced by the gate only; the fix is written and not on main | land the fix, rebased, with a fix-skeptic |
+
+## A4-5: the archives ship the Go runtime with no copy of its licence (low)
+
+**Claim.** The release archives contain a statically linked Go runtime and standard library (BSD-3-Clause) and no copy of that licence or notice;
+decision 22's reason for having no `THIRD-PARTY-NOTICES` ("no third-party code ships", decision 15) holds for vendored source but not for the linked
+binaries. Two skeptic votes confirmed it; one read the licence's binary-redistribution clause and listed an existing archive.
+
+**Why held.** The fix changes what ships in every archive and amends two recorded decisions (22 and 15), and whether a link satisfies the notice duty
+is the owner's policy call. Decision 22 is explicitly a private-period rule that decision 54 supersedes when the `LICENSE` lands, so the right moment is
+the flip.
+
+**Recommended answer.** At the flip, add the Go licence text to each archive and to the repository (or a `THIRD-PARTY-NOTICES` file naming the Go
+standard library and its licence) in the same change as quill's own `LICENSE`; copy it in `build/quill` beside the existing `LICENSE` copy; reword
+decisions 22 and 15 to say that no third-party source is vendored while the standard library is linked in. Declining is defensible if the owner judges
+the notice duty met by a link; record that choice in decision 22.
+
+**Fix written.** None.
+
+## A4-4: a workspace path remains in the v0.1.0 tag and in earlier history (medium; the tip is fixed)
+
+**Claim.** `docs/audits/audit-correctness.md` named an absolute session path with a macOS user name and an internal parent-directory name. The tip no
+longer does (main, commit 0b70e82, fix-skeptic FIXED-VERIFIED), but the text is still in the v0.1.0 tag tree and in every commit that contains the file
+(75 commits by the auditor's count).
+
+**Why held.** Removing it from history means rewriting history or moving to a new tag, and the audit may not move or create tags or push. The choice
+also decides what the public repository's first commit looks like.
+
+**Recommended answer.** Before the first push, choose one. (a) Publish a squashed or filtered history (for example `git filter-repo` replacing the
+path), tag the result, and treat v0.1.0 as a private tag; this closes the exposure in the tag and the history, and the changelog line that mentions it
+can then be reworded. (b) Accept the exposure: the path is not a secret and its parent-directory name is not on the forbidden-name list; the cost is a
+user name and a directory name in public history. (c) Ship from a new tag on main and push only main plus that tag; this does not help, because main's
+history still contains the path, so it is not an answer to the exposure and is listed only to rule it out. Recommendation: (a), done once, together with the
+LICENSE commit. If (a) is taken, the filtered history must be re-checked with the same grep over every commit and the tag message.
+
+**Fix written.** The tip edit (0b70e82). None for history.
+
+## A4-3: the reporting channel in SECURITY.md needs a repository setting (medium)
+
+**Claim.** `SECURITY.md` now (main, f2516d7) tells reporters to use the Security tab "Report a vulnerability" route (GitHub private vulnerability
+reporting), with a fallback if the option is not shown, and says only the latest release is supported. The route exists only if the owner enables it;
+the tree and the API the auditor had could not show whether it is enabled. The fix landed without a fix-skeptic and without a build or vet run (it is
+documentation only), and the v0.1.0 tag still carries the old wording that pointed at `CODEOWNERS`.
+
+**Why held.** Enabling a repository setting and choosing a contact are owner actions; the audit must not invent a mailbox or a key.
+
+**Recommended answer.** Enable private vulnerability reporting before the flip and confirm that the Security tab shows "Report a vulnerability". If the
+owner prefers a monitored role mailbox or a PGP key, name it in `SECURITY.md` in place of the fallback sentence. Release from a tag that contains the new
+text (the v0.1.0 tag does not).
+
+**Fix written.** f2516d7 on main (`SECURITY.md` and one changelog line).
+
+## A4-1: the Go toolchain pin is enforced only by the gate (medium)
+
+**Claim.** The `toolchain go1.27.3` line in `go.mod` is a pin only in `hack/gate.sh`, which exports `GOTOOLCHAIN` from it. CI installs the newest 1.27.x
+(setup-go ignores the toolchain line) and `build/quill` uses whatever `go` is on PATH, although README.md:83-86 and CONTRIBUTING.md:40-42 call the go.mod
+toolchain the one supported version. The comment at `ci.yml:65-66` ("the Go patch level comes from go.mod's toolchain line") is false now.
+
+**Why held.** The fix is written but did not reach main: the fix workflow's merge check failed on a stray `go.mod` change (an audit probe, since restored by
+c202882), and the commit is based on da2d638, before the A4-7 and A4-9 changes to `build/quill` and `ci.yml`. It has had no fix-skeptic. It changes what
+the release build and every CI job run (the exact pinned Go instead of whatever is installed), which the owner should accept.
+
+**Recommended answer.** Approve. Land f800bb7 (branch `stage2/A4-1-retry`) rebased onto main, then have a fix-skeptic attack it; confirm that CI still
+passes with a workflow-level `GOTOOLCHAIN` on the new setup-go pin. If the owner prefers a floating patch in CI, drop the CI half, keep the `build/quill`
+half, and reword README, CONTRIBUTING and the `ci.yml` comment to say that CI floats within the minor release.
+
+**Fix written.** f800bb7: `build/quill` derives and exports `GOTOOLCHAIN` from go.mod's toolchain line as the gate does; `ci.yml` sets one workflow-level
+`GOTOOLCHAIN` literal and corrects the comment; two tests (`toolchain_pin_test.go` and an edit to `build_script_test.go`) fail if the literal, the script
+and go.mod drift apart (5 files, 159 insertions, 3 deletions).
+
+## Not held, but worth a line at the flip
+
+**A4-2 (refuted, 2 votes to 1).** `go 1.27` is the documented latest-toolchain policy, so importers need Go 1.27 or later. If the owner wants a lower
+consumer floor for the first public release, that is a product decision: set `go 1.23` (or the measured minimum) and keep the toolchain line, then rerun
+the gate (the `cmd/quill` tests already need Go 1.24 for `b.Loop`). Otherwise state the floor outright in README.md:86, CONTRIBUTING.md:42 and
+`scope.md:94`.
+
+**A4-6 (refuted, 2 votes to 0).** `build/quill` skips a missing `LICENSE` silently, which is intended in the private period. At the flip, consider making
+the release form fail without one, in the same change that adds the `LICENSE`.
