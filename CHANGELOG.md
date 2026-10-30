@@ -53,9 +53,8 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
   squashed or accepted.
 
 - Fixed: `SECURITY.md` named no usable private reporting channel (it pointed at `.github/CODEOWNERS`, which holds only a
-  GitHub login). It now names the Security tab "Report a vulnerability" route and states that only the latest release is
-  supported. The owner must enable private vulnerability reporting in the repository settings before the public flip.
-  Documentation only; behaviour is unchanged.
+  GitHub login). It now names the Security tab "Report a vulnerability" route (GitHub private vulnerability reporting) and
+  states that only the latest release is supported. Documentation only; behaviour is unchanged.
 
 - Fixed: design-record drift. The `quill.policy` example in `docs/format.md` listed `_archive` as a protected
   consumer, which `Open` refuses; the disk-bound formula (decisions 46 and 69, the build prompt), the worst-case frame

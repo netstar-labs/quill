@@ -381,7 +381,10 @@ documentation only), and the v0.1.0 tag still carries the old wording that point
 owner prefers a monitored role mailbox or a PGP key, name it in `SECURITY.md` in place of the fallback sentence. Release from a tag that contains the new
 text (the v0.1.0 tag does not).
 
-**Fix written.** f2516d7 on main (`SECURITY.md` and one changelog line).
+The "latest release only" support policy was introduced by f2516d7 and appears in no earlier document; confirm it or change it. The changelog line
+(which ships in the release archives) no longer carries the enable-the-setting action; that action lives only here.
+
+**Fix written.** f2516d7 on main (`SECURITY.md` and one changelog line), and a follow-up that removes the owner action from the changelog.
 
 ## A4-1: the Go toolchain pin is enforced only by the gate (medium)
 
