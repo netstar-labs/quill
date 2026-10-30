@@ -167,6 +167,28 @@ func TestPolicyIsTolerantAndNeverFatal(t *testing.T) {
 	}
 }
 
+// A policy with no retention is not a policy of zeros: a version-skewed writer that renamed
+// its fields would leave such a file, and the offline tools would act on a retention of 0,
+// which means the 24 h default (decision 68). Every writer writes retention, an off one as -1ns.
+func TestPolicyWithoutRetentionIsUnparseable(t *testing.T) {
+	for name, in := range map[string]string{
+		"empty object":    `{}`,
+		"null":            `null`,
+		"unknown fields":  `{"unknown":1}`,
+		"caps only":       `{"max_bytes":5}`,
+		"empty retention": `{"retention":""}`,
+	} {
+		if p, ok := decodePolicy([]byte(in)); ok {
+			t.Errorf("%s: accepted %q as %+v", name, in, p)
+		}
+	}
+	for _, in := range []string{`{"retention":"-1ns"}`, `{"retention":"0s"}`} {
+		if _, ok := decodePolicy([]byte(in)); !ok {
+			t.Errorf("refused %q", in)
+		}
+	}
+}
+
 func TestParseUintIsPlainDecimalOnly(t *testing.T) {
 	for _, s := range []string{"0", "1", "42", "18446744073709551615"} {
 		if _, err := parseUint(s); err != nil {

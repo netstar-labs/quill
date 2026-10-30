@@ -174,7 +174,7 @@ authoritative and rewrites it, except that an open with `NoMaintenance` (the off
 `append`, `roll`, `prune` and `recover`) never writes it, so a tool does not replace the writer's
 settings. Offline tools read it: `append`, `roll` and `recover` take the segment size and payload
 limit from it, so they never seal an active segment below the writer's size. Unknown fields are
-ignored and a parse failure never blocks an open; an offline tool that cannot parse it refuses to
+ignored, a policy with no `retention` (`{}`, `null`) is a parse failure, and a parse failure never blocks an open; an offline tool that cannot parse it refuses to
 act on it (`prune`) or uses the segment-size ceiling (`append`, `roll`, `recover`).
 
 ```

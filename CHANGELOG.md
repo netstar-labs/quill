@@ -5,6 +5,12 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a `quill.policy` of `{}`, `null` or only unknown fields parsed as a valid policy of zeros, so `quill ls` showed `RETENTION 0s` and
+  `quill prune` ran with the 24 h default and no caps, as a version-skewed writer's file would have caused. A policy with no `retention` is now
+  unparseable like a damaged one: `ls` shows `?` and "policy unreadable", `prune` refuses without explicit flags, `check` warns, and
+  `ReadPolicy` returns `ok == false`. Every writer writes `retention` (an off one as `-1ns`), so no policy a writer produced is affected.
+  Decisions 29, 48, 68 and 87 are amended.
+
 - Changed: documentation only, no behaviour change. The clock guard limits an age sweep to at most a quarter of the sealed segments per pass rounded up (2 of 5,
   4 of 15, at least one), not "at most 25%" as the docs and the `Prune` comment said; they now state the rounding. Decision 44 is amended.
 

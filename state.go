@@ -308,10 +308,12 @@ func encodePolicy(p policy) []byte {
 }
 
 // decodePolicy parses quill.policy tolerantly: unknown fields are ignored, and any failure
-// returns ok == false with the zero policy. It never fails Open (decision 48).
+// returns ok == false with the zero policy. It never fails Open (decision 48). A policy
+// with no retention (`{}`, null, only unknown fields) is a failure too: every writer writes
+// it, an off one as "-1ns", and a missing one would be acted on as 0, the 24 h default.
 func decodePolicy(data []byte) (policy, bool) {
 	var p policy
-	if err := json.Unmarshal(bytes.TrimSpace(data), &p); err != nil {
+	if err := json.Unmarshal(bytes.TrimSpace(data), &p); err != nil || p.Retention == "" {
 		return policy{}, false
 	}
 	for _, d := range []string{p.Retention, p.SegmentMaxAge, p.ConsumerTTL} {
@@ -361,8 +363,8 @@ func writeState(fsys fsx.FS, path string, data []byte, perm fs.FileMode) error {
 // ReadPolicy reads quill.policy, the settings the writer last opened the log with, as a
 // Config with only those fields set (Retention, SegmentBytes, SegmentMaxAge, MaxBytes,
 // MinFreeBytes, MaxRecords, MaxPayloadBytes, ConsumerTTL, ProtectedConsumers). ok is false
-// when the file is missing or cannot be parsed; an offline tool then refuses to act on it
-// (decision 68).
+// when the file is missing or cannot be parsed, which includes a policy with no retention;
+// an offline tool then refuses to act on it (decision 68).
 func ReadPolicy(dir string) (cfg Config, ok bool) {
 	data, err := readState(fsx.OS{}, filepath.Join(dir, policyName))
 	if err != nil {

@@ -138,3 +138,22 @@ func TestPruneBesideARunningConsumerTheLogsPolicyProtects(t *testing.T) {
 		t.Fatalf("prune output %q", out)
 	}
 }
+
+// A quill.policy with no retention field is as unreadable to prune and ls as a damaged one: it
+// must not be acted on as retention 0, which means the 24 h default (decision 68).
+func TestPolicyWithoutRetentionIsRefusedByPruneAndLs(t *testing.T) {
+	for _, body := range []string{"{}", "null", `{"unknown":1}`} {
+		dir := bigActive(t)
+		if err := os.WriteFile(filepath.Join(dir, "quill.policy"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		code, out, errw := exec(t, "", "prune", "-dir", dir)
+		if code == exitOK || !strings.Contains(errw, "cannot be read") {
+			t.Errorf("policy %s: prune exit %d: %s%s; want a refusal", body, code, out, errw)
+		}
+		out = mustRun(t, "", "ls", "-dir", filepath.Dir(dir))
+		if !strings.Contains(out, "policy unreadable") || strings.Contains(out, "0s") {
+			t.Errorf("policy %s: ls printed %q; want the policy unreadable", body, out)
+		}
+	}
+}
