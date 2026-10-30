@@ -70,7 +70,7 @@ for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
 done
 
 # The SBOM: CycloneDX 1.5 JSON. The module has no dependencies; the Go toolchain is the
-# only other component that reaches the binary.
+# only other component that reaches the binary. The dependency edge names both by bom-ref.
 cat > "$out/quill_${version}.cdx.json" <<JSON
 {
   "bomFormat": "CycloneDX",
@@ -80,6 +80,7 @@ cat > "$out/quill_${version}.cdx.json" <<JSON
     "timestamp": "$built",
     "component": {
       "type": "application",
+      "bom-ref": "pkg:golang/$module@$version",
       "name": "quill",
       "version": "$version",
       "purl": "pkg:golang/$module@$version",
@@ -92,6 +93,7 @@ cat > "$out/quill_${version}.cdx.json" <<JSON
   "components": [
     {
       "type": "library",
+      "bom-ref": "pkg:golang/stdlib@${gover#go}",
       "name": "go (standard library)",
       "version": "$gover",
       "purl": "pkg:golang/stdlib@${gover#go}"

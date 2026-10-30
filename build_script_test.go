@@ -3,6 +3,7 @@ package quill
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"io"
 	"os"
 	"os/exec"
@@ -213,6 +214,40 @@ func TestBuildScriptReproducibleArchives(t *testing.T) {
 	body, _ := os.ReadFile(sbom[0])
 	if !strings.Contains(string(body), `"timestamp": "`+commitTime+`"`) {
 		t.Errorf("SBOM timestamp is not the commit time %s:\n%s", commitTime, body)
+	}
+
+	// Every dependency edge names a component by its bom-ref; a ref nobody declares leaves the
+	// graph dangling for any consumer that resolves it.
+	var bom struct {
+		Metadata struct {
+			Component struct {
+				BomRef string `json:"bom-ref"`
+			} `json:"component"`
+		} `json:"metadata"`
+		Components []struct {
+			BomRef string `json:"bom-ref"`
+		} `json:"components"`
+		Dependencies []struct {
+			Ref       string   `json:"ref"`
+			DependsOn []string `json:"dependsOn"`
+		} `json:"dependencies"`
+	}
+	if err := json.Unmarshal(body, &bom); err != nil {
+		t.Fatalf("SBOM is not JSON: %v\n%s", err, body)
+	}
+	declared := map[string]bool{bom.Metadata.Component.BomRef: bom.Metadata.Component.BomRef != ""}
+	for _, c := range bom.Components {
+		declared[c.BomRef] = c.BomRef != ""
+	}
+	if len(bom.Dependencies) == 0 {
+		t.Errorf("SBOM has no dependencies block:\n%s", body)
+	}
+	for _, d := range bom.Dependencies {
+		for _, ref := range append([]string{d.Ref}, d.DependsOn...) {
+			if !declared[ref] {
+				t.Errorf("SBOM dependency ref %q is not the bom-ref of any component", ref)
+			}
+		}
 	}
 
 	time.Sleep(2100 * time.Millisecond)

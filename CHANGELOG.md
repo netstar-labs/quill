@@ -5,6 +5,9 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the SBOM's `dependencies` entry named two identifiers that no component declared, so a consumer that resolves the
+  graph found no edge from quill to the Go standard library. Both components now carry a `bom-ref` equal to their purl.
+
 - Fixed: `build/quill` no longer puts the clock or the builder into the release archives and the SBOM. It took the SBOM
   timestamp from the wall clock and let `tar` and `gzip` record the build time and the builder's uid, user and group
   names, so two builds of one commit gave different `SHA256SUMS` and every archive named the person who built it. The
