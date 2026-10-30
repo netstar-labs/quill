@@ -53,6 +53,11 @@ type Config struct {
 	// file already protected is left alone, so a running consumer does not block a restart.
 	ProtectedConsumers []string
 	// Logger receives retention deletions, stale consumers, bulk-expiry warnings and failures.
+	// Its handler, Enabled included, runs synchronously with the log's lock held, on the
+	// goroutine that made the record (an Append, Flush, Roll, Prune or Close call, or the
+	// log's flusher). It must therefore neither call the Log, which deadlocks it, nor block,
+	// which stalls every Append, Read, Sync and the flusher: hand the record to another
+	// goroutine and return.
 	Logger *slog.Logger
 	// Perm is the file mode (0600); directories get the matching execute bits (0700).
 	Perm fs.FileMode

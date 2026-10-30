@@ -152,7 +152,7 @@ arrives during creation retries).
 | `MaxReadBytes` | 16 MiB | Payload bytes per `Read`, at least one record |
 | `ProtectedConsumers` | none | Created, protected, at open; an already protected file is left alone, so a running consumer does not block a restart |
 | `ConsumerTTL` | off | See §4 |
-| `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures |
+| `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures. Its handler, `Enabled` included, runs with the log's lock held, so it must neither call the `Log` (that deadlocks it) nor block (that stalls `Append`, `Read`, `Sync` and the flusher): hand the record to another goroutine and return |
 | `Perm` | 0600 (dirs 0700) | File mode |
 | `NoMaintenance` | off | For offline tools: no background prune or age rotation, and `quill.policy` is not written |
 

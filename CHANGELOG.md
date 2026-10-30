@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Changed: `Config.Logger`'s handler, `Enabled` included, runs with the log's lock held, and the documentation now says so: a handler
+  that calls back into the `Log` deadlocks it and one that blocks stalls `Append`, `Read`, `Sync` and the flusher, so it must hand
+  the record to another goroutine and return. Behaviour is unchanged; `Config.Logger`, the user guide and the scope document
+  state the rule.
+
 - Fixed: `Open` with `Config.ProtectedConsumers` failed with `ErrLocked` after 200 ms whenever a consumer process held that
   consumer's lock, so a writer could not be redeployed while its protected consumer ran, and `quill prune`, which fed the
   policy back in, failed the same way with a message about the writer's lock. `Open` now accepts an existing consumer file
