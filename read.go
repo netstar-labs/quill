@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"slices"
 	"sync"
 )
@@ -285,6 +286,11 @@ func (l *Log) sealedRefsLocked() []*segRef {
 			open: func() (io.ReaderAt, int64, func(), error) {
 				f, size, err := openSegment(l.fs, s.path)
 				if err != nil {
+					if errors.Is(err, fs.ErrNotExist) {
+						// Retention deleted it after the view was taken: a gap, not a path error
+						// (decisions 101 and 103).
+						return nil, 0, nil, &GapError{From: s.first, To: s.last}
+					}
 					return nil, 0, nil, err
 				}
 				if size != s.size {

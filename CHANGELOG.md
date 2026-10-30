@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a `Log`'s own `Read`, `Scan`, `ScanAll`, `Records`, `Follow` and consumer reads returned a raw `*fs.PathError` (no such
+  file) when retention deleted a sealed segment after the read took its view and before it opened the segment, where a `Reader`
+  returns a `*GapError`. They now return a `*GapError` over that segment's range, starting at the offset asked for, so the
+  documented recovery (resume from `To + 1`) applies. Decisions 101 and 103 are amended.
+
 - Changed: `Config.Logger`'s handler, `Enabled` included, runs with the log's lock held, and the documentation now says so: a handler
   that calls back into the `Log` deadlocks it and one that blocks stalls `Append`, `Read`, `Sync` and the flusher, so it must hand
   the record to another goroutine and return. Behaviour is unchanged; `Config.Logger`, the user guide and the scope document

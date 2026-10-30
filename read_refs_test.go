@@ -1,6 +1,9 @@
 package quill
 
 import (
+	"errors"
+	"io/fs"
+	"sync"
 	"testing"
 	"time"
 
@@ -91,4 +94,54 @@ func idsOf(v *segView) []uint64 {
 		ids[i] = s.id
 	}
 	return ids
+}
+
+// pruneAfterView is a source that takes the Log's view and then runs a retention pass before
+// the read opens any segment: the window a concurrent retention pass has in a real read.
+type pruneAfterView struct {
+	*Log
+	once sync.Once
+	err  error
+}
+
+func (p *pruneAfterView) view() (*segView, func(), error) {
+	v, release, err := p.Log.view()
+	if err == nil {
+		p.once.Do(func() { p.err = p.Log.Prune(true) })
+	}
+	return v, release, err
+}
+
+// A sealed segment that retention deletes between the Log taking its view and the read opening
+// the segment is a gap over that segment's range, from the sequence asked for, as the Reader
+// reports it (decisions 101 and 103), not the raw path error of the open.
+func TestALogReadOfASealedSegmentDeletedAfterTheViewIsAGapNotAPathError(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		from     uint64
+		wantFrom uint64
+		wantTo   uint64
+	}{
+		{"first segment", 1, 1, 4},
+		{"later segment, mid-range", 6, 6, 8},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, clk, l := retentionLog(t, nil)
+			defer l.Close()
+			fillSegments(t, l, clk, 6) // segments 0..5 sealed at minutes 0..5, 6 active and empty
+			clk.Advance(time.Hour - 3*time.Minute - 30*time.Second)
+			src := &pruneAfterView{Log: l}
+			_, err := readFrom(src, tc.from, 10)
+			if src.err != nil {
+				t.Fatal(src.err)
+			}
+			var pe *fs.PathError
+			if errors.As(err, &pe) {
+				t.Fatalf("the path error escaped: %v", err)
+			}
+			if !isGap(err, tc.wantFrom, tc.wantTo) {
+				t.Fatalf("readFrom(%d): %v (%T), want a gap %d..%d", tc.from, err, err, tc.wantFrom, tc.wantTo)
+			}
+		})
+	}
 }
