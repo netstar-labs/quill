@@ -5,6 +5,15 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `build/quill` no longer puts the clock or the builder into the release archives and the SBOM. It took the SBOM
+  timestamp from the wall clock and let `tar` and `gzip` record the build time and the builder's uid, user and group
+  names, so two builds of one commit gave different `SHA256SUMS` and every archive named the person who built it. The
+  timestamp and every entry mtime are now the commit time, entries are sorted, owners are root with no names, and the
+  gzip header carries no time. Two builds of one commit with the same tar, gzip and Go now match; archives built with
+  GNU tar and with bsdtar still differ in bytes (their extracted files are identical), so compare binaries across
+  systems, and with `-buildvcs=false` when one side builds from a source archive (inside a git checkout the commit is
+  stamped into the binary).
+
 - Fixed: `docs/audits/audit-correctness.md` named a personal scratch directory (a user name and an internal parent
   directory) in its opening paragraph; it now says only `scratchpad/`. Documentation only; behaviour is unchanged. The
   text remains in earlier commits and the v0.1.0 tag; the owner decides before the public flip whether history is
