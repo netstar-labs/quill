@@ -222,6 +222,9 @@ characters escaped (binary payloads as `b64:…`). `-json` prints one object per
 `-b64` forces base64. Both forms are lossless and never pass a raw control character (C0, DEL or C1) or
 invalid UTF-8 to the terminal.
 
+`stat`, `check` and `consumers` also take `-json`: lowercase keys throughout, and a list is always an array (`"holes":[]`, never `null`; a hole is
+`{"from":N,"to":N}`). The schemas are in the scope document, "Readable output".
+
 ## 8. The files
 
 ```

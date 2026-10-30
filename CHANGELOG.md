@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Changed: `quill stat -json` wrote each hole as `{"From":N,"To":N}` and a log with no holes as `"holes":null`, the only capitalised keys and the only
+  `null` list in the command line's JSON. It now writes `{"from":N,"to":N}` and `"holes":[]`. A script that read `From`, `To` or a null `holes` must
+  change. The `stat`, `check` and `consumers` JSON shapes are now documented (scope.md, "Readable output"). Decision 35 is amended.
+
 - Changed: documentation only, no behaviour change. `Read`, `ReadWait`, `Records` and `Follow` check `MaxReadBytes` after each record, so a
   batch stops once at least `MaxReadBytes` of payload have been returned and can exceed it by up to one record (at the defaults, 16 MiB plus up to
   64 MiB - 32); the docs and the `Config` and `ReaderOptions` comments said "at most `MaxReadBytes`". They now state the actual rule, and a read

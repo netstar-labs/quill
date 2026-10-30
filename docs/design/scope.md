@@ -188,6 +188,21 @@ sequence order; `read` and `tail` take the same flag and encoder. `cat` takes `-
 - Control characters in a text payload, including DEL and the C1 controls U+0080 to U+009F, are JSON-escaped, so a
   payload cannot inject lines or terminal escapes. The text (non-JSON) output escapes them the same way.
 
+`stat`, `check` and `consumers` take `-json` too (Stage 2 audit, owner-approved 2026-10-30, A1-57). Every key is
+lowercase snake_case, a key listed below is always present unless marked optional, and an empty list is `[]`,
+never `null`. The order of keys within an object is not part of the contract; consumers must not rely on it.
+
+- `quill stat -json` prints one object: `head`, `first`, `segments`, `bytes`, `records` (integers),
+  `marker_age_seconds` (a number) and `holes`, an array of `{"from":N,"to":N}` objects (sequences `from` to `to`
+  inclusive are missing), `[]` when there are none.
+- `quill check -json` prints one object: `status` (`"HEALTHY"` or `"UNHEALTHY"`), `unbounded` (a boolean) and
+  `problems`, an array of `{"kind","path","offset","intact","detail","fatal"}` objects (`kind` is one of `segment`,
+  `hole`, `consumer`, `policy`, `clock`; `offset` and `intact` are integers; `fatal` is a boolean), `[]` when there
+  are none. The exit code is 3 when the status is `UNHEALTHY`.
+- `quill consumers -json` prints one object per consumer, one per line: `name`, `offset`, `lag` (integers) and
+  `protected` (a boolean), plus `error` (a string) when the consumer's file cannot be read, or `ahead` (`true`)
+  when its offset is past the head by more than one. Both are optional and absent otherwise.
+
 ### Durability: what makes a write survive a crash
 
 Three separate things, easy to confuse:

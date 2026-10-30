@@ -78,8 +78,18 @@ func cmdStat(c *cli, args []string) int {
 			return c.errorf("%v", err)
 		}
 		if c.json {
+			// A hole is written through a local tagged type: quill.Hole has no tags, so it would print
+			// as {"From":..,"To":..}, and a nil list as null (stage 2 audit A1-57).
+			type jsonHole struct {
+				From uint64 `json:"from"`
+				To   uint64 `json:"to"`
+			}
+			holes := make([]jsonHole, 0, len(st.Holes))
+			for _, h := range st.Holes {
+				holes = append(holes, jsonHole{h.From, h.To})
+			}
 			return printJSON(c, map[string]any{"head": st.Head, "first": st.First, "segments": st.Segments, "bytes": st.Bytes,
-				"records": st.Records, "holes": st.Holes, "marker_age_seconds": st.MarkerAge.Seconds()})
+				"records": st.Records, "holes": holes, "marker_age_seconds": st.MarkerAge.Seconds()})
 		}
 		fmt.Fprintf(c.out, "head %d\nfirst %d\nrecords %d\nsegments %d\nbytes %d\nmarker age %s\n", st.Head, st.First, st.Records, st.Segments, st.Bytes, st.MarkerAge.Round(time.Millisecond))
 		for _, h := range st.Holes {
