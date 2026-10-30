@@ -15,7 +15,9 @@ import (
 
 // Config configures a Log. The zero value of every field but Dir is the default below.
 type Config struct {
-	// Dir is the log's directory, created if missing. Its base name is the topic name.
+	// Dir is the log's directory, created if missing. Its base name is the topic name. A
+	// symbolic link to a directory is followed, as OpenReader follows one, whether it is Dir
+	// itself or a directory above it; the files inside the log directory never are.
 	Dir string
 	// Retention: whole sealed segments older than this are deleted. 0 means 24 h; negative
 	// disables expiry. Set it longer than the worst delay of any unprotected consumer.
@@ -345,7 +347,11 @@ func Open(cfg Config) (*Log, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	l := &Log{cfg: cfg, fs: cfg.fs, dir: filepath.Clean(cfg.Dir),
+	dir, err := resolveDirLink(cfg.fs, filepath.Clean(cfg.Dir))
+	if err != nil {
+		return nil, err
+	}
+	l := &Log{cfg: cfg, fs: cfg.fs, dir: dir,
 		flushReq: make(chan struct{}, 1), stop: make(chan struct{}), done: make(chan struct{})}
 	l.tailPath = l.path(tailName)
 	l.bufPool.New = func() any { b := make([]byte, 0, windowChunk); return &b }
@@ -385,6 +391,40 @@ func Open(cfg Config) (*Log, error) {
 	}
 	go l.flusher()
 	return l, nil
+}
+
+// resolveDirLink lets a log directory be reached through a symbolic link, as OpenReader allows
+// and a deployment that links its data directory needs: the deepest part of dir that exists,
+// when it is itself a link, is resolved once, and what is missing below it is appended. Opening
+// a directory to fsync it never follows a link (decision 51), so the log must live at the
+// resolved path; the files inside it are still opened without following one. A link that does
+// not lead to a directory is ErrNoLog. Anything else is left for mkdirAll to decide.
+func resolveDirLink(fsys fsx.FS, dir string) (string, error) {
+	existing, missing := dir, ""
+	for {
+		info, err := fsys.Lstat(existing)
+		if err == nil {
+			if info.Mode()&fs.ModeSymlink == 0 {
+				return dir, nil
+			}
+			break
+		}
+		parent := filepath.Dir(existing)
+		if !errors.Is(err, fs.ErrNotExist) || parent == existing {
+			return dir, nil
+		}
+		missing, existing = filepath.Join(filepath.Base(existing), missing), parent
+	}
+	// Only a real file system reports a link (the crash simulator has none), so resolving
+	// through the os package here does not bypass the seam.
+	resolved, err := filepath.EvalSymlinks(existing)
+	if err == nil {
+		var info fs.FileInfo
+		if info, err = fsys.Lstat(resolved); err == nil && info.IsDir() {
+			return filepath.Join(resolved, missing), nil
+		}
+	}
+	return "", fmt.Errorf("%w: %s is a symbolic link that does not lead to a directory", ErrNoLog, existing)
 }
 
 // mkdirAll creates dir and any missing parents, fsyncing each into its parent.

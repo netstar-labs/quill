@@ -142,7 +142,7 @@ arrives during creation retries).
 
 | Field | Default | Notes |
 |---|---|---|
-| `Dir` | required | Created if missing; its base name is the topic name |
+| `Dir` | required | Created if missing; its base name is the topic name. A symbolic link to a directory is followed, as `Dir` or above it (the data directory may be a link); a link that leads to anything else is `ErrNoLog` |
 | `Retention` | 24 h | Sealed segments whose newest record is older are deleted; negative never |
 | `PruneInterval` | min(Retention, 1 m), ≥ 1 s | The sweep period |
 | `FlushBytes`, `FlushInterval` | 64 KiB, 250 ms | Inline flush size; background flush period |

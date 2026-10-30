@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `Open` (and so the CLI's writer verbs) refused a `Dir` that is a symbolic link to a directory, and a `Dir` that does not exist yet below
+  such a link, with `ErrNoLog` "is not a directory", while `OpenReader` and a link above an existing `Dir` worked. A link in `Dir` is now followed: it
+  is resolved once at open and the log lives in the target. A link that leads to a file or to nothing is `ErrNoLog` saying it is a symbolic link, and
+  every file inside the log directory is still opened without following a link. Decisions 51 and 62 are amended.
+
 - Fixed: a `quill.tail` that repeated a key in another letter case, such as `{"seq":1,"SEQ":2,...}`, was read as `seq` 2 with no error, because the
   duplicate check compared exact strings while the decoder matches field names case-insensitively. It is now refused as a duplicate key, like a
   byte-identical repeat. The writer never produces one. format.md now says which non-canonical shapes the strict parser still accepts

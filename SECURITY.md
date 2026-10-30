@@ -20,7 +20,10 @@ Only the latest release is supported; quill versions are `v0.y.z`, and a fix shi
   refused, not guessed. `quill.policy` is informational and parsed tolerantly: unknown fields are
   ignored, and a file that does not parse never blocks `Open`.
 - **Symlink substitution.** Every file in a log directory is opened without following symbolic
-  links, and segments are accepted only as regular files.
+  links, and segments are accepted only as regular files. The log directory's own path may go
+  through a symbolic link to a directory (a deployment that links its data directory); planting
+  one needs write access to a parent of the log directory, so the permissions of that parent are
+  part of the boundary described below.
 - **Silent corruption.** Every frame carries a CRC; damage is reported as a gap and never served.
 
 ## What it does not defend against
