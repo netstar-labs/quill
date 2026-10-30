@@ -159,7 +159,7 @@ One line, three fields separated by single spaces, and a newline:
 | protect | `1` if retention keeps the consumer's unread segments, else `0` |
 
 Names are `[a-z0-9_-]`, 1 to 200 characters; a leading underscore is reserved (`_archive` is
-the archiver). The file is written only by the process holding `consumers/{name}.lock`.
+the archiver, and the one reserved name the API and the CLI accept, so it can be rewound or removed). The file is written only by the process holding `consumers/{name}.lock`.
 
 ### `quill.policy`
 

@@ -71,3 +71,40 @@ func TestConsumersAndCheckFlagAConsumerAheadOfTheHead(t *testing.T) {
 		t.Errorf("check:\n%s", out)
 	}
 }
+
+// The archiver's consumer is reserved but not untouchable: after a restore leaves it ahead of the
+// head, `quill archive` fails with ErrAhead, and commit rewinds it and unregister removes it.
+func TestTheArchiveConsumerCanBeRewoundAndRemoved(t *testing.T) {
+	dir := newLog(t, 5, func(i int) []byte { return []byte("record") })
+	to := filepath.Join(t.TempDir(), "arch")
+	mustRun(t, "", "archive", "-dir", dir, "-to", to)
+	path := filepath.Join(dir, "consumers", "_archive")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := strings.Fields(string(b))
+	if err := os.WriteFile(path, []byte(f[0]+" 99 "+f[2]+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := exec(t, "", "archive", "-dir", dir, "-to", to); code != exitError || !strings.Contains(stderr, "ahead") {
+		t.Fatalf("archive: exit %d, stderr %q", code, stderr)
+	}
+	if out := mustRun(t, "", "commit", "-dir", dir, "-name", "_archive", "-offset", "1"); out != "_archive 1\n" {
+		t.Fatalf("commit printed %q", out)
+	}
+	if b, _ := os.ReadFile(path); strings.Fields(string(b))[2] != "1" {
+		t.Fatalf("consumer file %q, want the protect flag kept", b)
+	}
+	mustRun(t, "", "archive", "-dir", dir, "-to", to)
+	mustRun(t, "", "unregister", "-dir", dir, "-name", "_archive")
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("the archive consumer file remains after unregister")
+	}
+	// Only that one name is let through: any other leading underscore is still reserved.
+	for _, verb := range []string{"register", "unregister"} {
+		if code, _, stderr := exec(t, "", verb, "-dir", dir, "-name", "_other"); code != exitError || !strings.Contains(stderr, "underscore") {
+			t.Fatalf("%s _other: exit %d, stderr %q", verb, code, stderr)
+		}
+	}
+}

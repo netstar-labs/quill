@@ -23,7 +23,7 @@ var (
 	// ErrClosed reports a call on a closed Log, Reader or Consumer, or a Sync waiter cut off by Close.
 	ErrClosed = errors.New("quill: closed")
 	// ErrInvalidName reports a consumer name outside [a-z0-9_-], 1 to 200 characters, or one with
-	// a leading underscore, which is reserved.
+	// a leading underscore, which is reserved (except the archiver's "_archive").
 	ErrInvalidName = errors.New("quill: invalid consumer name")
 	// ErrLocked reports a log or consumer held by another process (or another handle).
 	ErrLocked = errors.New("quill: locked by another holder")

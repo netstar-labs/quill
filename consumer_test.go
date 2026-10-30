@@ -194,7 +194,7 @@ func TestConsumerLifecycleProtectionFlagsLocksAndNames(t *testing.T) {
 		t.Fatal("deleting a missing consumer succeeded")
 	}
 	// Names.
-	for _, bad := range []string{"Billing", "_archive", "a b", ""} {
+	for _, bad := range []string{"Billing", "_other", "a b", ""} {
 		if _, err := l.Consumer(bad, ConsumerOptions{}); !errors.Is(err, ErrInvalidName) {
 			t.Fatalf("%q: %v", bad, err)
 		}
@@ -202,13 +202,10 @@ func TestConsumerLifecycleProtectionFlagsLocksAndNames(t *testing.T) {
 			t.Fatalf("delete %q: %v", bad, err)
 		}
 	}
-	// The reserved name works through the internal path.
-	if _, err := l.consumerStore().open("_archive", ConsumerOptions{Protect: ProtectOn}, false); !errors.Is(err, ErrInvalidName) {
-		t.Fatalf("reserved through the public path: %v", err)
-	}
-	a, err := l.consumerStore().open("_archive", ConsumerOptions{Protect: ProtectOn}, true)
+	// The archiver's name is the one reserved name the public paths accept.
+	a, err := l.Consumer("_archive", ConsumerOptions{Protect: ProtectOn})
 	if err != nil || !a.Protected() {
-		t.Fatalf("internal: %v", err)
+		t.Fatalf("archiver name: %v", err)
 	}
 	_ = a.Close()
 	// A consumer through a Reader in the same process shares the lock namespace.
@@ -291,6 +288,36 @@ func TestConsumerFilesAreWrittenAtomicallyAndCommitsLeaveTheirMtime(t *testing.T
 	for _, e := range entries {
 		if strings.HasPrefix(e.Name(), ".tmp-") {
 			t.Fatalf("temp file left: %s", e.Name())
+		}
+	}
+}
+
+// The archiver's name is reserved but the public paths accept exactly that name, so its offset can
+// be rewound and its file removed; any other leading underscore is still refused.
+func TestThePublicPathsAcceptTheArchiveConsumerOnly(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	defer l.Close()
+	appendN(t, l, 3)
+	mustFlush(t, l)
+	writeFile(t, s, "/log/consumers/_archive", encodeConsumer(consumerState{ID: logID(l.ID()), Next: 9, Protect: true}))
+	c, err := l.Consumer("_archive", ConsumerOptions{Rewind: true})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := c.Commit(2); err != nil {
+		t.Fatal(err)
+	}
+	_ = c.Close()
+	if err := l.DeleteConsumer("_archive"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	for _, bad := range []string{"_other", "__archive", "_archive2", "_"} {
+		if _, err := l.Consumer(bad, ConsumerOptions{}); !errors.Is(err, ErrInvalidName) {
+			t.Fatalf("%q: %v", bad, err)
+		}
+		if err := l.DeleteConsumer(bad); !errors.Is(err, ErrInvalidName) {
+			t.Fatalf("delete %q: %v", bad, err)
 		}
 	}
 }

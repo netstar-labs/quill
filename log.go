@@ -195,8 +195,21 @@ func (c Config) dirPerm() fs.FileMode {
 	return c.Perm | (c.Perm&0o444)>>2
 }
 
-// validName checks a consumer name for the public API: [a-z0-9_-], 1 to 200 characters, no
-// leading underscore (reserved).
+// archiveConsumer is the consumer `Archive` keeps. Its leading underscore is reserved for it
+// alone (decision 41).
+const archiveConsumer = "_archive"
+
+// validConsumerName is validName plus exactly the archiver's name, so that the consumer
+// `Archive` creates can be rewound and removed through the public paths (decision 41).
+func validConsumerName(name string) error {
+	if name == archiveConsumer {
+		return nil
+	}
+	return validName(name)
+}
+
+// validName checks a consumer name: [a-z0-9_-], 1 to 200 characters, no leading underscore
+// (reserved). Config.ProtectedConsumers is held to it; the archiver's name is not accepted there.
 func validName(name string) error {
 	if name == "" || len(name) > 200 {
 		return fmt.Errorf("%w: %q: 1 to 200 characters", ErrInvalidName, name)

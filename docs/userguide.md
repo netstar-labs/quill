@@ -95,7 +95,8 @@ err = c.Close()
   with `ErrOffsetRange`; a rewind is allowed.
 - Opening a handle creates the file at the first retained sequence if absent, and takes
   `consumers/<name>.lock`; a second open of the same name, in any process, fails with
-  `ErrLocked`. Names are `[a-z0-9_-]`, 1 to 200 characters; a leading underscore is reserved.
+  `ErrLocked`. Names are `[a-z0-9_-]`, 1 to 200 characters; a leading underscore is reserved,
+  except `_archive`, the archiver's own consumer, which `Consumer`, `DeleteConsumer` and the CLI accept.
 - **Commit once per batch, not per record**: each commit is a file write and an fsync.
 - Delivery is at-least-once: commit after processing. Commit before processing for
   at-most-once. Exactly-once needs processing that is idempotent on `Seq`.
@@ -234,7 +235,9 @@ hour when it opens the log, and `Archive` does the same in its destination befor
 
 **Backup.** Copy `quill.tail` first, then the segments in id order, then `consumers/`. A
 restored log keeps its log ID; a consumer ahead of the restored head fails with `ErrAhead`
-and must be rewound with `quill commit -offset N`, which opens it for the purpose. A naive copy that takes the marker after the
+and must be rewound with `quill commit -offset N`, which opens it for the purpose. That holds for the archiver's `_archive` consumer too:
+`quill commit -name _archive -offset N` rewinds it, or `quill unregister -name _archive` removes it (the next
+`quill archive` recreates it at the first retained sequence). A naive copy that takes the marker after the
 segments can name data the copy lacks.
 
 **Archiving.** `quill archive -dir <log> -to <dest>` copies each sealed segment not yet

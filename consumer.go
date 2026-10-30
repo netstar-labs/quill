@@ -74,14 +74,9 @@ func (st *consumerStore) path(name string) string {
 }
 
 // open takes the consumer's lock, creates its file if absent at the first retained
-// sequence, checks the log id and the offset, and applies the protect option. internal
-// allows the reserved leading underscore (the archiver).
-func (st *consumerStore) open(name string, opts ConsumerOptions, internal bool) (*Consumer, error) {
-	if internal {
-		if err := validName(strings.TrimPrefix(name, "_")); err != nil || !strings.HasPrefix(name, "_") {
-			return nil, fmt.Errorf("%w: %q", ErrInvalidName, name)
-		}
-	} else if err := validName(name); err != nil {
+// sequence, checks the log id and the offset, and applies the protect option.
+func (st *consumerStore) open(name string, opts ConsumerOptions) (*Consumer, error) {
+	if err := validConsumerName(name); err != nil {
 		return nil, err
 	}
 	lock, err := takeLock(st.fs, st.path(name)+lockSuffix, st.perm)
@@ -115,7 +110,7 @@ func (st *consumerStore) protect(name string) error {
 			}
 		}
 	}
-	c, err := st.open(name, ConsumerOptions{Protect: ProtectOn}, false)
+	c, err := st.open(name, ConsumerOptions{Protect: ProtectOn})
 	if err != nil {
 		return err
 	}
@@ -301,7 +296,7 @@ func (st *consumerStore) list() ([]ConsumerInfo, error) {
 
 // remove takes the consumer's lock and deletes its offset file; the lock file stays.
 func (st *consumerStore) remove(name string) error {
-	if err := validName(name); err != nil {
+	if err := validConsumerName(name); err != nil {
 		return err
 	}
 	lock, err := takeLock(st.fs, st.path(name)+lockSuffix, st.perm)
@@ -333,7 +328,7 @@ func (l *Log) consumerStore() *consumerStore {
 // Consumer takes a handle on a named consumer, creating its offset file at the first retained
 // sequence if absent. It holds the consumer's lock until Close.
 func (l *Log) Consumer(name string, opts ConsumerOptions) (*Consumer, error) {
-	return l.consumerStore().open(name, opts, false)
+	return l.consumerStore().open(name, opts)
 }
 
 // Consumers lists every consumer file.
@@ -351,7 +346,7 @@ func (r *Reader) consumerStore() *consumerStore {
 
 // Consumer takes a handle on a named consumer through a Reader: an external consumer.
 func (r *Reader) Consumer(name string, opts ConsumerOptions) (*Consumer, error) {
-	return r.consumerStore().open(name, opts, false)
+	return r.consumerStore().open(name, opts)
 }
 
 // Consumers lists every consumer file.

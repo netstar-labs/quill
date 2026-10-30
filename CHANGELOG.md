@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the archiver's `_archive` consumer could not be rewound or removed, so after a restore left it ahead of the head `quill archive` failed
+  with `ErrAhead` and the documented remedy, `quill commit`, was refused for it by name. `Consumer`, `DeleteConsumer` and the CLI's
+  `register`, `unregister` and `commit` now accept exactly the name `_archive`; every other leading-underscore name, and
+  `Config.ProtectedConsumers`, still refuse it. Decisions 16, 41 and 67 are amended.
+
 - Fixed: while creating the next segment kept failing, the writer kept appending to the active segment with no bound, so it could
   pass the 1.5 GiB limit that `Open` and readers enforce and the log could then not be opened although every record had been
   acknowledged durable. Now, while a rotation that is due keeps failing, an `Append` or `AppendBatch` that would take the segment

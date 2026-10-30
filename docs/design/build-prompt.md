@@ -218,7 +218,7 @@ the search lands on.
 - A consumer file that cannot be read or parsed protects every segment from the first retained one and makes
   `check` report UNHEALTHY. `DeleteConsumer` and `unregister` take the consumer's lock and delete only the offset
   file; lock files are never deleted. Consumer names `[a-z0-9_-]`, 1–200 characters; a leading underscore is
-  reserved and refused by the public API.
+  reserved and refused by the public API, except `_archive` (Stage 2 audit, owner-approved 2026-10-30, A1-32).
 - Retention deletes whole sealed segments whose newest record is older than `Retention`; negative disables the
   age sweep; `0` means 24 h. The active segment is never deleted. **Clock guard** (decision 44): a pass deletes at
   most 25% of the sealed segments by age (at least one), logs a warning through `Config.Logger` when it would have
@@ -236,8 +236,8 @@ the search lands on.
 - **`ConsumerTTL`** (decisions 31, 45): ignore for protection any protected consumer that is behind
   (`offset ≤ Head`) and whose offset file's mtime and the `At` of the record at its offset (read in the prune pass)
   are both older than the TTL; never delete its file; report it in `Stat().StaleConsumers`. No in-memory timestamps.
-- **`Archive(srcDir, dstDir)`** (decisions 28, 67, 68) is the `_archive` protected consumer, reached through an
-  internal path: list sealed segments at or above its offset, copy each to the destination (`O_EXCL` temp, CRC-verify
+- **`Archive(srcDir, dstDir)`** (decisions 28, 67, 68) is the `_archive` protected consumer, opened like any
+  consumer (the public name check accepts exactly that name): list sealed segments at or above its offset, copy each to the destination (`O_EXCL` temp, CRC-verify
   every frame while copying, fsync, rename), write the destination's `quill.format` and `quill.tail`, then commit.
   It is idempotent and safe beside a live writer, reports a hole when the source lost segments, and stops with an error at a
   corrupt sealed segment (decision 68).

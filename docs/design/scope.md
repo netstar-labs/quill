@@ -44,7 +44,7 @@ It is not a message broker: no network protocol, no replication, no consumer gro
 | Log | A directory with one topic's records; one writer at a time |
 | Record | `Seq` (per log, from 1), `At` (Unix seconds), `Payload` (opaque, under 64 MiB) |
 | Offset | A `seq`; reads return `seq >= offset`. A consumer's committed offset is the **next sequence to read** (decision 36) |
-| Consumer | A name (`[a-z0-9_-]`, up to 200 characters, a leading underscore reserved) plus a committed offset; no ownership or rebalancing |
+| Consumer | A name (`[a-z0-9_-]`, up to 200 characters, a leading underscore reserved, except the archiver's `_archive`) plus a committed offset; no ownership or rebalancing |
 | Protected consumer | A consumer whose unread segments retention keeps; unprotected is the default, and the archiver is protected (decision 57) |
 | Segment | One log file; the newest is active, older ones are sealed and deleted whole by retention |
 | Tail | `quill.tail`: the durable position (seq, segment, byte offset) and the highest segment id used |
@@ -292,7 +292,7 @@ not yet copied, verifies every CRC while copying, writes `<dest>`'s `quill.tail`
 destination opens with `OpenReader`, then commits its offset. The archiver is a protected consumer, so
 retention will not delete a segment the archiver has not copied, but `MaxBytes` and `MinFreeBytes` still
 win, so archiving can fall behind and lose segments under disk pressure (`Dropped` counts them). To archive
-the newest records, `Roll()` first. Moving an archive to other storage is the operator's `rsync` or `tar`.
+the newest records, `Roll()` first. `_archive` is the one reserved name `register`, `unregister`, `commit` and `DeleteConsumer` accept, so after a restore that leaves it ahead of the head it is rewound with `quill commit -name _archive -offset N` or removed with `quill unregister -name _archive`. Moving an archive to other storage is the operator's `rsync` or `tar`.
 
 **A wrong clock** (decision 44). `At` is the writer's wall clock, so a clock stepped forward makes every sealed
 segment look expired. A prune pass therefore deletes at most 25% of a log's sealed segments by age (at least one)
