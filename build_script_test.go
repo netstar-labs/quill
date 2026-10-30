@@ -255,3 +255,104 @@ func TestBuildScriptReproducibleArchives(t *testing.T) {
 		t.Errorf("two builds of one commit differ:\n%s\n---\n%s", first, second)
 	}
 }
+
+// Decision 88: the release form of the build script (no --dev) refuses a dirty tree and a tree
+// whose HEAD is not tagged, and builds a clean tagged one. The refusal is two short conditions
+// that nothing else exercises; an edit to either could let a dirty or untagged release through
+// with every other test green. Each case runs the real script in a throwaway repository.
+func TestBuildScriptReleaseRefusal(t *testing.T) {
+	for _, tool := range []string{"bash", "git", "go", "shasum"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skipf("%s is not installed", tool)
+		}
+	}
+	script, err := os.ReadFile(filepath.Join("build", "quill"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com",
+		"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
+
+	for _, tc := range []struct {
+		name   string
+		tag    bool
+		mutate func(write func(name, body string))
+		refuse string // substring of the refusal message; empty when the build must succeed
+	}{
+		{"clean and tagged builds", true, nil, ""},
+		{"ignored file is not dirt", true, func(w func(string, string)) { w("build/quill.version", "x\n") }, ""},
+		{"untagged", false, nil, "not tagged"},
+		{"tagged but a tracked file is modified", true, func(w func(string, string)) { w("README.md", "changed\n") }, "dirty"},
+		{"tagged but an untracked file exists", true, func(w func(string, string)) { w("untracked", "x\n") }, "dirty"},
+		{"untagged and dirty", false, func(w func(string, string)) { w("untracked", "x\n") }, "dirty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			write := func(name, body string) {
+				t.Helper()
+				mode := os.FileMode(0o644)
+				if name == "build/quill" {
+					mode = 0o755
+				}
+				p := filepath.Join(dir, name)
+				if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(p, []byte(body), mode); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write("go.mod", "module example.com/q\n\ngo 1.21\n")
+			write("cmd/quill/main.go", "package main\n\nvar version = \"unset\"\n\nfunc main() { _ = version }\n")
+			for _, f := range []string{"README.md", "CHANGELOG.md", "SECURITY.md"} {
+				write(f, f+"\n")
+			}
+			write("build/quill", string(script))
+			write(".gitignore", "build/install/\nbuild/quill.version\n")
+
+			run := func(name string, args ...string) {
+				t.Helper()
+				cmd := exec.Command(name, args...)
+				cmd.Dir = dir
+				cmd.Env = env
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("%s %v: %v\n%s", name, args, err, out)
+				}
+			}
+			run("git", "init", "-q")
+			run("git", "add", ".")
+			run("git", "commit", "-q", "-m", "x")
+			if tc.tag {
+				run("git", "tag", "v0.1.0")
+			}
+			if tc.mutate != nil {
+				tc.mutate(write)
+			}
+
+			cmd := exec.Command("bash", "build/quill")
+			cmd.Dir = dir
+			cmd.Env = env
+			out, err := cmd.CombinedOutput()
+			archives, _ := filepath.Glob(filepath.Join(dir, "build", "install", "quill_v0.1.0_*.tar.gz"))
+			if tc.refuse == "" {
+				if err != nil {
+					t.Fatalf("release build: %v\n%s", err, out)
+				}
+				if len(archives) != 4 {
+					t.Fatalf("want 4 archives for v0.1.0, got %v\n%s", archives, out)
+				}
+				return
+			}
+			if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 1 {
+				t.Fatalf("release build must exit 1, got %v\n%s", err, out)
+			}
+			if !strings.Contains(string(out), tc.refuse) {
+				t.Errorf("refusal message %q does not mention %q", out, tc.refuse)
+			}
+			if _, statErr := os.Stat(filepath.Join(dir, "build", "install")); statErr == nil {
+				t.Errorf("a refused build left build/install behind")
+			}
+		})
+	}
+}

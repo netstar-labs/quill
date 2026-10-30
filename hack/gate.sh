@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # The commit gate (decision 70): one command, run before every commit. CI runs the same
 # checks as separate steps; keep the tool pins below in step with .github/workflows/ci.yml.
+# The one check CI runs and the gate does not is govulncheck: it reads a live vulnerability
+# database, so it can go red with no change in the repo, which a commit gate must not do.
+# It runs in CI only.
 #
 # Fail-closed: a tool that is missing or a step that cannot run is red, never a skip.
 set -euo pipefail
