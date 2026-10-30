@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: design-record drift. The `quill.policy` example in `docs/format.md` listed `_archive` as a protected
+  consumer, which `Open` refuses; the disk-bound formula (decisions 46 and 69, the build prompt), the worst-case frame
+  overhead (32 bytes, with the code's 34-byte accounting), the creation durability row (decision 81), decision 86 and
+  the `statfs` note now agree with the code. Documentation and one comment only; behaviour is unchanged.
+
 - Fixed: small documentation drift. The command reference said `ls` takes no `-dir` and then listed it; the README
   layout table now lists `holes.go`; the `ErrPayloadTooLarge` comment now says it also covers an empty batch; and the
   exported `ReadWait`, `Scan`, `ScanAll`, `ProtectOn`, `ProtectOff` and the `Error`/`String` methods have doc

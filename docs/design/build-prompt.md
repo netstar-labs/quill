@@ -329,7 +329,7 @@ New tests quill must add. The phase in brackets is the first at which the test c
   with one log ID; a crash at every step of creation (simulator) either leaves a directory that `Open` completes, or
   one that is refused, and never one that opens as a different log; a reader that arrives mid-creation gets `ErrNoLog`.
 - **T13 Disk bounds** (phase 3). A log with `MaxBytes` and a fast writer never holds more than `MaxBytes +
-  SegmentBytes + MaxBufferBytes + MaxBatchBytes` of segment bytes at any sample, with no consumer attached; with a
+  SegmentBytes + MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes + 34)` of segment bytes (decision 69) at any sample, with no consumer attached; with a
   protected, stalled consumer the cap still wins and `Dropped` rises; `MaxBytes` below twice `SegmentBytes` is
   refused. `MinFreeBytes` with an injected free-space function deletes only this log's oldest sealed segments, never
   the active one, and appends fail with `ENOSPC` when none are left.

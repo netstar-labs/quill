@@ -55,7 +55,7 @@ Recorded frames (hex), from the golden tests:
 | Limit | Value | Rule |
 |---|---|---|
 | Declared body length | 64 MiB | A larger declared length is corruption, not an allocation |
-| Payload | 64 MiB − 32 bytes | The ceiling of `MaxPayloadBytes`; the three varints are at most 30 bytes, so a legal body always fits |
+| Payload | 64 MiB − 32 bytes | The ceiling of `MaxPayloadBytes`; a frame costs at most 32 bytes beyond the payload (a length prefix of at most 4, varints of at most 10, 10 and 4, and the 4-byte CRC), so a legal frame always fits |
 | Segment file | 1.5 GiB | A larger file is refused |
 | `SegmentBytes` | at most 1 GiB | A segment passes it by the flush that seals it |
 | State file | 1 MiB | A larger one is damage |
@@ -181,7 +181,7 @@ act on it (`prune`) or uses the segment-size ceiling (`append`, `roll`, `recover
   "max_records": 0,
   "max_payload_bytes": 67108832,
   "consumer_ttl": "0s",
-  "protected_consumers": ["_archive", "billing"]
+  "protected_consumers": ["billing", "reports"]
 }
 ```
 
@@ -203,7 +203,7 @@ successor. Lock files are never deleted.
 | Close | The data, `quill.tail`, then the directory |
 | Deletion | `quill.tail` is published and the directory fsynced **before** any segment is unlinked, and again before each further one in the same pass |
 | Commit | The consumer file's temp file before the rename; no directory fsync |
-| Creation | `quill.format`, `consumers/`, the first segment, `quill.tail`, then the directory |
+| Creation | `quill.format`, then the directory (decision 81), then `consumers/`, the first segment, `quill.tail`, then the directory again |
 
 After a process crash the marker is at most one flush behind the data; after a power loss it
 may be older by the flushes since the last directory fsync. Either way it hides records and

@@ -233,7 +233,7 @@ Consumers matter only when protected, and even then the caps win.
 |---|---|---|
 | Forget after N hours (a TTL) | `Retention` | Per log. Segment-granular: a segment goes when its *newest* record is older than the window, so data can outlast it by up to about a segment (up to about twice the window for a quiet log; the reference's guide says so and marks it as inferred). `SegmentMaxAge` seals a quiet log's active segment so the TTL applies |
 | Never exceed N bytes | `MaxBytes` | The real rolling guarantee. A time window alone does not bound size: a fast writer fills the disk inside it (the reference's server default does exactly that, **reported**) |
-| Never fill the filesystem | `MinFreeBytes` | Backstop for a shared disk. Measured with `syscall.Statfs` (**verified**: runs on macOS, compiles for linux/amd64 and arm64, not run on Linux). It frees only this log's own bytes, and it reports free space for the whole filesystem, so another application or log can use the room first |
+| Never fill the filesystem | `MinFreeBytes` | Backstop for a shared disk. Measured with `syscall.Statfs` (**verified**: runs on macOS, compiles for linux/amd64 and arm64, and on an ext4 Linux host `freeBytes` equaled `df -B1 --output=avail`). It frees only this log's own bytes, and it reports free space for the whole filesystem, so another application or log can use the room first |
 | Keep the newest N records | `MaxRecords` | For uniform records, where "the last million events" is the natural unit. `MaxBytes` stays the hard disk guarantee |
 | Bound one record | `MaxPayloadBytes` | Optional |
 
@@ -242,7 +242,7 @@ the cap is checked at every seal (an in-memory sum), where the reference checks 
 overshoot by a whole interval of arrivals (**reported**), and a segment passes `SegmentBytes` by the flush
 that seals it, and a batch lands in one segment. The last term is the largest single append: a batch of more than one record is
 refused above `MaxBatchBytes`, a single record is bounded by `MaxPayloadBytes` alone, and its encoded frame is at most
-`MaxPayloadBytes + 34` bytes (the payload, three varints of at most 10 bytes, and the 4-byte CRC), so with the defaults the
+`MaxPayloadBytes + 34` bytes (the code accounts the payload, three varints of at most 10 bytes and the 4-byte CRC; the true worst case is 32, which the bound covers), so with the defaults the
 second term is the larger. The state files and consumer files are small and extra. Memory held while flushes fail is
 bounded separately by `MaxBufferBytes`. Defaults leave `MaxBytes` and `MinFreeBytes` **off**, so a log
 configured with only `Retention` can fill a disk; `quill check` and `quill ls` mark such a log UNBOUNDED.

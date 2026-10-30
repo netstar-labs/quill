@@ -28,8 +28,9 @@ var crcTable = crc32.MakeTable(crc32.IEEE)
 // it is corruption, not an allocation (guarantee 7).
 const maxFrameBody = 64 << 20
 
-// maxPayloadBytes is the ceiling on a payload: the body's three varints take at most 30
-// bytes, so a legal record's body always fits maxFrameBody (decision 69).
+// maxPayloadBytes is the ceiling on a payload: a frame costs at most 32 bytes
+// beyond the payload (a length prefix of at most 4, varints of at most 10, 10 and 4, and the CRC),
+// so a legal record's frame always fits maxFrameBody (decision 69).
 const maxPayloadBytes = maxFrameBody - 32
 
 // maxVarint is the longest encoding of a uint64.
