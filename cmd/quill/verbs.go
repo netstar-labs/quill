@@ -76,7 +76,7 @@ func init() {
 				fs.Var((*decimalFlag)(&c.n), "n", "how many of the last records")
 				fs.BoolVar(&c.follow, "follow", false, "keep printing new records until interrupted")
 			}, run: cmdTail},
-		{name: "append", summary: "append the arguments as records, or each line of stdin; needs the writer's lock", lock: "log", args: true,
+		{name: "append", summary: "append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock", lock: "log", args: true,
 			flags: func(fs *flag.FlagSet, c *cli) {
 				fs.BoolVar(&c.sync, "sync", true, "return only once the records are durable")
 			},

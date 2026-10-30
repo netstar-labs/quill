@@ -48,7 +48,10 @@ type Config struct {
 	MinFreeBytes int64
 	// MaxPayloadBytes is the largest accepted record (64 MiB − 32, the ceiling).
 	MaxPayloadBytes int
-	// MaxBatchBytes is the largest encoded AppendBatch (16 MiB).
+	// MaxBatchBytes bounds an AppendBatch of more than one record (16 MiB). The check is on an
+	// upper bound of the encoded size, len(payload)+34 per record, so a batch of many small records
+	// is refused before its real encoded size reaches the limit (about 479,000 one-byte records at
+	// the default).
 	MaxBatchBytes int
 	// MaxReadBytes is the payload bytes one Read returns, at least one record (16 MiB).
 	MaxReadBytes int

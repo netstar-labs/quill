@@ -12,7 +12,7 @@
 | `read` | none | print records from an offset (default the first retained) |
 | `cat` | none | print every retained record, from the first |
 | `tail` | none | print the last records, and keep following with -follow |
-| `append` | log | append the arguments as records, or each line of stdin; needs the writer's lock |
+| `append` | log | append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock |
 | `consumers` | none | list the consumers: offset, lag, protection |
 | `commit` | consumer | set a consumer's offset: -offset <next sequence> or -time <time> |
 | `register` | consumer | create a consumer at the first retained sequence, or change its protection |
@@ -95,7 +95,7 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 
 ## `quill append`
 
-Append the arguments as records, or each line of stdin; needs the writer's lock.
+Append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock.
 
 Lock: the writer's lock (fails with ErrLocked beside a live writer).
 

@@ -154,7 +154,7 @@ arrives during creation retries).
 | `MinFreeBytes` | off | Free-space floor (`statfs`); below it the log deletes its own oldest segments, then refuses appends with `ENOSPC` |
 | `MaxRecords` | off | Keep roughly the newest N records |
 | `MaxPayloadBytes` | 64 MiB − 32 (the ceiling) | Largest record |
-| `MaxBatchBytes` | 16 MiB | Largest encoded batch of more than one record; a single record is bounded by `MaxPayloadBytes` alone |
+| `MaxBatchBytes` | 16 MiB | Bound on a batch of more than one record, checked as the sum of `len(payload) + 34` per record, an upper bound of its encoded size (the sequence is not known at the check): about 479,000 one-byte records fit at the default, though they encode to about 7 MB. A single record is bounded by `MaxPayloadBytes` alone |
 | `MaxReadBytes` | 16 MiB | Payload bytes per `Read`, at least one record |
 | `ProtectedConsumers` | none | Created, protected, at open; an already protected file is left alone, so a running consumer does not block a restart |
 | `ConsumerTTL` | off | See §4 |
@@ -308,7 +308,7 @@ the highest id on disk).
 | Limit | Value |
 |---|---|
 | Payload | 64 MiB − 32 bytes |
-| Batch of more than one record | `MaxBatchBytes`, 16 MiB by default |
+| Batch of more than one record | `MaxBatchBytes`, 16 MiB by default, checked as `len(payload) + 34` per record (about 479,000 one-byte records) |
 | Segment file | 1.5 GiB (`SegmentBytes` at most 1 GiB) |
 | Consumer name | `[a-z0-9_-]`, 1 to 200 characters |
 | Sequence | 2^64 − 2, then `ErrSeqExhausted` |

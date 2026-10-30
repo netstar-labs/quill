@@ -82,7 +82,8 @@ func (c *cli) finishAppend(last uint64, durable bool, cerr error) int {
 	return exitOK
 }
 
-// appendRecords appends the arguments, or each line of stdin, and syncs when -sync is set.
+// appendRecords appends the arguments, or each line of stdin, as one batch (so MaxBatchBytes applies,
+// decision 46), and syncs when -sync is set.
 // durable reports that Sync succeeded.
 func (c *cli) appendRecords(l *quill.Log, args []string) (last uint64, durable bool, code int) {
 	var payloads [][]byte

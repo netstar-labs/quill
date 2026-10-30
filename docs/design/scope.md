@@ -116,7 +116,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | `MaxBytes` | 0 (off) | Cap on this log's segment bytes, enforced at every segment seal and every prune pass: oldest sealed segments go first, the active segment is never deleted, and it overrides consumer protection. `Open` refuses a value below twice `SegmentBytes` |
 | `MinFreeBytes` | 0 (off) | Free-space floor on the log's filesystem, measured with `statfs`: below it, the log deletes its own oldest sealed segments, and appends fail with an error wrapping `ENOSPC` if nothing is left to delete |
 | `MaxPayloadBytes` | 64 MiB − 32 B (the ceiling) | Largest accepted record; lower it to bound a single record. An empty buffer accepts any single record up to this, whatever `MaxBufferBytes` says |
-| `MaxBatchBytes` | 16 MiB | Largest encoded `AppendBatch` of more than one record; a larger one is refused (decision 46). A single record is bounded by `MaxPayloadBytes` alone, so it may exceed this |
+| `MaxBatchBytes` | 16 MiB | Bound on an `AppendBatch` of more than one record, checked as the sum of `len(payload) + 34` per record (an upper bound of the encoded size, so about 479,000 one-byte records at the default); a larger one is refused (decision 46). A single record is bounded by `MaxPayloadBytes` alone, so it may exceed this |
 | `MaxReadBytes` | 16 MiB | Payload bytes returned by one `Read`, at least one record |
 | `ProtectedConsumers` | none | Names the writer creates, protected, at the first retained sequence when it opens the log, so a lazy consumer is protected before its process starts (decision 67). A file that already says protected is left alone, so the writer can restart while that consumer runs; switching an unprotected file on needs the consumer's lock |
 | `Logger` | nil (silent) | A `*slog.Logger` for retention deletions, stale consumers, bulk-expiry warnings and failures. Its handler, `Enabled` included, runs synchronously with the log's lock held, so it must neither call the `Log` nor block; hand the record to another goroutine and return (decision 50) |
@@ -242,7 +242,7 @@ Consumers matter only when protected, and even then the caps win.
 the cap is checked at every seal (an in-memory sum), where the reference checks only on a timer and so can
 overshoot by a whole interval of arrivals (**reported**), and a segment passes `SegmentBytes` by the flush
 that seals it, and a batch lands in one segment. The last term is the largest single append: a batch of more than one record is
-refused above `MaxBatchBytes`, a single record is bounded by `MaxPayloadBytes` alone, and its encoded frame is at most
+refused when its `len(payload) + 34` sum is above `MaxBatchBytes` (an over-count of its encoded size, which keeps the bound safe), a single record is bounded by `MaxPayloadBytes` alone, and its encoded frame is at most
 `MaxPayloadBytes + 34` bytes (the code accounts the payload, three varints of at most 10 bytes and the 4-byte CRC; the true worst case is 32, which the bound covers), so with the defaults the
 second term is the larger. The state files and consumer files are small and extra. Memory held while flushes fail is
 bounded separately by `MaxBufferBytes`. Defaults leave `MaxBytes` and `MinFreeBytes` **off**, so a log

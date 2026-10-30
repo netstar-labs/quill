@@ -16,8 +16,9 @@ func (l *Log) Append(payload []byte) (uint64, error) {
 // AppendBatch buffers records with consecutive sequences under one lock acquisition and
 // returns the first; the last is first + len(payloads) − 1. A batch lands in one segment and
 // is not crash-atomic: after a crash a prefix of it may survive. A batch of more than one record
-// whose encoded size is over MaxBatchBytes is refused (decision 46); a single record is bounded by
-// MaxPayloadBytes alone.
+// is refused (decision 46) when the sum of len(payload)+34 over its records is over MaxBatchBytes: an
+// upper bound of the encoded size (the sequence is not known yet), so the real size can be much
+// smaller for small payloads. A single record is bounded by MaxPayloadBytes alone.
 func (l *Log) AppendBatch(payloads [][]byte) (uint64, error) {
 	if len(payloads) == 0 {
 		return 0, fmt.Errorf("%w: empty batch", ErrPayloadTooLarge)

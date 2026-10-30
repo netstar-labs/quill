@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Changed: documentation only, no behaviour change. `MaxBatchBytes` was described as the largest encoded batch, but the check sums
+  `len(payload) + 34` per record (an upper bound, since the sequence is unknown at the check), so 500,000 one-byte records (about
+  7.5 MB encoded) are refused at the default and about 479,000 are accepted. The docs, the `Config` comment and `quill append`'s help now say so,
+  and that `quill append` reading stdin is one batch subject to it (split a larger input across several calls). Decision 46 is amended.
+
 - Fixed: `Archive` into a destination whose `quill.format` is newer than this build (`quill/2`) returned `ErrCorrupt`, where `Open` and
   `OpenReader` return `ErrFutureVersion` as decision 6 says; it now returns `ErrFutureVersion`. Any other unusable destination marker is still
   `ErrCorrupt`. Decisions 6 and 85 are amended.
