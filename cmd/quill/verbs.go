@@ -72,7 +72,8 @@ func init() {
 		{name: "tail", summary: "print the last records, and keep following with -follow", lock: "none",
 			flags: func(fs *flag.FlagSet, c *cli) {
 				readFlags(fs, c)
-				fs.Uint64Var(&c.n, "n", 10, "how many of the last records")
+				c.n = 10
+				fs.Var((*decimalFlag)(&c.n), "n", "how many of the last records")
 				fs.BoolVar(&c.follow, "follow", false, "keep printing new records until interrupted")
 			}, run: cmdTail},
 		{name: "append", summary: "append the arguments as records, or each line of stdin; needs the writer's lock", lock: "log", args: true,
@@ -125,8 +126,8 @@ func init() {
 }
 
 func readFlags(fs *flag.FlagSet, c *cli) {
-	fs.Uint64Var(&c.from, "from", 0, "the first sequence to print (default the first retained)")
-	fs.Uint64Var(&c.limit, "limit", 0, "stop after this many records (0: no limit)")
+	fs.Var((*decimalFlag)(&c.from), "from", "the first sequence to print (default the first retained)")
+	fs.Var((*decimalFlag)(&c.limit), "limit", "stop after this many records (0: no limit)")
 	fs.StringVar(&c.since, "since", "", "start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h)")
 	fs.BoolVar(&c.json, "json", false, "newline-delimited JSON: seq, at, time, len, payload or payload_b64")
 	fs.BoolVar(&c.b64, "b64", false, "print every payload as base64")

@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Changed: `-from`, `-limit` and `-n` (`read`, `cat`, `tail`) take plain decimal integers, like `commit -offset`, `prune -max-bytes` and the
+  `@unix` times. They used to parse in base 0, so `-n 010` printed 8 records (octal), `-from 0x10` started at 16 and `-limit 1_0` meant 10;
+  now `010` is 10 and `0x10`, `1_0`, `0b1`, `0o7`, signs and exponents are usage errors (exit 2). Decision 96 is amended.
+
 - Changed: a verb other than `append` and `help` given a positional argument (`quill -dir L read 100`, `quill -dir L tail 5 -json`,
   `stat -json extra`) now exits 2 with `unexpected argument ...; flags go before arguments`. It used to ignore the argument, and flag parsing
   stops at the first positional, so every flag after it was ignored too: `read 100` printed from the first retained record and

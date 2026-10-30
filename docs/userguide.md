@@ -198,8 +198,9 @@ the segment size from it (the 1 GiB ceiling when it cannot be read), so they do 
 active segment; `roll` seals regardless. `prune` needs `quill.policy` or at least one retention flag
 and refuses otherwise; like the others it opens without the policy's `ProtectedConsumers`, so a running
 consumer does not block it. Numeric flags (`commit -offset`, `prune -max-bytes`,
-`-min-free-bytes`, `-max-records`, and `@<unix seconds>`) take plain decimal integers; `1e6`,
-`1M`, `0x10`, `-1` and trailing text are usage errors, not guesses.
+`-min-free-bytes`, `-max-records`, `read`/`cat`/`tail` `-from` and `-limit`, `tail -n`, and
+`@<unix seconds>`) take plain decimal integers, so `010` is ten; `1e6`,
+`1M`, `0x10`, `1_0`, `-1` and trailing text are usage errors, not guesses.
 
 ```
 quill cat -dir orders -json | jq .seq          # newline-delimited JSON, lossless

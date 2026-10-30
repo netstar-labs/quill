@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,6 +126,45 @@ func TestParseTimeUnixFormIsPlainDecimalOnly(t *testing.T) {
 	for _, bad := range []string{"@", "@1e6", "@-1", "@+1", "@0x10", "@1_000", "@12abc", "@ 5", "@9223372036854775808"} {
 		if _, err := parseTime(bad, now); err == nil {
 			t.Errorf("%q accepted", bad)
+		}
+	}
+}
+
+// The read flags take plain decimals, as every other number on the command line does: a
+// zero-padded number is decimal (never octal), and hex, underscores, signs and exponents are
+// refused as a usage error that prints nothing.
+func TestReadFlagsTakePlainDecimalOnly(t *testing.T) {
+	dir := buildLog(t, quill.Config{Retention: -1, FlushInterval: time.Hour, NoMaintenance: true}, 12,
+		func(i int) []byte { return []byte(fmt.Sprintf("r%02d", i)) })
+	lines := func(out string) int { return strings.Count(out, "\n") }
+
+	if out := mustRun(t, "", "tail", "-dir", dir, "-n", "010"); lines(out) != 10 {
+		t.Errorf("tail -n 010 printed %d lines, want 10 (decimal, not octal 8):\n%s", lines(out), out)
+	}
+	if out := mustRun(t, "", "tail", "-dir", dir, "-n", "08"); lines(out) != 8 {
+		t.Errorf("tail -n 08 printed %d lines, want 8", lines(out))
+	}
+	if out := mustRun(t, "", "cat", "-dir", dir, "-limit", "010"); lines(out) != 10 {
+		t.Errorf("cat -limit 010 printed %d lines, want 10", lines(out))
+	}
+	if out := mustRun(t, "", "read", "-dir", dir, "-from", "010"); lines(out) != 3 {
+		t.Errorf("read -from 010 printed %d lines, want 3 (sequences 10 to 12)", lines(out))
+	}
+
+	for _, bad := range refusedNumbers {
+		if bad == "" {
+			continue
+		}
+		for _, args := range [][]string{{"read", "-from"}, {"cat", "-limit"}, {"tail", "-n"}} {
+			full := []string{args[0], "-dir", dir, args[1], bad}
+			if code, out, _ := exec(t, "", full...); code != exitUsage || out != "" {
+				t.Errorf("quill %v: exit %d, stdout %q; want %d and nothing", full, code, out, exitUsage)
+			}
+		}
+	}
+	for _, bad := range []string{"0x2", "1_0", "0b1", "0o7"} {
+		if code, out, _ := exec(t, "", "cat", "-dir", dir, "-from", bad); code != exitUsage || out != "" {
+			t.Errorf("cat -from %q: exit %d, stdout %q; want %d and nothing", bad, code, out, exitUsage)
 		}
 	}
 }

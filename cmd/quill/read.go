@@ -224,6 +224,22 @@ func parseDecimal(s string) (uint64, error) {
 	return strconv.ParseUint(s, 10, 64)
 }
 
+// decimalFlag is a flag.Value for a plain base-10 count: -from, -limit and -n take the same
+// digits-only rule as every other number on the command line, where flag.Uint64Var would read
+// 010 as octal and 0x10 or 1_0 as hex and a separated number.
+type decimalFlag uint64
+
+func (d *decimalFlag) Set(s string) error {
+	n, err := parseDecimal(s)
+	if err != nil {
+		return errors.New("not a plain decimal integer")
+	}
+	*d = decimalFlag(n)
+	return nil
+}
+
+func (d *decimalFlag) String() string { return strconv.FormatUint(uint64(*d), 10) }
+
 // parseTime accepts RFC 3339, "@<unix seconds>", or a duration meaning that long ago.
 func parseTime(s string, now time.Time) (time.Time, error) {
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
