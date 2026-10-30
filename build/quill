@@ -8,6 +8,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export GOWORK=off CGO_ENABLED=0
+# Under GOTOOLCHAIN=auto go.mod's toolchain line is only a minimum, and the binaries and the SBOM
+# depend on the compiler. Pin it exactly, as hack/gate.sh does (keep the two in step).
+toolchain=$(sed -n 's/^toolchain //p' go.mod)
+[ -n "$toolchain" ] || toolchain="go$(sed -n 's/^go //p' go.mod)"
+case "$toolchain" in go[0-9]*.[0-9]*.[0-9]*) ;; go[0-9]*.[0-9]*) toolchain="$toolchain.0" ;; esac
+export GOTOOLCHAIN="$toolchain"
 # Nothing in the output depends on the clock or the builder: the SBOM time stamp and every
 # archive entry's mtime are the commit time, entries are sorted, owners are root with no names,
 # and the gzip header carries no time. So a rebuild of one commit with the same tar, gzip and Go

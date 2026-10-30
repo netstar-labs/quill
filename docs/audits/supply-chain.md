@@ -28,7 +28,7 @@ auditor's own reproductions are in the items and are not counted.
 | fixed, fix-skeptic FIXED-VERIFIED | 4 | A4-7, A4-8, A4-9, A4-10 |
 | fixed in the tip only, fix-skeptic FIXED-VERIFIED; history is held for the owner | 1 | A4-4 |
 | fix landed on main without a fix-skeptic (see A4-3) | 1 | A4-3 |
-| fix written, not on main; held for the owner to land | 1 | A4-1 |
+| fixed in this commit for the `build/quill` half; the CI half was refuted at the pinned setup-go (see A4-1) | 1 | A4-1 |
 | held for the owner, no fix | 1 | A4-5 |
 | deliberately not changed (REFUTED) | 2 | A4-2, A4-6 |
 
@@ -44,10 +44,11 @@ Two disposition records need a plain statement, because the workflow that applie
   `go.mod`, and that the fast-forward happened anyway. The commit is on main as f2516d7. No fix-skeptic ran on it and nobody
   ran `go build` or `go vet` on it. It changes only `SECURITY.md` and `CHANGELOG.md` (11 insertions, 2 deletions, verified
   with `git show --stat`), so no code path is affected.
-- A4-1. The fix commit f800bb7 exists on branch `stage2/A4-1-retry`, based on da2d638. It is not on main and no fix-skeptic
-  outcome exists. The stray `go.mod` change that blocked it was an audit probe committed straight to main as da2d638 (message
+- A4-1. The first fix commit f800bb7 (branch `stage2/A4-1-retry`, based on da2d638) was not landed as written: the fix-skeptic of a
+  later attempt (41c8aa4) showed that the pinned setup-go already reads go.mod's `toolchain` line, so its CI half was false and was dropped; the
+  `build/quill` half is fixed in this commit, with a reworded `ci.yml` comment (see `stage2-owner-decisions.md`). The stray `go.mod` change that blocked it was an audit probe committed straight to main as da2d638 (message
   "x") that set `toolchain go1.27.1`; c202882 restored `toolchain go1.27.3` (verified: `go.mod` now reads go1.27.3, and the
-  tree's `ci.yml` comment is still the false one).
+  `ci.yml` comment about the patch level was thought false; it is true at the pinned setup-go v7.0.0 and is reworded in this commit to say why).
 
 ## Coverage
 
@@ -140,40 +141,47 @@ was written in); `build/quill` correctly refuses to build HEAD as untagged.
 
 ## Items
 
-### A4-1: the Go toolchain pin is enforced only by the gate (medium; CONFIRMED, 2 votes, 0 reproduced; fix written, not on main)
+### A4-1: the Go toolchain pin is enforced only by the gate (medium; CONFIRMED, 2 votes, 0 reproduced; the `build/quill` half fixed in this commit; the CI half REFUTED)
 
 **Claim.** The pin `toolchain go1.27.3` in `go.mod` is enforced only by `hack/gate.sh`. CI installs the newest 1.27.x because
 setup-go ignores the toolchain line, and `build/quill` builds releases with whatever `go` is on PATH. The comment at
-`ci.yml:66-67`, which says the patch level comes from go.mod's toolchain line, is false for the pinned setup-go (still in the
-tree now, `ci.yml:65-66`).
+`ci.yml:66-67`, which says the patch level comes from go.mod's toolchain line, is false for the pinned setup-go.
+**Correction (this commit): the CI half is REFUTED.** At the setup-go version `ci.yml` pins now (v7.0.0, from the A4-9 change)
+the action reads go.mod's `toolchain` directive before the `go` line unless `GOTOOLCHAIN=local`, so CI already installs the
+pinned patch release and the `ci.yml` comment is true (reported by the fix-skeptic from the action's `src/installer.ts` at b7ad1dad;
+the pin is at `ci.yml` lines 24, 44, 54, 75 and 87; not run on a runner). The "ignores the toolchain line" statement was true of
+the v5.6.0 pin the auditor read, and is not true of the pin on main. The `build/quill` half stands and is fixed.
 
 **Grounds.** (a) `hack/gate.sh:15-18` exports `GOTOOLCHAIN` from go.mod, so the gate is pinned exactly; `build/quill` set only `GOWORK`
 and `CGO_ENABLED`, and recorded `go version` of PATH in the SBOM. (b) setup-go at the pinned SHA 40f1582b (v5.6.0), `src/installer.ts`,
 `parseGoVersionFile`, matches only `^go (\d+(\.\d+)*)` for a go.mod, so `go 1.27` resolves to the latest 1.27.x and the toolchain line is
-never read; `ci.yml` uses `go-version-file: go.mod` in five jobs (now lines 26, 46, 56, 76 and 88). (c) Auditor's reproduction in a
+never read (**true of v5.6.0 only; REFUTED for the v7.0.0 pin now on main, which reads the `toolchain` line first, see the Claim**);
+`ci.yml` uses `go-version-file: go.mod` in five jobs (now lines 26, 46, 56, 77 and 89). (c) Auditor's reproduction in a
 scratch copy: with `toolchain go1.27.1` in go.mod, plain `go version` printed go1.27.3 (the newer local toolchain wins under
 `GOTOOLCHAIN=auto`), and only `GOTOOLCHAIN=go1.27.1` forced 1.27.1.
 
-**Warrant.** Under `GOTOOLCHAIN=auto` the toolchain line is a minimum, not a pin. The gate turns it into a pin; CI and the release
-script do not, so the gate, CI and a release can each run a different Go. The release binary's bytes depend on the compiler, and the
+**Warrant.** Under `GOTOOLCHAIN=auto` the toolchain line is a minimum, not a pin. The gate turns it into a pin; the release
+script did not, so the gate and a release could run different Go versions. (CI is not part of this warrant: **the CI half is REFUTED**,
+because the pinned setup-go reads the toolchain line, see the Correction in the Claim.) The release binary's bytes depend on the compiler, and the
 SBOM records which one.
 
 **Backing.** README.md:83-86 and CONTRIBUTING.md:40-42 say the toolchain named in go.mod is the one supported Go version and moves
 together with the gate and CI pins; decisions 70 and 88 make the build script the release authority.
 
 **Rebuttal.** Today all four places resolve to go1.27.3 (verified against go.dev/dl), govulncheck is clean, the SBOM discloses the Go
-actually used, and an older local Go would auto-upgrade, so the toolchain line still works as a floor. Floating to a newer patch in CI
-is arguably desirable. The defect is that the documented single pin is not true.
+actually used, and an older local Go would auto-upgrade, so the toolchain line still works as a floor. The defect that stands is that the release script did
+not honour the documented single pin; CI did (see the Correction in the Claim).
 
 **Verdict.** CONFIRMED, 2 of 2. Both voters read the files and the setup-go source and neither re-ran the auditor's experiment
 (reported by the auditor, not reproduced). Both put the real severity at low to medium.
 
-**Disposition.** Fix written, not landed. Commit f800bb7 on branch `stage2/A4-1-retry` (5 files, 159 insertions, 3 deletions):
-`build/quill` derives and exports `GOTOOLCHAIN` as the gate does; `ci.yml` sets a workflow-level `GOTOOLCHAIN` literal (every job then
-switches to that exact Go); the false comment is corrected; two tests (`toolchain_pin_test.go`, plus an edit in
-`build_script_test.go`) keep the script and the workflow in step with go.mod. No fix-skeptic ran. It is based on da2d638, and A4-7 and A4-9
-have since changed `build/quill` and `ci.yml`, so it needs a rebase (inferred from the changed files; not tried). Held for the owner:
-see [stage2-owner-decisions.md](stage2-owner-decisions.md).
+**Disposition.** Fixed in this commit, for the `build/quill` half only (owner-approved 2026-10-30): `build/quill` derives and exports
+`GOTOOLCHAIN` from go.mod's toolchain line as `hack/gate.sh` does, so the release binaries and the SBOM come from the pinned compiler;
+`TestBuildScriptPinsToolchain` fails without it. The CI half was refuted (see the Correction in the Claim): the pinned setup-go already
+reads the toolchain line, so nothing in CI changed and the `ci.yml` comment was reworded to say why it is true. The earlier attempts
+did not land: f800bb7 (branch `stage2/A4-1-retry`, based on da2d638) added a workflow-level `GOTOOLCHAIN` literal and a test for
+it, which rested on the false CI claim, and the next attempt (41c8aa4) repeated the false claim. Decision 88, the README, CONTRIBUTING and
+the changelog are amended. See [stage2-owner-decisions.md](stage2-owner-decisions.md).
 
 ### A4-2: go.mod says `go 1.27` while the docs say the iterator API needs Go 1.23 (rated medium by the auditor; REFUTED, 2 votes to 1)
 
@@ -356,7 +364,7 @@ optional BSD-3-Clause licence on the stdlib component was not added.
 **Claim.** The pins are exact and correct but several majors behind and on the node20 action runtime, with no dependabot or renovate configuration; `pr-issue-link.yml` declared
 no `permissions:` block.
 
-**Grounds.** `ci.yml:24, 44, 54, 74, 86` as audited pinned checkout 11d5960a (v4.4.0) and setup-go 40f1582b (v5.6.0). `git ls-remote` shows both equal their tags. Upstream `action.yml` at
+**Grounds.** `ci.yml:24, 44, 54, 74, 86` as audited (the pins are now at 24, 44, 54, 75 and 87) pinned checkout 11d5960a (v4.4.0) and setup-go 40f1582b (v5.6.0). `git ls-remote` shows both equal their tags. Upstream `action.yml` at
 those SHAs says node20, while checkout v7.0.1 and setup-go v7.0.0 say node24. No `dependabot.yml`. `pr-issue-link.yml` had no top-level or job `permissions`, whereas `ci.yml:10-11` sets
 `contents: read`. `ci.yml:15` set a `GOPRIVATE` value that means nothing for a module with no dependencies.
 
@@ -410,7 +418,7 @@ Ranked by what the public flip needs, then by reach. Items 1 to 4 are owner acti
    Whatever is chosen, remember that the v0.1.0 tag also carries the old `SECURITY.md` and none of the A4 fixes, that main is 52 commits ahead, and that `build/quill` refuses an untagged HEAD, so the
    public release needs a new tag on a clean tree.
 3. Enable private vulnerability reporting in the repository settings (A4-3); until then the fallback in `SECURITY.md` is what a reporter sees.
-4. Land the A4-1 fix (rebased on main, with a fix-skeptic) or decide that the documented single pin is wording to relax; either way correct the false comment at `ci.yml:65-66`.
+4. Done in this commit (A4-1): `build/quill` now pins the toolchain as the gate does. The CI half was refuted (the pinned setup-go reads the toolchain line), so the `ci.yml:65-67` comment stands, reworded; nothing is left to land.
 5. At the flip, push only main and the chosen tag, never the `stage2/*` branches (they hold stray `-E` backup files); set branch protection to require the `ci` job and confirm the default token
    permissions (not verifiable from the tree).
 6. Optional wording: state in README, CONTRIBUTING and `scope.md:94` that consumers need Go 1.27 or later because of the go line (A4-2); optionally an opt-in guard or checklist item for a missing

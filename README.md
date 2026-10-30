@@ -83,6 +83,7 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 Standard library only; `go.mod` has no `require` line. **Go-version policy:** the toolchain
 named in `go.mod` is the one supported version; quill tracks the latest stable Go release and
 moves to the next one deliberately, together with the tool pins in `hack/gate.sh` and CI. The
+gate and `build/quill` run Go at exactly that version (`GOTOOLCHAIN`), and CI installs it from `go.mod`. The
 iterator API needs Go 1.23 or later. Always run Go with `GOWORK=off`:
 
 ```

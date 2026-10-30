@@ -25,10 +25,11 @@ nothing under audit was edited by an auditor or skeptic.
 
 Pass A1h is a continuation of pass A1 (and of A4-1 from pass A4). On 2026-10-30 the owner approved the
 recommended answer for each of the 17 items below, all of which wave 1 had held for the owner; a fix was
-then written for each, one commit per item, and each fix was re-attacked by a fix-skeptic. One of the 17
-(A4-1) is not finished: a fix exists (0b06a86, branch `stage2/A4-1-a2`), the fix-skeptic rejected it on one stale
-line of the audit record, and it is not in this tree. A1-82, which the first version of this record carried as
-rejected (a5707a8), was fixed on a third attempt (bb608d3) and passed.
+then written for each, one commit per item, and each fix was re-attacked by a fix-skeptic. Two of the 17
+(A1-82 and A4-1) were not finished when this record was first written: a fix existed, the fix-skeptic rejected it, and it was
+not in the tree. A1-82 was fixed on a third attempt (bb608d3) and passed its fix-skeptic. A4-1 has since been fixed in this
+commit, for its `build/quill` half only (the CI half was refuted: the pinned setup-go reads the toolchain line); the A4-1
+statements below say so.
 This pass raised no new candidate items and cast no new item votes; the verdicts and votes below are
 wave 1's.
 
@@ -39,20 +40,20 @@ wave 1's.
 | disposition | items | ids |
 |-------------|-------|-----|
 | fixed, fix-skeptic FIXED-VERIFIED | 16 | A1-25, A1-32, A1-82, A1-85, A1-47, A1-48, A1-13, A1-69, A1-2, A1-29, A1-35, A1-50, A1-52, A1-57, A1-87, A1-91 |
-| fix-failed (fix written and rejected, not in this tree; held for the owner with a recommended next step) | 1 | A4-1 |
+| fixed in this commit, after rejections on the audit record only (three attempts, each on the no-new-gap lens alone; `build/quill` half; the CI half refuted) | 1 | A4-1 |
 | held with no fix / deliberately not changed | 0 | |
 
-- Fix commits: 16, all ancestors of the tree this record is written on (verified: bb608d3, the A1-82 fix, is the
-  tip of that tree, and the other 15 appear in the commit log below it, down to 5c603fc). The one rejected fix is 0b06a86 (A4-1,
-  branch `stage2/A4-1-a2`, based on bb608d3); it is not an ancestor of HEAD (verified with `git branch --contains`).
-  Rejected and superseded attempts, none on main: f6fcf26 and a5707a8 (A1-82, replaced by bb608d3), and f800bb7, 41c8aa4,
-  532f39d and c9e8aa9 (A4-1, replaced by 0b06a86).
-- Fix-skeptic verdicts: 16 FIXED-VERIFIED and 1 rejection (A4-1). The 16 accepted fixes were each attacked through six
-  or seven lenses (13 through seven, three through six: A1-69, A1-52 and A1-87, which are documentation fixes
-  and had no independent-route lens), 109 lens verdicts in all, and every one is "pass" (derived by counting the
-  ledger: 102 for the first 15, 7 for A1-82). A1-82 was passed on its third attempt; the two attempts before it
-  were rejected by their own fix-skeptics (a5707a8 for the sealed first-frame probe, see the item). The A4-1
-  rejection comes with a stated objection but no per-lens table in the ledger.
+- Fix commits: 17. Sixteen are ancestors of the tree before this commit (main at fa2a5fa: bb608d3, the A1-82 fix, is its
+  second-newest commit, and the other 15 appear in the commit log below it, from 5c603fc down to c18a27a); the seventeenth is A4-1, this commit,
+  a rebuilt version of the rejected 0b06a86. Rejected and superseded attempts, none on main: f6fcf26 and a5707a8 (A1-82,
+  replaced by bb608d3), and f800bb7, 41c8aa4, 532f39d and c9e8aa9 (A4-1, replaced by 0b06a86 and then by this commit).
+- Fix-skeptic verdicts for the 16: 16 FIXED-VERIFIED. They were each attacked through six or seven lenses (13 through seven,
+  three through six: A1-69, A1-52 and A1-87, which are documentation fixes and had no independent-route lens), 109 lens
+  verdicts in all, and every one is "pass" (derived by counting the ledger: 102 for the first 15, 7 for A1-82). A1-82 was
+  passed on its third attempt; the two attempts before it were rejected by their own fix-skeptics (a5707a8 for the sealed
+  first-frame probe, see the item). A4-1's attempts 532f39d, c9e8aa9 and 0b06a86 were each found correct in code and test and rejected on the
+  no-new-gap lens alone, for stale statements in the audit record (41c8aa4 before them was rejected for the false CI claim);
+  this record does not claim a verdict for this commit.
 - Item skeptic votes cast in this pass: 0. Wave 1 had judged the 16 A1 items with 33 votes (31 CONFIRMED, 1
   PLAUSIBLE, 1 REFUTED; derived from the index below: A1-91 had three votes, P, R and C, and the other 15 items two
   CONFIRMED each), and A4-1 with two CONFIRMED votes (supply-chain record), 35 votes for the 17 items.
@@ -75,7 +76,7 @@ prior-deliberate 7.
 | disposition | items | what it means |
 |-------------|-------|---------------|
 | fixed | 58 | 42 from 2026-10-29 plus the 16 above; each passed the fix-skeptic |
-| fix-failed | 1 | A1-62 (rejected on 2026-10-29); not integrated. A4-1 (pass A4, rejected in A1h) is not one of the 73 |
+| fix-failed | 1 | A1-62 (rejected on 2026-10-29); not integrated. A4-1 (pass A4, rejected in A1h, since fixed in the A4-1 commit) is not one of the 73 |
 | held for the owner | 2 | A1-67 and A1-80, which this ledger does not carry |
 | refuted | 5 | not changed, because the claim does not hold |
 | round-1-decided | 7 | deliberately not changed in round 1 |
@@ -420,35 +421,26 @@ verdict, the reproduction, and what was done. "Fix-skeptic" outcomes are FIXED-V
   recommendation: `ls` shows `?` (the existing unreadable-policy convention), not "unknown". Weakest point: a policy with
   `retention` present and every cap missing (for example a skewed `{"retention":"1h"}`) still parses as caps of zero.
 
-#### A4-1: the Go toolchain pin is enforced only by the gate (medium, supply-chain report; CONFIRMED for the `build/quill` half, 2 votes, 0 reproduced; CI half REFUTED; fix-failed, 0b06a86 not integrated)
+#### A4-1: the Go toolchain pin is enforced only by the gate (medium, supply-chain report; CONFIRMED, 2 votes, 0 reproduced; fixed in this commit for the `build/quill` half; the CI half REFUTED)
 
 - **Claim.** The `toolchain go1.27.3` line in go.mod is a pin only in `hack/gate.sh`; `build/quill` uses whatever `go` is on
-  PATH, and CI installed the newest 1.27.x. **The CI half is REFUTED** (reported by the fix-skeptic from the action's
-  `src/installer.ts` at b7ad1dad, lines 645-666; not run on a runner): at the setup-go version `ci.yml` pins now (v7.0.0)
-  the action reads go.mod's `toolchain` directive before the `go` line unless `GOTOOLCHAIN=local`, so CI already installs
-  the pinned patch release. The claim was true of the v5.6.0 pin the auditor read, not of the pin on main.
+  PATH, and (at the audited tree) CI installed the newest 1.27.x. **The CI half is REFUTED at the pinned setup-go v7.0.0**, which
+  reads go.mod's toolchain line before the go line unless `GOTOOLCHAIN=local` (see the Disposition).
 - **Grounds.** `hack/gate.sh` exports `GOTOOLCHAIN` from go.mod; `build/quill` did not. Under `GOTOOLCHAIN=auto` the toolchain
   line is a minimum. The CI half rested on setup-go v5.6.0 not reading the toolchain line (reported by the auditor from
-  its source; not reproduced; **REFUTED** for v7.0.0, see the Claim). **Warrant.** README.md and CONTRIBUTING.md call the go.mod toolchain the one supported
+  its source; not reproduced; true of v5.6.0, false of the v7.0.0 pin now on main). **Warrant.** README.md and CONTRIBUTING.md call the go.mod toolchain the one supported
   version, and the release binary's bytes depend on the compiler. **Backing.** Decisions 70 and 88.
 - **Rebuttal.** All places resolved to go1.27.3 at the time; the SBOM discloses the Go used.
 - **Disposition.** Owner approved landing the pin on 2026-10-30 (the recommended answer, with its stated alternative of
-  dropping the CI half). A fix was written (0b06a86, branch `stage2/A4-1-a2`, based on bb608d3, after the attempts f800bb7,
-  41c8aa4, 532f39d and c9e8aa9): `build/quill` derives and exports `GOTOOLCHAIN` from go.mod's toolchain line as the gate
-  does; `TestBuildScriptPinsToolchain` fails without it; decision 88, the CHANGELOG, README.md, CONTRIBUTING.md and the
-  `ci.yml` comment are corrected; the CI literal and its test were dropped, because the CI half is refuted. The setup-go
-  pin is on main at `ci.yml` lines 24, 44, 54, 74 and 86 (verified), and at 24, 44, 54, 75 and 87 on the branch.
-  **Rejected by the fix-skeptic** on the no-new-gap lens only: the code and the test are correct (the test fails without
-  the fix, the gate steps are clean, the API and golden bytes are unchanged), and the fix-skeptic's own read of the
-  action's source confirms the CI refutation. The defect is one stale item in supply-chain.md on the branch: the
-  Warrant (lines 163-164) still says "CI and the release script do not [pin], so the gate, CI and a release can each
-  run a different Go", which is the refuted CI half stated as fact, and the Rebuttal (lines 171-172) still argues for
-  floating the patch in CI; both contradict the item's own Correction (verified from the branch). **Held for the owner;
-  recommended next step:** cherry-pick 0b06a86 onto main, reword the Warrant to say that only the release script, not
-  CI, failed to pin, mark or drop the CI sentence of the Rebuttal, and re-run the fix-skeptic (it expects
-  FIXED-VERIFIED). Because 0b06a86 also edits this file and stage2-owner-decisions.md, the cherry-pick will conflict
-  in both. On main, supply-chain.md is unchanged by this record and still says the fix is written and not on main and that
-  setup-go ignores the toolchain line (true of v5.6.0 only).
+  dropping the CI half). Fixed in this commit, `build/quill` half only: `build/quill` derives and exports `GOTOOLCHAIN` from
+  go.mod's toolchain line as the gate does, and `TestBuildScriptPinsToolchain` fails without it. The CI half was refuted: the
+  workflow pins setup-go v7.0.0 (`ci.yml` lines 24, 44, 54, 75 and 87), which the fix-skeptic reports reads the toolchain line
+  before the go line unless `GOTOOLCHAIN=local` (reported, not run on a runner), so the workflow-level literal and its test were
+  dropped and the `ci.yml` comment about the patch level is true. Earlier attempts (532f39d, c9e8aa9 and 0b06a86) were
+  each found correct in code and test and rejected by their fix-skeptic on the no-new-gap lens only, because they left this record, the
+  supply-chain record and the owner-decisions table saying the old thing; this commit corrects all three
+  ([supply-chain.md](supply-chain.md), [stage2-owner-decisions.md](stage2-owner-decisions.md) and this file). The first attempt
+  (f800bb7 and 41c8aa4) carried the false CI claim and was not used.
 
 ## Top line at first writing (2026-10-29)
 
@@ -690,7 +682,7 @@ reports a failure. Their objections that stand, none of which blocks a fix, are 
 reports under each item. All 42 commits are ancestors of the tree this record is written on
 (verified with git). The one fix that did not pass is A1-62 (commit fdcd880, which is not in this
 tree). Pass A1h added 16 more fixes (all FIXED-VERIFIED, see its top line; A1-82 on its third attempt) and no further rejected
-fix among the 73 items (A4-1's, 0b06a86, belongs to pass A4 and is not in this tree).
+fix among the 73 items (A4-1, which belongs to pass A4, was fixed in the A4-1 commit after rejections on the audit record only).
 
 ## Index
 

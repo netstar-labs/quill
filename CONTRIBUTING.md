@@ -39,7 +39,8 @@ that is not a green gate.
 
 The toolchain in `go.mod` is the one supported Go version; the module uses the latest stable
 release and moves to the next one deliberately, with the pins in `hack/gate.sh` and
-`.github/workflows/ci.yml`. The iterator API needs Go 1.23 or later. Always run Go with
+`.github/workflows/ci.yml`. The gate and `build/quill` run Go at exactly that version
+(`GOTOOLCHAIN`), and CI installs it from `go.mod`. The iterator API needs Go 1.23 or later. Always run Go with
 `GOWORK=off`.
 
 ## Benchmarks

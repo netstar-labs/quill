@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the Go toolchain named in `go.mod` was pinned exactly only by `hack/gate.sh`; `build/quill` used whichever `go` was on `PATH`, and
+  under `GOTOOLCHAIN=auto` a `toolchain` line is only a minimum, so the release binaries and the SBOM's `go.version` could come from a newer
+  compiler than the gate tested. `build/quill` now exports `GOTOOLCHAIN` derived from `go.mod` exactly as the gate does, and a test fails if it
+  does not. CI needed no change: the pinned setup action already installs the toolchain `go.mod` names. Decision 88 is amended.
+
 - Fixed: a `quill.policy` of `{}`, `null` or only unknown fields parsed as a valid policy of zeros, so `quill ls` showed `RETENTION 0s` and
   `quill prune` ran with the 24 h default and no caps, as a version-skewed writer's file would have caused. A policy with no `retention` is now
   unparseable like a damaged one: `ls` shows `?` and "policy unreadable", `prune` refuses without explicit flags, `check` warns, and

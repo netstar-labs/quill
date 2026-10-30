@@ -63,7 +63,8 @@ jobs:
       - name: no module dependencies, ever
         run: "! grep -q '^require' go.mod"
       # Reachable standard-library vulnerabilities fail the job. The Go patch level comes
-      # from go.mod's toolchain line; raise it when this reports a fix.
+      # from go.mod's toolchain line (the pinned setup-go reads that line before the go line
+      # unless GOTOOLCHAIN is already "local"); raise it when this reports a fix.
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   # T14: a full disk, for real, on a small tmpfs. Not part of the default gate.

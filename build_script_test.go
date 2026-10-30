@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -45,7 +47,7 @@ func TestBuildScriptDevVersion(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			write("go.mod", "module example.com/q\n\ngo 1.21\n", 0o644)
+			write("go.mod", pinnedGoMod(t), 0o644)
 			write("cmd/quill/main.go", "package main\n\nvar version = \"unset\"\n\nfunc main() { _ = version }\n", 0o644)
 			for _, f := range []string{"README.md", "CHANGELOG.md", "SECURITY.md"} {
 				write(f, f+"\n", 0o644)
@@ -119,7 +121,7 @@ func TestBuildScriptReproducibleArchives(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("go.mod", "module example.com/q\n\ngo 1.21\n", 0o644)
+	write("go.mod", pinnedGoMod(t), 0o644)
 	write("cmd/quill/main.go", "package main\n\nvar version = \"unset\"\n\nfunc main() { _ = version }\n", 0o644)
 	for _, f := range []string{"README.md", "CHANGELOG.md", "SECURITY.md", "LICENSE"} {
 		write(f, f+"\n", 0o644)
@@ -303,7 +305,7 @@ func TestBuildScriptReleaseRefusal(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			write("go.mod", "module example.com/q\n\ngo 1.21\n")
+			write("go.mod", pinnedGoMod(t))
 			write("cmd/quill/main.go", "package main\n\nvar version = \"unset\"\n\nfunc main() { _ = version }\n")
 			for _, f := range []string{"README.md", "CHANGELOG.md", "SECURITY.md"} {
 				write(f, f+"\n")
@@ -355,4 +357,114 @@ func TestBuildScriptReleaseRefusal(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The release build is the authority for what ships (decisions 70 and 88), so it must run on
+// the Go that go.mod names, exactly as the commit gate does, not on whichever go is first on
+// PATH: under GOTOOLCHAIN=auto a toolchain line is only a minimum. A stand-in go on PATH
+// records the GOTOOLCHAIN every invocation ran under, so no real toolchain is downloaded.
+func TestBuildScriptPinsToolchain(t *testing.T) {
+	for _, tool := range []string{"bash", "git", "shasum"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skipf("%s is not installed", tool)
+		}
+	}
+	script, err := os.ReadFile(filepath.Join("build", "quill"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ name, gomod, want string }{
+		{"toolchain line", "go 1.27\n\ntoolchain go1.27.1\n", "go1.27.1"},
+		{"no toolchain line", "go 1.27\n", "go1.27.0"},
+		{"patch in go line", "go 1.27.2\n", "go1.27.2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			bin := t.TempDir()
+			log := filepath.Join(t.TempDir(), "calls")
+			write := func(p, body string, mode os.FileMode) {
+				t.Helper()
+				p = filepath.Join(dir, p)
+				if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(p, []byte(body), mode); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write("go.mod", "module example.com/q\n\n"+tc.gomod, 0o644)
+			write("cmd/quill/main.go", "package main\n\nfunc main() {}\n", 0o644)
+			for _, f := range []string{"README.md", "CHANGELOG.md", "SECURITY.md"} {
+				write(f, f+"\n", 0o644)
+			}
+			write("build/quill", string(script), 0o755)
+			fake := "#!/bin/sh\n" +
+				"echo \"$1 ${GOTOOLCHAIN:-unpinned}\" >> '" + log + "'\n" +
+				"case \"$1\" in\n" +
+				"version) echo \"go version ${GOTOOLCHAIN:-unpinned} linux/amd64\" ;;\n" +
+				"build) while [ $# -gt 0 ]; do [ \"$1\" = -o ] && { shift; mkdir -p \"$(dirname \"$1\")\"; echo x > \"$1\"; }; shift; done ;;\n" +
+				"esac\n"
+			if err := os.WriteFile(filepath.Join(bin, "go"), []byte(fake), 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			var env []string
+			for _, kv := range os.Environ() {
+				if !strings.HasPrefix(kv, "GOTOOLCHAIN=") {
+					env = append(env, kv)
+				}
+			}
+			env = append(env, "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+				"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com",
+				"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
+			run := func(name string, args ...string) []byte {
+				t.Helper()
+				cmd := exec.Command(name, args...)
+				cmd.Dir = dir
+				cmd.Env = env
+				out, err := cmd.CombinedOutput()
+				if err != nil {
+					t.Fatalf("%s %v: %v\n%s", name, args, err, out)
+				}
+				return out
+			}
+			run("git", "init", "-q")
+			run("git", "add", ".")
+			run("git", "commit", "-q", "-m", "x")
+			sha := strings.TrimSpace(string(run("git", "rev-parse", "--short", "HEAD")))
+			run("bash", "build/quill", "--dev")
+
+			calls, err := os.ReadFile(log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lines := strings.Split(strings.TrimSpace(string(calls)), "\n")
+			if len(lines) < 5 { // one version query and four builds
+				t.Fatalf("want the version query and four builds, got %q", lines)
+			}
+			for _, l := range lines {
+				if !strings.HasSuffix(l, " "+tc.want) {
+					t.Errorf("go ran as %q; want it pinned with GOTOOLCHAIN=%s", l, tc.want)
+				}
+			}
+			sbom, err := os.ReadFile(filepath.Join(dir, "build", "install", "quill_dev-"+sha+".cdx.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(sbom), `"value": "`+tc.want+`"`) {
+				t.Errorf("the SBOM does not record %s:\n%s", tc.want, sbom)
+			}
+		})
+	}
+}
+
+// The script pins GOTOOLCHAIN to go.mod's toolchain line. A throwaway module for a test that
+// runs the real go names the Go running the test, so the build neither downloads nor switches.
+func pinnedGoMod(t *testing.T) string {
+	t.Helper()
+	if !regexp.MustCompile(`^go\d+\.\d+\.\d+$`).MatchString(runtime.Version()) {
+		t.Skipf("%s is not a release toolchain", runtime.Version())
+	}
+	return "module example.com/q\n\ngo 1.21\n\ntoolchain " + runtime.Version() + "\n"
 }
