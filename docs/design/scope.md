@@ -322,7 +322,7 @@ macOS `File.Sync` issues `F_FULLFSYNC` (**verified** in the Go source), which is
 in another user account needs a group arrangement; a process that only reads needs read access, and one that
 holds a consumer needs write access to `consumers/`. Encryption at rest is a non-goal. **Hot backup:** copy
 `quill.tail` first, then the segments in id order, then `consumers/`. A restored log keeps its log ID, so a
-consumer that is ahead of the restored head fails with `ErrAhead` and must be rewound deliberately.
+consumer that is ahead of the restored head fails with `ErrAhead` and must be rewound deliberately (`quill commit -offset N`, which opens it with `ConsumerOptions.Rewind`; Stage 2 audit, owner-approved 2026-10-30).
 
 ### Guarantees every release must meet
 

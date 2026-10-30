@@ -25,6 +25,8 @@ func cmdConsumers(c *cli, args []string) int {
 				row := map[string]any{"name": ci.Name, "offset": ci.Offset, "protected": ci.Protected, "lag": lag(head, ci.Offset)}
 				if ci.Err != nil {
 					row["error"] = ci.Err.Error()
+				} else if ci.Offset > head+1 {
+					row["ahead"] = true
 				}
 				if code := printJSON(c, row); code != exitOK {
 					return code
@@ -38,6 +40,8 @@ func cmdConsumers(c *cli, args []string) int {
 			note := ""
 			if ci.Err != nil {
 				note = "error: " + ci.Err.Error()
+			} else if ci.Offset > head+1 {
+				note = "ahead of the head: rewind it with quill commit"
 			}
 			fmt.Fprintf(w, "%s\t%d\t%d\t%v\t%s\n", ci.Name, ci.Offset, lag(head, ci.Offset), ci.Protected, note)
 		}
@@ -88,7 +92,8 @@ func cmdCommit(c *cli, args []string) int {
 		// Only a consumer this command is sure it created is removed again on failure: if the
 		// listing fails, assume the consumer existed.
 		known, lerr := r.Consumers()
-		cons, code := c.consumer(r, quill.ConsumerOptions{})
+		// A consumer ahead of a restored head is what commit is for: it opens with Rewind.
+		cons, code := c.consumer(r, quill.ConsumerOptions{Rewind: true})
 		if code != exitOK {
 			return code
 		}

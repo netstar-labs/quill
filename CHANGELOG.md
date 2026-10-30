@@ -5,6 +5,12 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the documented rewind of a consumer ahead of a restored log, `quill commit`, failed with `ErrAhead` because it opened
+  the consumer first. `ConsumerOptions` gains `Rewind`, which opens such a consumer so `Commit` can rewind it to any offset in
+  `[first, Head + 1]`; `quill commit` sets it, keeps the protect flag, and `register` and the default open still refuse an
+  ahead consumer. `quill consumers` now notes a consumer ahead of the head (`-json` adds `"ahead": true`) and `quill check`
+  prints a non-fatal warning for it; the log stays HEALTHY.
+
 - Fixed: CI supply-chain hygiene. `pr-issue-link.yml` declared no `permissions:` and so ran with the repository's default
   token scope; it now declares `permissions: {}`. The `actions/checkout` and `actions/setup-go` pins (still exact commit
   SHAs) moved from v4.4.0 and v5.6.0, which run on the node20 action runtime, to v7.0.1 and v7.0.0 (node24). A

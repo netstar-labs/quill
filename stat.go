@@ -197,6 +197,9 @@ func (r *Reader) Check() (CheckResult, error) {
 	for _, c := range consumers {
 		if c.Err != nil {
 			fatal(Problem{Kind: "consumer", Path: r.path(filepath.Join(consumersDir, c.Name)), Detail: c.Err.Error()})
+		} else if c.Offset > tl.Seq+1 {
+			// The log is intact; the consumer is what a restore left behind (decision 36).
+			warn(Problem{Kind: "consumer", Path: r.path(filepath.Join(consumersDir, c.Name)), Detail: fmt.Sprintf("at %d, ahead of the head %d: rewind it with quill commit", c.Offset, tl.Seq)})
 		}
 	}
 	data, err := readState(r.fs, r.path(policyName))

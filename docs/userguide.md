@@ -95,8 +95,11 @@ err = c.Close()
 - Delivery is at-least-once: commit after processing. Commit before processing for
   at-most-once. Exactly-once needs processing that is idempotent on `Seq`.
 - `ErrWrongLog`: the consumer file belongs to another log (the log was recreated).
-  `ErrAhead`: the offset is above `Head + 1` (the log was restored to an older state); rewind
-  it deliberately with `quill commit`. `quill commit` registers the consumer when the name is
+  `ErrAhead`: the offset is above `Head + 1` (the log was restored to an older state); Open
+  refuses it unless `ConsumerOptions.Rewind` is set, which opens it so `Commit` can rewind it
+  to any offset in `[first, Head + 1]`. `quill commit` sets it, so `quill commit -offset N`
+  is the remedy and keeps the protect flag; `quill register` still refuses. `quill consumers`
+  notes such a consumer and `quill check` warns of it (the log stays HEALTHY). `quill commit` registers the consumer when the name is
   new, so a mistyped `-name` creates one; a commit that fails leaves no new consumer behind.
 - `DeleteConsumer(name)` removes the offset file; the lock file stays for good.
 
@@ -222,7 +225,7 @@ hour when it opens the log, and `Archive` does the same in its destination befor
 
 **Backup.** Copy `quill.tail` first, then the segments in id order, then `consumers/`. A
 restored log keeps its log ID; a consumer ahead of the restored head fails with `ErrAhead`
-and must be rewound with `quill commit`. A naive copy that takes the marker after the
+and must be rewound with `quill commit -offset N`, which opens it for the purpose. A naive copy that takes the marker after the
 segments can name data the copy lacks.
 
 **Archiving.** `quill archive -dir <log> -to <dest>` copies each sealed segment not yet
@@ -240,7 +243,7 @@ honest `fsync` (ext4, xfs, btrfs, APFS). Not supported: NFS, SMB, FUSE; bind mou
 filesystems at the operator's risk. Linux and macOS only.
 
 **Checking.** `quill check` verifies every sealed segment whole and the active one up to the
-marker, finds holes, unparseable consumer files (or a `consumers/` directory that cannot be listed) and clock anomalies, and reports UNBOUNDED
+marker, finds holes, unparseable consumer files (or a `consumers/` directory that cannot be listed) and clock anomalies, warns of a consumer ahead of the head, and reports UNBOUNDED
 when neither cap is set. Exit 3 means UNHEALTHY. `check` takes no lock, so a sealed segment that
 retention deletes while it scans is skipped, not reported; one already missing from the listing is a hole.
 

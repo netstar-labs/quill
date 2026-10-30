@@ -28,6 +28,10 @@ const (
 // ConsumerOptions configures a consumer handle.
 type ConsumerOptions struct {
 	Protect Protect
+	// Rewind opens a consumer whose offset is above Head + 1 (a log restored to an older state)
+	// instead of failing with ErrAhead, so that Commit can rewind it. Such a handle reads
+	// nothing and has no lag until it is rewound or the head catches up.
+	Rewind bool
 }
 
 // Consumer is a named offset: the next sequence to read, stored in consumers/{name} and
@@ -119,7 +123,7 @@ func (c *Consumer) init(opts ConsumerOptions) error {
 	if err != nil {
 		return err
 	}
-	if state.Next > head+1 {
+	if state.Next > head+1 && !opts.Rewind {
 		return fmt.Errorf("%w: consumer %q is at %d, the head is %d", ErrAhead, name, state.Next, head)
 	}
 	c.state = state
