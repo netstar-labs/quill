@@ -185,8 +185,8 @@ sequence order; `read` and `tail` take the same flag and encoder. `cat` takes `-
   `payload_b64` (standard base64). `-b64` forces `payload_b64` for every record. Output is therefore **lossless**:
   decoding every line returns the original bytes. Invalid UTF-8 is never passed through the JSON encoder, which
   would silently replace it.
-- Control characters in a text payload are JSON-escaped, so a payload cannot inject lines or terminal escapes.
-  The text (non-JSON) output escapes them the same way.
+- Control characters in a text payload, including DEL and the C1 controls U+0080 to U+009F, are JSON-escaped, so a
+  payload cannot inject lines or terminal escapes. The text (non-JSON) output escapes them the same way.
 
 ### Durability: what makes a write survive a crash
 

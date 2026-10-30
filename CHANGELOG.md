@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `quill cat`, `read` and `tail` with `-json` passed DEL (0x7f) and the C1 control characters U+0080 to U+009F, such as the CSI introducer
+  U+009B, to the terminal raw inside the `payload` string, although the guide says no raw control character reaches it and the text form escaped them.
+  They are now written as `\u007f` and `\u0080` to `\u009f`; the JSON stays valid and lossless. The bytes `-json` emits change for payloads that
+  contain those characters. Decision 35 is amended.
+
 - Changed: when the age sweep stops at a sealed segment whose newest record is stamped more than a day in the future (a clock that stepped ahead
   and was later corrected), the prune pass now logs a warning naming the segment; it used to log nothing while that one segment kept every newer
   segment from expiring by age until the clock reached the stamp. The prefix rule itself is unchanged and is now documented beside the clock

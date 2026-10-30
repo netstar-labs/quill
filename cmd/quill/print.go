@@ -33,8 +33,8 @@ func (p *printer) flush() error { return p.w.Flush() }
 
 // print appends the record to p.buf, which is kept between records, and writes it with one
 // call. The bytes are what encoding/json and strconv.Quote would produce for the same
-// values: the fixed field order of decision 35 is seq, at, time, len, then exactly one of
-// payload and payload_b64.
+// values (the JSON form also escapes DEL and C1 controls, see appendJSONString): the fixed
+// field order of decision 35 is seq, at, time, len, then exactly one of payload and payload_b64.
 func (p *printer) print(rec quill.Record) error {
 	text := !p.b64 && utf8.Valid(rec.Payload)
 	b := p.buf[:0]
@@ -77,7 +77,8 @@ const hexDigits = "0123456789abcdef"
 
 // appendJSONString appends the body of a JSON string (without the quotes) for valid UTF-8 text, escaping as
 // encoding/json does by default: the quote, the backslash, the controls, the HTML characters
-// < > & and the line and paragraph separators U+2028 and U+2029.
+// < > & and the line and paragraph separators U+2028 and U+2029. It also escapes DEL and the C1 controls
+// U+0080 to U+009F, which encoding/json passes and a terminal may act on (stage 2 audit A1-50, decision 35).
 func appendJSONString(b, s []byte) []byte {
 	for i := 0; i < len(s); i++ {
 		c := s[i]
@@ -94,8 +95,12 @@ func appendJSONString(b, s []byte) []byte {
 			b = append(b, '\\', 'r')
 		case c == '\t':
 			b = append(b, '\\', 't')
-		case c < 0x20 || c == '<' || c == '>' || c == '&':
+		case c < 0x20 || c == 0x7f || c == '<' || c == '>' || c == '&':
 			b = append(b, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
+		case c == 0xc2 && i+1 < len(s) && s[i+1]&^0x1f == 0x80:
+			c = s[i+1]
+			b = append(b, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
+			i++
 		case c == 0xe2 && i+2 < len(s) && s[i+1] == 0x80 && s[i+2]&^1 == 0xa8:
 			b = append(b, '\\', 'u', '2', '0', '2', hexDigits[s[i+2]&0xf])
 			i += 2

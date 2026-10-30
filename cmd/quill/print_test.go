@@ -17,7 +17,7 @@ import (
 )
 
 // refPrint is the encoding/json, strconv.Quote and fmt formulation the printer's appenders
-// must match byte for byte (decision 35).
+// must match byte for byte (decision 35), except that the JSON form also escapes DEL and C1 controls.
 func refPrint(w *bufio.Writer, jsonMode, b64 bool, rec quill.Record) error {
 	at := time.Unix(rec.At, 0).UTC().Format(time.RFC3339)
 	text := !b64 && utf8.Valid(rec.Payload)
@@ -41,6 +41,12 @@ func refPrint(w *bufio.Writer, jsonMode, b64 bool, rec quill.Record) error {
 		b, err := json.Marshal(jr)
 		if err != nil {
 			return err
+		}
+		// The one deliberate difference from encoding/json (stage 2 audit A1-50): DEL and the C1
+		// controls U+0080 to U+009F are escaped. Only the payload can contain them.
+		b = bytes.ReplaceAll(b, []byte{0x7f}, []byte(`\u007f`))
+		for r := rune(0x80); r <= 0x9f; r++ {
+			b = bytes.ReplaceAll(b, []byte(string(r)), []byte(fmt.Sprintf(`\u%04x`, r)))
 		}
 		w.Write(b)
 		return w.WriteByte('\n')
@@ -105,6 +111,27 @@ func TestPrintMatchesReference(t *testing.T) {
 			lo := max(0, i-60)
 			t.Fatalf("json=%v b64=%v: output differs at byte %d:\n got %q\nwant %q", mode.json, mode.b64, i, g[lo:min(len(g), i+60)], w[lo:min(len(w), i+60)])
 		}
+	}
+}
+
+// TestPrintJSONEscapesC1AndDEL: the JSON form, like the text form, never passes DEL or a C1 control
+// (U+0080 to U+009F, such as the CSI introducer U+009B) raw to the terminal; it stays valid JSON and lossless.
+func TestPrintJSONEscapesC1AndDEL(t *testing.T) {
+	payload := "a\u009b31mred\u0085b\x7f\u0080\u009f é"
+	var got bytes.Buffer
+	p := newPrinter(&got, true, false)
+	if err := p.print(quill.Record{Seq: 1, At: 0, Payload: []byte(payload)}); err != nil {
+		t.Fatal(err)
+	}
+	p.flush()
+	want := `{"seq":1,"at":0,"time":"1970-01-01T00:00:00Z","len":` + strconv.Itoa(len(payload)) +
+		`,"payload":"a\u009b31mred\u0085b\u007f\u0080\u009f` + " é" + `"}` + "\n"
+	if got.String() != want {
+		t.Fatalf("got %q\nwant %q", got.String(), want)
+	}
+	var rec struct{ Payload string }
+	if err := json.Unmarshal(got.Bytes(), &rec); err != nil || rec.Payload != payload {
+		t.Fatalf("not lossless: %q, %v", rec.Payload, err)
 	}
 }
 

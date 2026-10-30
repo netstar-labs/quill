@@ -219,7 +219,7 @@ quill archive -dir orders -to /backup/orders
 **Output.** Text lines are `seq`, the RFC 3339 time, and the payload quoted with control
 characters escaped (binary payloads as `b64:…`). `-json` prints one object per record:
 `seq`, `at`, `time`, `len`, and exactly one of `payload` (valid UTF-8) or `payload_b64`;
-`-b64` forces base64. Both forms are lossless and never pass a raw control character or
+`-b64` forces base64. Both forms are lossless and never pass a raw control character (C0, DEL or C1) or
 invalid UTF-8 to the terminal.
 
 ## 8. The files
