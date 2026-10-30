@@ -12,6 +12,8 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -21,7 +23,8 @@ var ErrBadString = errors.New("strictjson: invalid UTF-8 or a lone surrogate esc
 // ErrTrailing is returned when more than one JSON value is present.
 var ErrTrailing = errors.New("strictjson: trailing data after the value")
 
-// ErrDuplicateKey is returned when an object repeats a key; the decoder would keep the last.
+// ErrDuplicateKey is returned when an object repeats a key, however it is spelled in case:
+// the decoder matches field names case-insensitively and would keep the last.
 var ErrDuplicateKey = errors.New("strictjson: duplicate key")
 
 // Unmarshal decodes exactly one JSON value into v. v should be a pointer to a struct:
@@ -84,8 +87,9 @@ func checkEscapes(data []byte) error {
 	return nil
 }
 
-// checkDuplicateKeys walks the tokens and refuses an object that repeats a key. Syntax
-// errors are left to the decoder, which reports them better.
+// checkDuplicateKeys walks the tokens and refuses an object that repeats a key, comparing
+// keys by the case folding encoding/json uses to match field names, so seq and SEQ are one
+// key. Syntax errors are left to the decoder, which reports them better.
 func checkDuplicateKeys(data []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	type frame struct {
@@ -120,10 +124,11 @@ func checkDuplicateKeys(data []byte) error {
 			}
 		case string:
 			if top != nil && top.object && top.expectKey {
-				if top.keys[t] {
+				k := strings.Map(foldRune, t)
+				if top.keys[k] {
 					return ErrDuplicateKey
 				}
-				top.keys[t] = true
+				top.keys[k] = true
 				top.expectKey = false
 				continue
 			}
@@ -132,6 +137,19 @@ func checkDuplicateKeys(data []byte) error {
 			top.expectKey = true // a value was consumed; the next string is a key
 		}
 	}
+}
+
+// foldRune maps a rune to the smallest rune of its simple case-folding orbit, so that two
+// keys the decoder would match to one field (K, k and the Kelvin sign; s and the long s)
+// map to one string.
+func foldRune(r rune) rune {
+	m := r
+	for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+		if f < m {
+			m = f
+		}
+	}
+	return m
 }
 
 func hex4(b []byte) (uint64, bool) {

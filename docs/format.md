@@ -108,6 +108,11 @@ Retention deletes only the oldest segments, so a middle hole is always damage.
 Every state file is written by temp file, fsync, rename. Every one except `quill.policy` is
 refused when malformed: unknown fields, a missing field, trailing data, a duplicate key, invalid
 UTF-8, a lone surrogate escape, a number with a sign, a leading zero or a fraction are all refused.
+In `quill.tail` a key that differs from an earlier one only in letter case (`seq` and `SEQ`) is a
+duplicate, because the decoder matches field names case-insensitively and would otherwise let the
+later one win. `quill.tail` is read by a strict JSON parser that does not insist on the writer's exact
+bytes: whitespace between tokens, fields in another order, a missing trailing newline and a field
+name in other letter case (`SEQ` alone) are accepted. The writer never produces any of these.
 A write has no directory fsync unless stated, so after a power loss a state file may be the
 previous version, never a torn one.
 

@@ -27,19 +27,20 @@ func TestTailRoundTripsAndIsStrict(t *testing.T) {
 		t.Fatalf("%+v %v", out, err)
 	}
 	bad := map[string]string{
-		"missing field":   `{"seq":42,"seg":3,"off":1024}`,
-		"extra field":     `{"seq":42,"seg":3,"off":1024,"maxseg":7,"x":1}`,
-		"seg over maxseg": `{"seq":42,"seg":8,"off":1024,"maxseg":7}`,
-		"negative":        `{"seq":-1,"seg":3,"off":1024,"maxseg":7}`,
-		"float":           `{"seq":4.2,"seg":3,"off":1024,"maxseg":7}`,
-		"string":          `{"seq":"42","seg":3,"off":1024,"maxseg":7}`,
-		"null":            `{"seq":null,"seg":3,"off":1024,"maxseg":7}`,
-		"duplicate key":   `{"seq":1,"seq":42,"seg":3,"off":1024,"maxseg":7}`,
-		"trailing":        `{"seq":42,"seg":3,"off":1024,"maxseg":7}{"seq":1,"seg":3,"off":1024,"maxseg":7}`,
-		"truncated":       `{"seq":42,"seg":3,"off":10`,
-		"empty":           ``,
-		"zeros":           "\x00\x00\x00\x00",
-		"invalid utf-8":   "{\"seq\":42,\"seg\":3,\"off\":1024,\"maxseg\":7,\"\xff\":1}",
+		"missing field":              `{"seq":42,"seg":3,"off":1024}`,
+		"extra field":                `{"seq":42,"seg":3,"off":1024,"maxseg":7,"x":1}`,
+		"seg over maxseg":            `{"seq":42,"seg":8,"off":1024,"maxseg":7}`,
+		"negative":                   `{"seq":-1,"seg":3,"off":1024,"maxseg":7}`,
+		"float":                      `{"seq":4.2,"seg":3,"off":1024,"maxseg":7}`,
+		"string":                     `{"seq":"42","seg":3,"off":1024,"maxseg":7}`,
+		"null":                       `{"seq":null,"seg":3,"off":1024,"maxseg":7}`,
+		"duplicate key":              `{"seq":1,"seq":42,"seg":3,"off":1024,"maxseg":7}`,
+		"case-variant duplicate key": `{"seq":1,"SEQ":42,"seg":3,"off":1024,"maxseg":7}`,
+		"trailing":                   `{"seq":42,"seg":3,"off":1024,"maxseg":7}{"seq":1,"seg":3,"off":1024,"maxseg":7}`,
+		"truncated":                  `{"seq":42,"seg":3,"off":10`,
+		"empty":                      ``,
+		"zeros":                      "\x00\x00\x00\x00",
+		"invalid utf-8":              "{\"seq\":42,\"seg\":3,\"off\":1024,\"maxseg\":7,\"\xff\":1}",
 	}
 	for name, in := range bad {
 		if v, err := decodeTail([]byte(in)); err == nil {

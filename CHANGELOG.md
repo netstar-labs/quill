@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a `quill.tail` that repeated a key in another letter case, such as `{"seq":1,"SEQ":2,...}`, was read as `seq` 2 with no error, because the
+  duplicate check compared exact strings while the decoder matches field names case-insensitively. It is now refused as a duplicate key, like a
+  byte-identical repeat. The writer never produces one. format.md now says which non-canonical shapes the strict parser still accepts
+  (whitespace, field order, a missing trailing newline, a field name in other case). Decisions 72 and 105 are amended.
+
 - Changed: documentation only, no behaviour change. `MaxBatchBytes` was described as the largest encoded batch, but the check sums
   `len(payload) + 34` per record (an upper bound, since the sequence is unknown at the check), so 500,000 one-byte records (about
   7.5 MB encoded) are refused at the default and about 479,000 are accepted. The docs, the `Config` comment and `quill append`'s help now say so,

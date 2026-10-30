@@ -65,6 +65,30 @@ func TestUnmarshalRefusesEveryDamagedShape(t *testing.T) {
 	}
 }
 
+// encoding/json matches field names case-insensitively, so a key that differs only in case
+// from an earlier one would silently win; a repeated key is refused however it is spelled.
+func TestCaseVariantDuplicateKeyIsRefused(t *testing.T) {
+	cases := map[string]string{
+		"upper":          `{"seq":1,"SEQ":2,"seg":0,"off":0,"maxseg":0}`,
+		"upper first":    `{"SEQ":1,"seq":2,"seg":0,"off":0,"maxseg":0}`,
+		"mixed":          `{"seq":1,"Seq":2,"seg":0,"off":0,"maxseg":0}`,
+		"long s":         `{"seq":1,"\u017feq":2,"seg":0,"off":0,"maxseg":0}`,
+		"kelvin sign":    `{"seq":1,"seg":0,"off":0,"maxseg":0,"k":1,"\u212a":2}`,
+		"escaped":        `{"seq":1,"\u0053EQ":2,"seg":0,"off":0,"maxseg":0}`,
+		"nested variant": `{"seq":1,"seg":0,"off":0,"maxseg":0,"a":{"y":1,"Y":2}}`,
+	}
+	for name, in := range cases {
+		var v struct {
+			Seq, Seg, Off, MaxSeg uint64
+			K                     uint64
+			A                     map[string]uint64
+		}
+		if err := Unmarshal([]byte(in), &v); !errors.Is(err, ErrDuplicateKey) {
+			t.Errorf("%s: %q: got %v, want ErrDuplicateKey", name, in, err)
+		}
+	}
+}
+
 func TestAGenuineReplacementCharacterAndAValidPairStay(t *testing.T) {
 	var s string
 	for _, in := range []string{`"�"`, "\"ï¿½\"", `"😀"`, `"a\\u"`, `"\\ud800"`} {
