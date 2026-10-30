@@ -11,9 +11,10 @@ import (
 )
 
 // Read returns flushed records with seq >= offset, ascending, payloads copied: at most limit
-// records (limit <= 0 means no limit) and MaxReadBytes of payload, but always at least one
-// when one exists. It returns a *GapError where records are unavailable (decision 38) and an
-// empty result when offset is past the head.
+// records (limit <= 0 means no limit), and it stops once at least MaxReadBytes of payload have
+// been returned, so the total can exceed MaxReadBytes by up to one record. It always returns at
+// least one record when one exists. It returns a *GapError where records are unavailable
+// (decision 38) and an empty result when offset is past the head.
 func (l *Log) Read(offset uint64, limit int) ([]Record, error) {
 	return readFrom(l, offset, limit)
 }
@@ -134,8 +135,9 @@ func readWait(ctx context.Context, src source, offset uint64, limit int) ([]Reco
 	}
 }
 
-// scanSource drives every read: at most limit records (0: no limit) and maxBytes of payload
-// (0: no bound), always at least one. copyPayloads makes each payload its own allocation.
+// scanSource drives every read: at most limit records (0: no limit), stopping once at least
+// maxBytes of payload (0: no bound) have been delivered, so the last record may carry the total
+// past maxBytes, and always at least one. copyPayloads makes each payload its own allocation.
 // A gap met after records were delivered is returned at once when gapAfter is set (Scan:
 // the callback already has the records) and otherwise left for the next call (Read: the
 // records are the result). A from.seq of 0 means the first retained sequence. It returns

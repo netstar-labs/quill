@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Changed: documentation only, no behaviour change. `Read`, `ReadWait`, `Records` and `Follow` check `MaxReadBytes` after each record, so a
+  batch stops once at least `MaxReadBytes` of payload have been returned and can exceed it by up to one record (at the defaults, 16 MiB plus up to
+  64 MiB - 32); the docs and the `Config` and `ReaderOptions` comments said "at most `MaxReadBytes`". They now state the actual rule, and a read
+  still returns at least one record. Decisions 50 and 79 are amended.
+
 - Fixed: `quill cat`, `read` and `tail` with `-json` passed DEL (0x7f) and the C1 control characters U+0080 to U+009F, such as the CSI introducer
   U+009B, to the terminal raw inside the `payload` string, although the guide says no raw control character reaches it and the text form escaped them.
   They are now written as `\u007f` and `\u0080` to `\u009f`; the JSON stays valid and lossless. The bytes `-json` emits change for payloads that

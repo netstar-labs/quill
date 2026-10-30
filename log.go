@@ -55,7 +55,8 @@ type Config struct {
 	// is refused before its real encoded size reaches the limit (about 479,000 one-byte records at
 	// the default).
 	MaxBatchBytes int
-	// MaxReadBytes is the payload bytes one Read returns, at least one record (16 MiB).
+	// MaxReadBytes is the payload bytes after which one Read stops: it returns at least one record,
+	// and the last record may carry the total past this bound (16 MiB).
 	MaxReadBytes int
 	// ProtectedConsumers names consumers the writer creates, protected, when it opens the log. A
 	// file already protected is left alone, so a running consumer does not block a restart.

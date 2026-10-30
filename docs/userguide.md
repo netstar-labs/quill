@@ -63,7 +63,7 @@ permissions, inodes) before the ceiling.
 ## 3. Reading in the writer's process
 
 ```go
-recs, err := l.Read(offset, limit)            // copies; at most limit records and MaxReadBytes
+recs, err := l.Read(offset, limit)            // copies; at most limit records, stops once MaxReadBytes are reached
 recs, err := l.ReadWait(ctx, offset, limit)   // blocks at the head until a flush
 err = l.Scan(offset, limit, func(r quill.Record) bool { ... })   // zero-copy, payload valid in the callback
 for rec, err := range l.Records(ctx, offset) { ... }             // to the current end
@@ -155,7 +155,7 @@ arrives during creation retries).
 | `MaxRecords` | off | Keep roughly the newest N records |
 | `MaxPayloadBytes` | 64 MiB − 32 (the ceiling) | Largest record |
 | `MaxBatchBytes` | 16 MiB | Bound on a batch of more than one record, checked as the sum of `len(payload) + 34` per record, an upper bound of its encoded size (the sequence is not known at the check): about 479,000 one-byte records fit at the default, though they encode to about 7 MB. A single record is bounded by `MaxPayloadBytes` alone |
-| `MaxReadBytes` | 16 MiB | Payload bytes per `Read`, at least one record |
+| `MaxReadBytes` | 16 MiB | A `Read` stops once at least this many payload bytes are returned (so it can exceed it by up to one record), and returns at least one record |
 | `ProtectedConsumers` | none | Created, protected, at open; an already protected file is left alone, so a running consumer does not block a restart |
 | `ConsumerTTL` | off | See §4 |
 | `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures. Its handler, `Enabled` included, runs with the log's lock held, so it must neither call the `Log` (that deadlocks it) nor block (that stalls `Append`, `Read`, `Sync` and the flusher): hand the record to another goroutine and return |

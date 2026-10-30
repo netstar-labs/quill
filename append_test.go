@@ -193,6 +193,27 @@ func TestMaxReadBytesReturnsAtLeastOneRecordAndLimitCountsAcrossSegments(t *test
 	}
 }
 
+func TestReadStopsOnceMaxReadBytesIsReachedSoTheLastRecordMayPassIt(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.MaxReadBytes = 16 })
+	defer l.Close()
+	for _, n := range []int{10, 10, 10} {
+		if _, err := l.Append(make([]byte, n)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustFlush(t, l)
+	recs, err := l.Read(1, 0)
+	total := 0
+	for _, r := range recs {
+		total += len(r.Payload)
+	}
+	// The second record is admitted because 10 < 16, and it carries the total to 20; the third is not.
+	if err != nil || len(recs) != 2 || total != 20 {
+		t.Fatalf("%v %d bytes %v", seqsOf(recs), total, err)
+	}
+}
+
 func TestDescriptorsAcrossRotationAReadHoldsTheOldActiveSegmentOpen(t *testing.T) {
 	s := fsx.NewSim()
 	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 100 })

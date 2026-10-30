@@ -56,7 +56,7 @@ It is not a message broker: no network protocol, no replication, no consumer gro
 | `Open(Config) (*Log, error)` / `(*Log).Close()` | Open (taking the directory lock) and flush-and-stop; `Close` returns the final flush's error; a read in flight at `Close` finishes, and later calls return `ErrClosed` |
 | `Append(payload)` / `AppendBatch(payloads)` | Buffer records; durable after the next flush. A batch is one lock acquisition and lands in one segment |
 | `Flush()` | Write buffered records, fsync, then publish `quill.tail` |
-| `Read(offset, limit)` | Flushed records with `seq >= offset`, ascending, payloads copied: at most `limit` records and `MaxReadBytes` of payload, but always at least one if available. Returns a `*GapError` where records are unavailable (decision 38) |
+| `Read(offset, limit)` | Flushed records with `seq >= offset`, ascending, payloads copied: at most `limit` records; it stops once at least `MaxReadBytes` of payload have been returned (so the total can exceed it by up to one record), but always returns at least one if available. Returns a `*GapError` where records are unavailable (decision 38) |
 | `ReadWait(ctx, offset, limit)` | As `Read`, blocking until more is flushed when caught up |
 | `Scan` / `ScanAll` | Zero-copy variants, globally ordered |
 | `Records(ctx, offset)` / `Follow(ctx, offset)` | Go iterators (`iter.Seq2[Record, error]`): `Records` reads to the current end and stops, `Follow` then waits for more until the context ends. Payloads are copies (decision 58) |
@@ -117,7 +117,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | `MinFreeBytes` | 0 (off) | Free-space floor on the log's filesystem, measured with `statfs`: below it, the log deletes its own oldest sealed segments, and appends fail with an error wrapping `ENOSPC` if nothing is left to delete |
 | `MaxPayloadBytes` | 64 MiB − 32 B (the ceiling) | Largest accepted record; lower it to bound a single record. An empty buffer accepts any single record up to this, whatever `MaxBufferBytes` says |
 | `MaxBatchBytes` | 16 MiB | Bound on an `AppendBatch` of more than one record, checked as the sum of `len(payload) + 34` per record (an upper bound of the encoded size, so about 479,000 one-byte records at the default); a larger one is refused (decision 46). A single record is bounded by `MaxPayloadBytes` alone, so it may exceed this |
-| `MaxReadBytes` | 16 MiB | Payload bytes returned by one `Read`, at least one record |
+| `MaxReadBytes` | 16 MiB | A `Read` stops once at least this many payload bytes are returned (so it can exceed it by up to one record), and returns at least one record |
 | `ProtectedConsumers` | none | Names the writer creates, protected, at the first retained sequence when it opens the log, so a lazy consumer is protected before its process starts (decision 67). A file that already says protected is left alone, so the writer can restart while that consumer runs; switching an unprotected file on needs the consumer's lock |
 | `Logger` | nil (silent) | A `*slog.Logger` for retention deletions, stale consumers, bulk-expiry warnings and failures. Its handler, `Enabled` included, runs synchronously with the log's lock held, so it must neither call the `Log` nor block; hand the record to another goroutine and return (decision 50) |
 | `Perm` | 0600 (directories 0700) | File mode; every state file is opened without following symlinks (decision 51) |

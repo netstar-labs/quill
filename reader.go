@@ -19,7 +19,8 @@ import (
 type ReaderOptions struct {
 	// PollInterval is how often ReadWait and Follow re-read quill.tail (50 ms).
 	PollInterval time.Duration
-	// MaxReadBytes bounds the payload bytes one Read returns (16 MiB).
+	// MaxReadBytes is the payload bytes after which one Read stops: it returns at least one record,
+	// and the last record may carry the total past this bound (16 MiB).
 	MaxReadBytes int
 
 	fs    fsx.FS
