@@ -349,6 +349,23 @@ func TestTheVerbsRunBesideALiveWriterAndShowNothingBeyondTheMarker(t *testing.T)
 	mustRun(t, "", "prune", "-dir", dir, "-retention", "1h")
 }
 
+// A segment file over the size limit is refused unread, and check says so instead of
+// "damaged at byte 0, intact to byte 0" (Stage 2 audit A1-25).
+func TestCheckReportsAnOversizeSegmentFileAsRefusedNotDamaged(t *testing.T) {
+	dir := newLog(t, 3, func(i int) []byte { return []byte("r") })
+	if err := os.Truncate(filepath.Join(dir, "0000000000.log"), 1700<<20); err != nil { // sparse
+		t.Fatal(err)
+	}
+	code, out, _ := exec(t, "", "check", "-dir", dir)
+	if code != exitUnhealthy || !strings.Contains(out, "refused without being read") || !strings.Contains(out, "over the 1610612736 limit") || strings.Contains(out, "damaged at byte") {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+	code, out, _ = exec(t, "", "check", "-dir", dir, "-json")
+	if code != exitUnhealthy || !strings.Contains(out, "over the 1610612736 limit") || strings.Contains(out, "damaged") {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+}
+
 func TestCheckReportsUnhealthyWithExitThreeAndFlagsTheClock(t *testing.T) {
 	// T9 and T21, the CLI parts.
 	dir := newLog(t, 5, func(i int) []byte { return []byte("r") })

@@ -5,6 +5,14 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: while creating the next segment kept failing, the writer kept appending to the active segment with no bound, so it could
+  pass the 1.5 GiB limit that `Open` and readers enforce and the log could then not be opened although every record had been
+  acknowledged durable. Now, while a rotation that is due keeps failing, an `Append` or `AppendBatch` that would take the segment
+  past `SegmentBytes + max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes, MaxPayloadBytes + 34)` is refused with the rotation
+  error and assigns no sequence, and `Open` refuses (`ErrConfig`) a `Config` whose `SegmentBytes` plus that overshoot reaches the
+  limit (for example a 1 GiB `SegmentBytes` with a `FlushBytes` or `MaxBufferBytes` above 512 MiB). A segment file over the limit
+  is now reported as refused unread, not as "damaged at byte 0 (intact to byte 0)". Decisions 16 and 60 are amended.
+
 - Fixed: a `Log`'s own `Read`, `Scan`, `ScanAll`, `Records`, `Follow` and consumer reads returned a raw `*fs.PathError` (no such
   file) when retention deleted a sealed segment after the read took its view and before it opened the segment, where a `Reader`
   returns a `*GapError`. They now return a `*GapError` over that segment's range, starting at the offset asked for, so the

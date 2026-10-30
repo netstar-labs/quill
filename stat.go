@@ -95,6 +95,9 @@ type Problem struct {
 	Offset int64 // for a segment: where the damage starts
 	Intact int64 // for a segment: the end of the last valid frame
 	Detail string
+	// refused marks a segment file refused whole, unread (over the size limit): intact as far
+	// as anyone knows, so String names no damaged byte.
+	refused bool
 	// Fatal problems make the log UNHEALTHY; the others are warnings.
 	Fatal bool
 }
@@ -105,7 +108,10 @@ func (p Problem) String() string {
 	if p.Path != "" {
 		s += " " + p.Path
 	}
-	if p.Kind == "segment" {
+	switch {
+	case p.refused:
+		s += " refused without being read"
+	case p.Kind == "segment":
 		s += fmt.Sprintf(" damaged at byte %d, intact to byte %d", p.Offset, p.Intact)
 	}
 	if p.Detail != "" {
@@ -152,6 +158,11 @@ func (r *Reader) Check() (CheckResult, error) {
 				// deletes oldest first, so what was scanned before it is going too: start
 				// the contiguity test again at the next survivor.
 				havePrev = false
+				continue
+			}
+			var se *SegmentError
+			if errors.As(err, &se) && se.oversize {
+				fatal(Problem{Kind: "segment", Path: path, Detail: se.Reason, refused: true})
 				continue
 			}
 			fatal(Problem{Kind: "segment", Path: path, Detail: err.Error()})

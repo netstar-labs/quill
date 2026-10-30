@@ -53,7 +53,12 @@ error from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the rec
 become durable, so a producer that retries must tolerate duplicates. A failure to publish the
 marker or create the next segment after the data fsync is retried at the next flush, reported
 by `Err()`, and never rewrites durable data. While flushes fail the buffer is bounded by
-`MaxBufferBytes`; past it, appends fail fast with the flush error.
+`MaxBufferBytes`; past it, appends fail fast with the flush error. While creating the next
+segment keeps failing, the writer keeps appending to the current one, but only to a ceiling of
+`SegmentBytes + max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes, MaxPayloadBytes + 34)`, which
+`Open` keeps under the 1.5 GiB file limit; past it an append fails with the rotation error and
+assigns no sequence, until a flush creates the segment. Watch `Err()` and fix the cause (descriptors,
+permissions, inodes) before the ceiling.
 
 ## 3. Reading in the writer's process
 
@@ -142,7 +147,7 @@ arrives during creation retries).
 | `FlushBytes`, `FlushInterval` | 64 KiB, 250 ms | Inline flush size; background flush period |
 | `SyncAppends` | off | Every append returns durable |
 | `MaxBufferBytes` | 16 × `FlushBytes` | The buffer bound while flushes are failing |
-| `SegmentBytes` | 8 MiB (≤ 1 GiB) | Rotation size; a segment passes it by the flush that seals it |
+| `SegmentBytes` | 8 MiB (≤ 1 GiB) | Rotation size; a segment passes it by the flush that seals it. `Open` refuses a value whose sum with the largest flush (`max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes, MaxPayloadBytes + 34)`) reaches the 1.5 GiB file limit |
 | `SegmentMaxAge` | `Retention` | Rotates a quiet active segment so retention can reach it. The default is never when `Retention` is negative; an explicit positive value rotates whatever `Retention` is |
 | `MaxBytes` | off | Cap on segment bytes, checked at every seal and pass; ≥ 2 × `SegmentBytes` |
 | `MinFreeBytes` | off | Free-space floor (`statfs`); below it the log deletes its own oldest segments, then refuses appends with `ENOSPC` |

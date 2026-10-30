@@ -108,6 +108,7 @@ func (l *Log) publishLocked() error {
 			}
 			l.bgErr = rotErr
 		}
+		l.rotErr = rotErr
 	}
 	sealed := l.justSealed
 	m := tail{Seq: l.head, Seg: l.active.id, Off: uint64(l.active.durable), MaxSeg: l.maxSeg}

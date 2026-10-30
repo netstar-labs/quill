@@ -58,7 +58,8 @@ Then it publishes the marker by temp file, fsync, rename, with no directory fsyn
 
 Each step has a failure class (decision 60): a write error truncates back and keeps the
 records buffered; an fsync error fails the log for good; a marker or segment-creation error
-after the data fsync is retried at the next flush and never rewrites durable data; a
+after the data fsync is retried at the next flush and never rewrites durable data (while the
+next segment cannot be created, appends are refused at a ceiling under the file limit); a
 directory fsync error is fatal. `Sync` is group commit: producers append under the lock,
 release it, signal the flusher and wait on a broadcast channel that every flush closes, so
 concurrent producers share one fsync and a waiter holds no lock.

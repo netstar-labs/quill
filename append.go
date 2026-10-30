@@ -67,6 +67,13 @@ func (l *Log) appendLocked(payloads [][]byte, size int) (uint64, error) {
 	if l.flushErr != nil && l.bufCount > 0 && len(l.buf)+size > l.cfg.MaxBufferBytes {
 		return 0, fmt.Errorf("%w (buffer at %d bytes, MaxBufferBytes %d)", l.flushErr, len(l.buf), l.cfg.MaxBufferBytes)
 	}
+	// Rotation keeps failing (decision 60 d): the segment may grow only to the ceiling, which
+	// validate keeps under the file limit Open enforces (decision 16).
+	if l.rotErr != nil {
+		if end, ceiling := l.active.durable+int64(len(l.buf)+size), l.cfg.maxActiveBytes(); end > ceiling {
+			return 0, fmt.Errorf("%w (active segment would reach %d bytes, ceiling %d)", l.rotErr, end, ceiling)
+		}
+	}
 	first := l.nextSeq
 	at := l.cfg.clock().Unix()
 	if l.bufCount == 0 {

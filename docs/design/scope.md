@@ -221,7 +221,8 @@ to that offset and keeps the records buffered, and space exhaustion recovers by 
 closed and reopened, because a retried fsync can report success for data that never reached the disk. An error
 from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still become durable, so a
 producer that retries must tolerate duplicates. Failures after the data is durable (creating the next segment,
-writing the marker) are retried at the next flush and never rewrite the data; a directory-fsync error is fatal. An
+writing the marker) are retried at the next flush and never rewrite the data, and while the next segment keeps failing
+to be created appends are refused at a ceiling under the 1.5 GiB file limit; a directory-fsync error is fatal. An
 `AppendBatch` is not crash-atomic: a prefix of its records may survive.
 
 ### Disk safety and archiving

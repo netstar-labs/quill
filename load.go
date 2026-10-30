@@ -46,10 +46,16 @@ type SegmentError struct {
 	Offset int64  // where the damage starts
 	Intact int64  // the end of the last valid frame
 	Reason string
+	// oversize marks a file over maxSegmentBytes, which is refused whole, not damaged at a byte.
+	oversize bool
 }
 
-// Error names the segment, where the damage starts and where the intact bytes end.
+// Error names the segment, where the damage starts and where the intact bytes end; a file over
+// the size limit is refused unread, so no byte is named.
 func (e *SegmentError) Error() string {
+	if e.oversize {
+		return fmt.Sprintf("quill: segment %s refused without being read: %s", e.Path, e.Reason)
+	}
 	return fmt.Sprintf("quill: segment %s damaged at byte %d (intact to byte %d): %s", e.Path, e.Offset, e.Intact, e.Reason)
 }
 
@@ -76,7 +82,7 @@ func openSegmentFlag(fsys fsx.FS, path string, flag int) (fsx.File, int64, error
 		err = &SegmentError{Path: path, Reason: "not a regular file"}
 	}
 	if err == nil && info.Size() > maxSegmentBytes {
-		err = &SegmentError{Path: path, Reason: fmt.Sprintf("%d bytes, over the %d limit", info.Size(), maxSegmentBytes)}
+		err = &SegmentError{Path: path, Reason: fmt.Sprintf("%d bytes, over the %d limit", info.Size(), maxSegmentBytes), oversize: true}
 	}
 	if err != nil {
 		_ = f.Close()

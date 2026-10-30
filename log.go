@@ -33,7 +33,10 @@ type Config struct {
 	// MaxBufferBytes applies only while flushes are failing: then an append is accepted only
 	// into an empty buffer or within this limit (16 × FlushBytes).
 	MaxBufferBytes int
-	// SegmentBytes is the rotation size (8 MiB), at most 1 GiB.
+	// SegmentBytes is the rotation size (8 MiB), at most 1 GiB, and under the 1.5 GiB segment file
+	// limit once the largest flush is added: max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes,
+	// MaxPayloadBytes+34). While rotation keeps failing, an append that would pass that sum is
+	// refused with the rotation error.
 	SegmentBytes int64
 	// SegmentMaxAge rotates a quiet active segment so retention can delete it (Retention).
 	// Left at zero it takes Retention's value, so it is never when Retention is negative; an
@@ -160,6 +163,9 @@ func (c Config) validate() error {
 		return bad("SegmentBytes %d above %d", c.SegmentBytes, MaxSegmentBytes)
 	case c.MaxPayloadBytes > MaxPayloadBytes:
 		return bad("MaxPayloadBytes %d above the ceiling %d", c.MaxPayloadBytes, MaxPayloadBytes)
+	case c.maxActiveBytes() >= maxSegmentBytes:
+		return bad("SegmentBytes %d plus one flush (up to %d bytes) reaches the %d-byte segment file limit",
+			c.SegmentBytes, c.maxActiveBytes()-c.SegmentBytes, int64(maxSegmentBytes))
 	case c.MaxBytes != 0 && c.MaxBytes < 2*c.SegmentBytes:
 		return bad("MaxBytes %d below twice SegmentBytes %d", c.MaxBytes, c.SegmentBytes)
 	case c.Perm&0o600 != 0o600:
@@ -173,6 +179,15 @@ func (c Config) validate() error {
 		}
 	}
 	return nil
+}
+
+// maxActiveBytes is the most the active segment can hold: SegmentBytes, which a flush reaches
+// and then rotates, plus one flush: the buffer (at most the larger of FlushBytes and
+// MaxBufferBytes) and the one append that overshoots it (at most MaxBatchBytes, or a single
+// record's MaxPayloadBytes plus 34; the accounting of decision 69). The ceiling an append is
+// refused at while rotation keeps failing, and what validate keeps under the file limit.
+func (c Config) maxActiveBytes() int64 {
+	return c.SegmentBytes + int64(max(c.FlushBytes, c.MaxBufferBytes)+max(c.MaxBatchBytes, c.MaxPayloadBytes+34))
 }
 
 // dirPerm is the directory mode for a file mode: execute wherever read is granted.
@@ -238,6 +253,9 @@ type Log struct {
 	// pendingPublish is set when the data is durable but the marker could not be published
 	// (or the next segment created); the next flush retries (decision 60 d).
 	pendingPublish bool
+	// rotErr is the error of the last rotation due at a flush, while it keeps failing; nil once one
+	// succeeds. While set, an append is refused at the ceiling (decision 60 d).
+	rotErr error
 	// flushed is made by the first waiter (waitChanLocked) and closed and set to nil by the next
 	// flush attempt; waiters block on it without the lock (Sync, ReadWait).
 	flushed  chan struct{}
