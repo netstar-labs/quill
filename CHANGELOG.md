@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `docs/audits/audit-correctness.md` named a personal scratch directory (a user name and an internal parent
+  directory) in its opening paragraph; it now says only `scratchpad/`. Documentation only; behaviour is unchanged. The
+  text remains in earlier commits and the v0.1.0 tag; the owner decides before the public flip whether history is
+  squashed or accepted.
+
 - Fixed: `SECURITY.md` named no usable private reporting channel (it pointed at `.github/CODEOWNERS`, which holds only a
   GitHub login). It now names the Security tab "Report a vulnerability" route and states that only the latest release is
   supported. The owner must enable private vulnerability reporting in the repository settings before the public flip.
