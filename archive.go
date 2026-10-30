@@ -23,6 +23,9 @@ import (
 // writing to it, a destination that is the source log itself and a destination whose
 // writer lock is held (ErrLocked): quill.tail is the writer's file.
 //
+// Everything Archive creates in the destination, and the source's consumer files, takes the
+// source log's file mode, read from its quill.tail (decision 51).
+//
 // The archiver is a protected consumer, so retention keeps a segment until it is copied;
 // the caps still win, so an archive can fall behind under disk pressure.
 func Archive(srcDir, dstDir string) error {
@@ -41,7 +44,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 	}
 	defer c.Close()
 	dstDir = filepath.Clean(dstDir)
-	if err := archiveDest(fsys, srcDir, dstDir, r.id, r.opts.clock().Add(-time.Hour)); err != nil {
+	if err := archiveDest(fsys, srcDir, dstDir, r.id, r.perm, r.opts.clock().Add(-time.Hour)); err != nil {
 		return err
 	}
 	v, release, err := r.view()
@@ -62,7 +65,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 		if s.active || s.last < offset {
 			continue
 		}
-		size, last, err := copySegment(fsys, s, dstDir)
+		size, last, err := copySegment(fsys, s, dstDir, r.perm)
 		if err != nil {
 			copyErr = err
 			break
@@ -75,7 +78,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 	}
 	if copied > 0 {
 		tl := tail{Seq: lastSeq, Seg: lastID, Off: uint64(lastSize), MaxSeg: lastID}
-		if err := writeState(fsys, filepath.Join(dstDir, tailName), encodeTail(tl), DefaultPerm); err != nil {
+		if err := writeState(fsys, filepath.Join(dstDir, tailName), encodeTail(tl), r.perm); err != nil {
 			return err
 		}
 		if err := fsys.SyncDir(dstDir); err != nil {
@@ -98,7 +101,7 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 // destination if needed and checks or writes its format marker. It also removes the .tmp-*
 // files in it last modified before staleBefore: a killed copy leaves one, and no writer's Open
 // sweeps this directory (decision 67).
-func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, staleBefore time.Time) error {
+func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, perm fs.FileMode, staleBefore time.Time) error {
 	// quill.tail has one writer, the lock holder (decisions 8, 62), and Archive writes the
 	// destination's. The source is such a destination when the two paths name one directory
 	// (os.SameFile follows a symbolic link in the path, which comparing strings would not).
@@ -117,7 +120,7 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, staleBefore time.
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	dirPerm := Config{Perm: DefaultPerm}.dirPerm()
+	dirPerm := Config{Perm: perm}.dirPerm()
 	if err := fsys.Mkdir(dstDir, dirPerm); err != nil && !errors.Is(err, fs.ErrExist) {
 		return err
 	}
@@ -130,7 +133,7 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, staleBefore time.
 	data, err := readState(fsys, filepath.Join(dstDir, formatName))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		if err := writeState(fsys, filepath.Join(dstDir, formatName), encodeFormat(id), DefaultPerm); err != nil {
+		if err := writeState(fsys, filepath.Join(dstDir, formatName), encodeFormat(id), perm); err != nil {
 			return err
 		}
 	case err != nil:
@@ -148,7 +151,7 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, staleBefore time.
 		return err
 	}
 	if _, err := fsys.Lstat(filepath.Join(dstDir, tailName)); errors.Is(err, fs.ErrNotExist) {
-		if err := writeState(fsys, filepath.Join(dstDir, tailName), encodeTail(tail{}), DefaultPerm); err != nil {
+		if err := writeState(fsys, filepath.Join(dstDir, tailName), encodeTail(tail{}), perm); err != nil {
 			return err
 		}
 	} else if err != nil {
@@ -161,7 +164,7 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, staleBefore time.
 // copySegment verifies a sealed segment whole, then copies it to the destination under its
 // own name through atomicfile.WriteFrom (temp file, fsync, rename). A destination file of the same size is kept. It
 // returns the size and the segment's last sequence.
-func copySegment(fsys fsx.FS, s *segRef, dstDir string) (int64, uint64, error) {
+func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64, uint64, error) {
 	r, size, closer, err := s.open()
 	if err != nil {
 		return 0, 0, err
@@ -175,7 +178,7 @@ func copySegment(fsys fsx.FS, s *segRef, dstDir string) (int64, uint64, error) {
 	if di, err := fsys.Lstat(dst); err == nil && di.Mode().IsRegular() && di.Size() == size {
 		return size, info.last.Seq, nil
 	}
-	err = atomicfile.WriteFrom(fsys, dst, DefaultPerm, func(f fsx.File) error {
+	err = atomicfile.WriteFrom(fsys, dst, perm, func(f fsx.File) error {
 		n, err := io.CopyBuffer(io.NewOffsetWriter(f, 0), io.NewSectionReader(r, 0, size), make([]byte, windowChunk))
 		if err == nil && n < size {
 			err = io.ErrUnexpectedEOF

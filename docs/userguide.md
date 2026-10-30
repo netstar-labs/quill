@@ -159,7 +159,7 @@ arrives during creation retries).
 | `ProtectedConsumers` | none | Created, protected, at open; an already protected file is left alone, so a running consumer does not block a restart |
 | `ConsumerTTL` | off | See §4 |
 | `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures. Its handler, `Enabled` included, runs with the log's lock held, so it must neither call the `Log` (that deadlocks it) nor block (that stalls `Append`, `Read`, `Sync` and the flusher): hand the record to another goroutine and return |
-| `Perm` | 0600 (dirs 0700) | File mode |
+| `Perm` | 0600 (dirs 0700) | File mode. A `Reader`, the CLI and `Archive` create their files (consumer offsets, an archive's files) with the mode of the log's `quill.tail`, so a consumer in the log's group is readable by the writer |
 | `NoMaintenance` | off | For offline tools: no background prune or age rotation, and `quill.policy` is not written |
 
 **Bounded disk.** With `MaxBytes` set, segment bytes stay within

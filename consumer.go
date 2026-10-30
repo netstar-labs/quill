@@ -341,10 +341,11 @@ func (l *Log) DeleteConsumer(name string) error { return l.consumerStore().remov
 // The Reader's consumer API.
 
 func (r *Reader) consumerStore() *consumerStore {
-	return &consumerStore{fs: r.fs, dir: r.dir, id: r.id, perm: 0o600, src: r, head: r.Head}
+	return &consumerStore{fs: r.fs, dir: r.dir, id: r.id, perm: r.perm, src: r, head: r.Head}
 }
 
-// Consumer takes a handle on a named consumer through a Reader: an external consumer.
+// Consumer takes a handle on a named consumer through a Reader: an external consumer. A file
+// it creates has the log's file mode (that of quill.tail), so the writer can read it.
 func (r *Reader) Consumer(name string, opts ConsumerOptions) (*Consumer, error) {
 	return r.consumerStore().open(name, opts)
 }

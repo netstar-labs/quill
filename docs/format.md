@@ -21,7 +21,8 @@ one with `ErrFutureVersion`. The module version and the format version are separ
 The directory's base name is the topic name; it is not stored anywhere inside. Once
 `quill.format` exists, unknown files in the directory are ignored; a file named like a segment
 that fails validation is a load error. Directories are created `0700` and files `0600` by
-default.
+default. A consumer file created through a `Reader` or the CLI, and every file and directory `Archive` creates, take
+the log's mode, read from the permission bits of `quill.tail`; a lock file is created through the umask.
 
 ## The frame
 

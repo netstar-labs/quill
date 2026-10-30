@@ -5,6 +5,12 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a consumer file created through a `Reader` or the CLI (`register`, `commit`, `archive`) was always mode 0600, and so were the
+  files and directories `Archive` created, so in the group arrangement the scope describes (`Config.Perm` 0660, a consumer in another
+  account) the writer could not read the consumer's file, retention protected every segment and `check` reported UNHEALTHY. They now take the
+  log's mode, read from `quill.tail`; a default-mode log still gets 0600, and a lock file is created through the umask. No new option or
+  flag. Decisions 41, 51 and 67 are amended.
+
 - Fixed: the archiver's `_archive` consumer could not be rewound or removed, so after a restore left it ahead of the head `quill archive` failed
   with `ErrAhead` and the documented remedy, `quill commit`, was refused for it by name. `Consumer`, `DeleteConsumer` and the CLI's
   `register`, `unregister` and `commit` now accept exactly the name `_archive`; every other leading-underscore name, and

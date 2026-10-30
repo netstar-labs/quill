@@ -38,6 +38,9 @@ type Reader struct {
 	dir  string
 	id   logID
 	opts ReaderOptions
+	// perm is the log's file mode, read from quill.tail when the Reader opened: the mode of
+	// the consumer files this Reader creates and of what Archive creates (decisions 41, 51).
+	perm fs.FileMode
 
 	mu     sync.Mutex
 	segs   map[uint64]*readerSegment // sealed segments by id, built on first use
@@ -109,6 +112,13 @@ func OpenReader(dir string, opts ReaderOptions) (*Reader, error) {
 	if _, err := r.readTail(); err != nil {
 		return nil, err
 	}
+	// quill.tail is written with Config.Perm exactly (decision 74), so its mode is the log's.
+	// The owner's read and write bits stay: this process must reopen what it creates.
+	info, err := r.fs.Lstat(r.path(tailName))
+	if err != nil {
+		return nil, err
+	}
+	r.perm = info.Mode().Perm() | 0o600
 	return r, nil
 }
 

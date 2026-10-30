@@ -321,7 +321,9 @@ APFS). Not supported: NFS, SMB, FUSE; bind mounts and overlay filesystems are us
 macOS `File.Sync` issues `F_FULLFSYNC` (**verified** in the Go source), which is why a durable flush costs about
 20 ms there against milliseconds on Linux. Directories are created 0700 and files 0600 by default, so a reader
 in another user account needs a group arrangement; a process that only reads needs read access, and one that
-holds a consumer needs write access to `consumers/`. Encryption at rest is a non-goal. **Hot backup:** copy
+holds a consumer needs write access to `consumers/`. Consumer files created through a `Reader` or the CLI, and an
+`Archive` destination, take the log's mode (read from `quill.tail`), so the writer can read what a consumer in the
+group creates; a lock file is created through the umask (Stage 2 audit, owner-approved 2026-10-30). Encryption at rest is a non-goal. **Hot backup:** copy
 `quill.tail` first, then the segments in id order, then `consumers/`. A restored log keeps its log ID, so a
 consumer that is ahead of the restored head fails with `ErrAhead` and must be rewound deliberately (`quill commit -offset N`, which opens it with `ConsumerOptions.Rewind`; Stage 2 audit, owner-approved 2026-10-30).
 
