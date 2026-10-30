@@ -221,7 +221,7 @@ the search lands on.
   reserved and refused by the public API, except `_archive` (Stage 2 audit, owner-approved 2026-10-30, A1-32).
 - Retention deletes whole sealed segments whose newest record is older than `Retention`; negative disables the
   age sweep; `0` means 24 h. The active segment is never deleted. **Clock guard** (decision 44): a pass deletes at
-  most 25% of the sealed segments by age (at least one), logs a warning through `Config.Logger` when it would have
+  most a quarter of the sealed segments by age, rounded up (at least one), logs a warning through `Config.Logger` when it would have
   deleted more, and `prune -force` lifts the limit. `MaxBytes` deletes the oldest sealed segments first. Each prune
   pass reads `consumers/*` and keeps every sealed segment holding records at or above the slowest **protected**
   consumer's offset; `MaxBytes`, `MinFreeBytes` and `MaxRecords` override protection (decision 57).
@@ -361,8 +361,8 @@ New tests quill must add. The phase in brackets is the first at which the test c
   about what it does at the tail (within a small factor), and a reader draining a long backlog never slows as it falls
   further behind. A `Reader`'s first touch of each segment costs one scan and is excluded from the comparison; later
   reads in a segment are indexed.
-- **T21 Clock guard** (phase 3; the `check` part in phase 4). A forward step of the clock deletes at most 25% of the
-  sealed segments per pass and logs a warning; `prune -force` lifts the limit; `check` flags future-dated and
+- **T21 Clock guard** (phase 3; the `check` part in phase 4). A forward step of the clock deletes at most a quarter of the
+  sealed segments per pass, rounded up, and logs a warning; `prune -force` lifts the limit; `check` flags future-dated and
   non-monotonic records.
 - **T22 Config and limits** (phases 2–3). Every `Config` default and refusal; a record of exactly `MaxPayloadBytes`
   (64 MiB − 32) is accepted, written, recovered and read, and one byte more is `ErrPayloadTooLarge`; a batch over

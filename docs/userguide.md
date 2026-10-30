@@ -171,7 +171,7 @@ Several logs on one disk share no budget: size them so the sum of every log's
 `MaxBytes + SegmentBytes` leaves headroom, and use `MinFreeBytes` as the backstop.
 
 **A wrong clock.** `At` is the writer's clock. A prune pass deletes at most a quarter of the
-sealed segments by age (at least one) and warns through the logger when it would delete more;
+sealed segments by age, rounded up (so at least one; 2 of 5, 4 of 15), and warns through the logger when it would delete more;
 `quill prune -force` lifts the limit; `quill check` flags records dated more than a day in the
 future or earlier than their predecessor.
 

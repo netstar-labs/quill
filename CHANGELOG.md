@@ -5,6 +5,9 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Changed: documentation only, no behaviour change. The clock guard limits an age sweep to at most a quarter of the sealed segments per pass rounded up (2 of 5,
+  4 of 15, at least one), not "at most 25%" as the docs and the `Prune` comment said; they now state the rounding. Decision 44 is amended.
+
 - Changed: `quill stat -json` wrote each hole as `{"From":N,"To":N}` and a log with no holes as `"holes":null`, the only capitalised keys and the only
   `null` list in the command line's JSON. It now writes `{"from":N,"to":N}` and `"holes":[]`. A script that read `From`, `To` or a null `holes` must
   change. The `stat`, `check` and `consumers` JSON shapes are now documented (scope.md, "Readable output"). Decision 35 is amended.

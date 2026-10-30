@@ -73,7 +73,7 @@ func (l *Log) consumers(now time.Time) consumerView {
 }
 
 // Prune runs a retention pass now: age rotation of a quiet active segment, the age sweep
-// (at most a quarter of the sealed segments unless force lifts the clock guard), then the
+// (at most a quarter of the sealed segments, rounded up, unless force lifts the clock guard), then the
 // caps. The flusher runs the same pass every PruneInterval unless NoMaintenance is set.
 func (l *Log) Prune(force bool) error {
 	now := l.cfg.clock()
@@ -143,7 +143,7 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 			}
 		}
 	}
-	// The clock guard: at most a quarter of the sealed segments per pass, at least one.
+	// The clock guard: at most a quarter of the sealed segments per pass, rounded up, so at least one.
 	if limit := (len(l.sealed) + 3) / 4; n > limit && !force {
 		l.logf(slog.LevelWarn, "age sweep limited by the clock guard; use prune -force if the clock is right",
 			"expired", n, "deleting", limit, "sealed", len(l.sealed))

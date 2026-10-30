@@ -310,7 +310,7 @@ win, so archiving can fall behind and lose segments under disk pressure (`Droppe
 the newest records, `Roll()` first. `_archive` is the one reserved name `register`, `unregister`, `commit` and `DeleteConsumer` accept, so after a restore that leaves it ahead of the head it is rewound with `quill commit -name _archive -offset N` or removed with `quill unregister -name _archive`. Moving an archive to other storage is the operator's `rsync` or `tar`.
 
 **A wrong clock** (decision 44). `At` is the writer's wall clock, so a clock stepped forward makes every sealed
-segment look expired. A prune pass therefore deletes at most 25% of a log's sealed segments by age (at least one)
+segment look expired. A prune pass therefore deletes at most a quarter of a log's sealed segments by age, rounded up (at least one; 2 of 5, 4 of 15)
 and warns through the logger when it would have deleted more; `quill prune -force` lifts the limit, and `check`
 flags records dated more than a day in the future or earlier than their predecessor. This slows the damage so an
 operator can notice; it does not remove the hazard. The opposite hazard is not removed either: the age sweep deletes
@@ -449,5 +449,5 @@ after a crash (decision 10); an offset is the next sequence to read; an fsync er
 gap; commit once per batch (decision 9); the format marker file (decision 6); no `LICENSE` while private
 (decision 22); the `quill.policy` file (decision 29); consumer protection per consumer, with the old log-wide
 switch retired (decision 57); `MaxBytes` has no default (decision 24); `ConsumerTTL` off and `MaxRecords` included
-(decisions 31, 33); `pread` for reads (decision 15); the 25% clock guard (decision 44); Go iterators (decision 58);
+(decisions 31, 33); `pread` for reads (decision 15); the quarter-per-pass clock guard (decision 44); Go iterators (decision 58);
 seek by timestamp (decision 59).
