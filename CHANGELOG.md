@@ -5,6 +5,12 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: CI supply-chain hygiene. `pr-issue-link.yml` declared no `permissions:` and so ran with the repository's default
+  token scope; it now declares `permissions: {}`. The `actions/checkout` and `actions/setup-go` pins (still exact commit
+  SHAs) moved from v4.4.0 and v5.6.0, which run on the node20 action runtime, to v7.0.1 and v7.0.0 (node24). A
+  `dependabot.yml` for `github-actions` now proposes pin updates, and the meaningless `GOPRIVATE` line is gone from `ci.yml`
+  (the module has no dependencies). CI configuration only; the library and the tool are unchanged.
+
 - Fixed: the SBOM's `dependencies` entry named two identifiers that no component declared, so a consumer that resolves the
   graph found no edge from quill to the Go standard library. Both components now carry a `bom-ref` equal to their purl.
 
