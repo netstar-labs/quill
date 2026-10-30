@@ -12,13 +12,15 @@ import (
 )
 
 // openWriter opens the log writable for an offline tool: no background maintenance
-// (decision 68) and no rewrite of quill.policy (decision 99). A Config with no SegmentBytes
+// (decision 68), no rewrite of quill.policy and no ProtectedConsumers, so it never needs a
+// consumer's lock (decision 99). A Config with no SegmentBytes
 // takes SegmentBytes and MaxPayloadBytes from the policy when it parses, else the ceilings,
 // so opening never seals an active segment the writer's size allows (decision 99). The
 // caller closes it.
 func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 	cfg.Dir = c.dir
 	cfg.NoMaintenance = true
+	cfg.ProtectedConsumers = nil                    // even one read from the policy: never take a consumer's lock
 	if cfg.SegmentBytes == 0 && cfg.MaxBytes == 0 { // MaxBytes must be at least twice SegmentBytes
 		cfg.SegmentBytes, cfg.MaxPayloadBytes = quill.MaxSegmentBytes, quill.MaxPayloadBytes
 		if p, ok := quill.ReadPolicy(c.dir); ok {

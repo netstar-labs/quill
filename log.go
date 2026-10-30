@@ -49,7 +49,8 @@ type Config struct {
 	MaxBatchBytes int
 	// MaxReadBytes is the payload bytes one Read returns, at least one record (16 MiB).
 	MaxReadBytes int
-	// ProtectedConsumers names consumers the writer creates, protected, when it opens the log.
+	// ProtectedConsumers names consumers the writer creates, protected, when it opens the log. A
+	// file already protected is left alone, so a running consumer does not block a restart.
 	ProtectedConsumers []string
 	// Logger receives retention deletions, stale consumers, bulk-expiry warnings and failures.
 	Logger *slog.Logger
@@ -334,15 +335,14 @@ func Open(cfg Config) (*Log, error) {
 			l.bgErr = err
 		}
 	}
-	// Protected consumers exist, protected, before any consumer process starts (decision 67).
+	// Protected consumers exist, protected, before any consumer process starts (decision 67);
+	// one already protected, even if its process is running, is left alone.
 	for _, name := range cfg.ProtectedConsumers {
-		c, err := l.consumerStore().open(name, ConsumerOptions{Protect: ProtectOn}, false)
-		if err != nil {
+		if err := l.consumerStore().protect(name); err != nil {
 			_ = l.active.f.Close()
 			_ = lock.Close()
 			return nil, fmt.Errorf("protected consumer %q: %w", name, err)
 		}
-		_ = c.Close()
 	}
 	go l.flusher()
 	return l, nil

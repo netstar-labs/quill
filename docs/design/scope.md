@@ -118,7 +118,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | `MaxPayloadBytes` | 64 MiB − 32 B (the ceiling) | Largest accepted record; lower it to bound a single record. An empty buffer accepts any single record up to this, whatever `MaxBufferBytes` says |
 | `MaxBatchBytes` | 16 MiB | Largest encoded `AppendBatch` of more than one record; a larger one is refused (decision 46). A single record is bounded by `MaxPayloadBytes` alone, so it may exceed this |
 | `MaxReadBytes` | 16 MiB | Payload bytes returned by one `Read`, at least one record |
-| `ProtectedConsumers` | none | Names the writer creates, protected, at the first retained sequence when it opens the log, so a lazy consumer is protected before its process starts (decision 67) |
+| `ProtectedConsumers` | none | Names the writer creates, protected, at the first retained sequence when it opens the log, so a lazy consumer is protected before its process starts (decision 67). A file that already says protected is left alone, so the writer can restart while that consumer runs; switching an unprotected file on needs the consumer's lock |
 | `Logger` | nil (silent) | A `*slog.Logger` for retention deletions, stale consumers, bulk-expiry warnings and failures |
 | `Perm` | 0600 (directories 0700) | File mode; every state file is opened without following symlinks (decision 51) |
 | `MaxRecords` | 0 (off) | Keep roughly the newest N records, segment-granular like every cap; the record count is exact because sequences are contiguous, and like the other caps it overrides consumer protection (decisions 33, 57) |

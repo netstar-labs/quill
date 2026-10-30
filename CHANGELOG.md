@@ -5,6 +5,14 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `Open` with `Config.ProtectedConsumers` failed with `ErrLocked` after 200 ms whenever a consumer process held that
+  consumer's lock, so a writer could not be redeployed while its protected consumer ran, and `quill prune`, which fed the
+  policy back in, failed the same way with a message about the writer's lock. `Open` now accepts an existing consumer file
+  that already says protected, parses, belongs to the log and is not ahead of the head, without taking its lock; a missing
+  file is still created and an unprotected one still switched on under the lock (`ErrLocked`, naming the consumer's lock,
+  if a process holds it), and a file ahead of the head is still refused with `ErrAhead`. The offline verbs, `prune`
+  included, now open without the policy's `ProtectedConsumers`.
+
 - Fixed: the documented rewind of a consumer ahead of a restored log, `quill commit`, failed with `ErrAhead` because it opened
   the consumer first. `ConsumerOptions` gains `Rewind`, which opens such a consumer so `Commit` can rewind it to any offset in
   `[first, Head + 1]`; `quill commit` sets it, keeps the protect flag, and `register` and the default open still refuse an

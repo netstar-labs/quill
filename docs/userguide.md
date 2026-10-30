@@ -109,8 +109,11 @@ err = c.Close()
 consumer. Unprotected is the default, so `Retention` must be longer than the worst delay of an
 unprotected consumer, or negative. `Config.ProtectedConsumers` names consumers the writer
 creates, protected, when it opens the log, so a lazy consumer is protected before its process
-starts. `ConsumerTTL` lets a protected consumer that has been behind and silent for the TTL
-stop protecting segments; its file is kept and `Stat().StaleConsumers` lists it.
+starts. A file that already says protected is left alone, so the writer can be redeployed while
+that consumer runs; a consumer whose file says unprotected and whose process is running makes
+`Open` fail with `ErrLocked` until that process opens it with `ProtectOn`, or stops and
+`quill register -protect` runs. `ConsumerTTL` lets a protected consumer that has been behind and
+silent for the TTL stop protecting segments; its file is kept and `Stat().StaleConsumers` lists it.
 
 ## 5. Reading from another process
 
@@ -147,7 +150,7 @@ arrives during creation retries).
 | `MaxPayloadBytes` | 64 MiB − 32 (the ceiling) | Largest record |
 | `MaxBatchBytes` | 16 MiB | Largest encoded batch of more than one record; a single record is bounded by `MaxPayloadBytes` alone |
 | `MaxReadBytes` | 16 MiB | Payload bytes per `Read`, at least one record |
-| `ProtectedConsumers` | none | Created, protected, at open |
+| `ProtectedConsumers` | none | Created, protected, at open; an already protected file is left alone, so a running consumer does not block a restart |
 | `ConsumerTTL` | off | See §4 |
 | `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures |
 | `Perm` | 0600 (dirs 0700) | File mode |
@@ -184,7 +187,8 @@ a closed descriptor) exits 1 instead of 0. Offline verbs run with
 background maintenance off and never rewrite `quill.policy`; `append`, `roll` and `recover` take
 the segment size from it (the 1 GiB ceiling when it cannot be read), so they do not seal a large
 active segment; `roll` seals regardless. `prune` needs `quill.policy` or at least one retention flag
-and refuses otherwise. Numeric flags (`commit -offset`, `prune -max-bytes`,
+and refuses otherwise; like the others it opens without the policy's `ProtectedConsumers`, so a running
+consumer does not block it. Numeric flags (`commit -offset`, `prune -max-bytes`,
 `-min-free-bytes`, `-max-records`, and `@<unix seconds>`) take plain decimal integers; `1e6`,
 `1M`, `0x10`, `-1` and trailing text are usage errors, not guesses.
 

@@ -96,6 +96,32 @@ func (st *consumerStore) open(name string, opts ConsumerOptions, internal bool) 
 	return c, nil
 }
 
+// protect makes the consumer exist, protected, for the writer's Open (decision 67). A file
+// that is already protected, parses, is this log's and is not ahead of the head needs no
+// write and so no lock: the consumer's process may be running and holds the lock for its
+// whole life, and the writer must still be able to restart. Every other case (a missing
+// file, an unprotected one, one that open would refuse) goes through open, which takes the
+// lock and writes the flag or returns the error it always did (ErrCorrupt, ErrWrongLog,
+// ErrAhead, or ErrLocked naming the consumer's lock).
+func (st *consumerStore) protect(name string) error {
+	if data, err := readState(st.fs, st.path(name)); err == nil {
+		if state, err := decodeConsumer(data); err == nil && state.ID == st.id && state.Protect {
+			head, err := st.head()
+			if err != nil {
+				return err
+			}
+			if state.Next <= head+1 {
+				return nil
+			}
+		}
+	}
+	c, err := st.open(name, ConsumerOptions{Protect: ProtectOn}, false)
+	if err != nil {
+		return err
+	}
+	return c.Close()
+}
+
 // init loads or creates the consumer's file and applies the options. It leaves the lock to
 // its caller, which releases it on any error.
 func (c *Consumer) init(opts ConsumerOptions) error {

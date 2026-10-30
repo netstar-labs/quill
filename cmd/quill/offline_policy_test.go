@@ -117,3 +117,24 @@ func TestRollRotatesRegardlessOfThePolicySize(t *testing.T) {
 		t.Errorf("%d segments after roll; want 2", n)
 	}
 }
+
+// A1-80: the policy lists a protected consumer whose process is running and whose file says
+// unprotected (it holds the consumer's lock). prune borrows the log's lock only, so it must
+// open without the policy's ProtectedConsumers and not need the consumer's lock.
+func TestPruneBesideARunningConsumerTheLogsPolicyProtects(t *testing.T) {
+	dir := bigActive(t)
+	r, err := quill.OpenReader(dir, quill.ReaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	c, err := r.Consumer("billing", quill.ConsumerOptions{Protect: quill.ProtectOff})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	out := mustRun(t, "", "prune", "-dir", dir)
+	if !strings.Contains(out, "segments") {
+		t.Fatalf("prune output %q", out)
+	}
+}
