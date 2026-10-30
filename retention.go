@@ -117,6 +117,13 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 				continue
 			}
 			if s.lastAt > cutoff {
+				// A newest record more than a day ahead of now is a clock that stepped forward
+				// and was corrected (decision 44): this segment, and every newer one, is kept
+				// until the clock reaches the stamp. The caps still bound the disk.
+				if s.lastAt-now.Unix() > futureSkewSeconds {
+					l.logf(slog.LevelWarn, "age sweep stopped at a segment stamped in the future; newer segments are kept until the clock reaches it",
+						"segment", s.id, "last_at", s.lastAt, "kept", len(l.sealed)-i)
+				}
 				break
 			}
 			n = i + 1
@@ -145,6 +152,10 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 	n = l.capsLocked(n)
 	return l.deleteLocked(n, cv.offsets)
 }
+
+// futureSkewSeconds is how far ahead of now a sealed segment's newest record may be stamped
+// before the age sweep warns about it: the same day that check uses (decision 44).
+const futureSkewSeconds = 24 * 60 * 60
 
 // firstRetainedLocked is the first retained sequence.
 func (l *Log) firstRetainedLocked() uint64 {

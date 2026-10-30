@@ -292,6 +292,46 @@ func TestTheClockGuardDeletesAtMostAQuarterPerPassAndPruneForceLiftsIt(t *testin
 	}
 }
 
+func TestTheAgeSweepWarnsWhenAFutureStampedSegmentPinsExpiryOfNewerOnesAndKeepsThePrefixRule(t *testing.T) {
+	// A1-35: a clock that stepped ahead and was corrected leaves a segment stamped in the future.
+	// The sweep is a prefix rule, so it stops there; it must say so (decision 44), and still stop.
+	cap := &logCapture{}
+	s, clk, l := retentionLog(t, func(c *Config) { c.Logger = cap.logger() })
+	defer l.Close()
+	fillSegments(t, l, clk, 2)
+	clk.Advance(365 * 24 * time.Hour) // the clock steps a year ahead
+	fillSegments(t, l, clk, 1)        // segment 2 is stamped a year ahead
+	clk.Advance(-365 * 24 * time.Hour)
+	fillSegments(t, l, clk, 3) // segments 3..5 at the corrected clock
+	clk.Advance(48 * time.Hour)
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	// Prefix rule unchanged: segments 0 and 1 go, 2 pins 3 to 5 although they are expired.
+	if ids := segmentFiles(t, s, "/log"); len(ids) != 5 || ids[0] != 2 {
+		t.Fatalf("segments %v", ids)
+	}
+	if !cap.has("future") {
+		t.Fatalf("no warning logged: %v", cap.msgs)
+	}
+}
+
+func TestTheAgeSweepStopAtASegmentLessThanADayAheadIsNotWarnedAbout(t *testing.T) {
+	// The ordinary stop (a segment still inside the window) and a stamp within a day of now
+	// (ordinary skew) log nothing; only a stamp more than a day ahead is the hazard.
+	cap := &logCapture{}
+	_, clk, l := retentionLog(t, func(c *Config) { c.Logger = cap.logger() })
+	defer l.Close()
+	fillSegments(t, l, clk, 3)
+	clk.Advance(-3 * time.Hour) // the last segment is stamped about three hours ahead of now
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	if cap.has("future") {
+		t.Fatalf("warned: %v", cap.msgs)
+	}
+}
+
 func TestDiskBoundsMaxBytesHoldsUnderAFastWriterAndMinFreeBytesDeletesOnlyThisLogsSegments(t *testing.T) {
 	// T13.
 	s := fsx.NewSim()

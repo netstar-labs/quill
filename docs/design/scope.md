@@ -298,7 +298,10 @@ the newest records, `Roll()` first. `_archive` is the one reserved name `registe
 segment look expired. A prune pass therefore deletes at most 25% of a log's sealed segments by age (at least one)
 and warns through the logger when it would have deleted more; `quill prune -force` lifts the limit, and `check`
 flags records dated more than a day in the future or earlier than their predecessor. This slows the damage so an
-operator can notice; it does not remove the hazard.
+operator can notice; it does not remove the hazard. The opposite hazard is not removed either: the age sweep deletes
+a prefix of the sealed segments, so one segment whose newest record is stamped in the future (a clock that stepped
+ahead and was corrected) keeps itself and every newer segment, expired or not, until the clock reaches the stamp. The
+caps still bound the disk. A pass that stops at a segment stamped more than a day ahead logs a warning naming it.
 
 ### Delivery semantics (decision 49)
 

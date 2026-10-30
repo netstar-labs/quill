@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Changed: when the age sweep stops at a sealed segment whose newest record is stamped more than a day in the future (a clock that stepped ahead
+  and was later corrected), the prune pass now logs a warning naming the segment; it used to log nothing while that one segment kept every newer
+  segment from expiring by age until the clock reached the stamp. The prefix rule itself is unchanged and is now documented beside the clock
+  guard. Decision 44 is amended.
+
 - Fixed: `Open` (and so the CLI's writer verbs) refused a `Dir` that is a symbolic link to a directory, and a `Dir` that does not exist yet below
   such a link, with `ErrNoLog` "is not a directory", while `OpenReader` and a link above an existing `Dir` worked. A link in `Dir` is now followed: it
   is resolved once at open and the log lives in the target. A link that leads to a file or to nothing is `ErrNoLog` saying it is a symbolic link, and

@@ -175,6 +175,11 @@ sealed segments by age (at least one) and warns through the logger when it would
 `quill prune -force` lifts the limit; `quill check` flags records dated more than a day in the
 future or earlier than their predecessor.
 
+The age sweep deletes a prefix, so one sealed segment whose newest record is stamped in the future (a clock that
+stepped ahead and was corrected) keeps itself and every newer segment until the clock reaches the stamp, however
+old they are. The caps (`MaxBytes`, `MaxRecords`) still bound the log. A pass that stops at a segment stamped more than a day
+ahead warns through the logger, naming the segment; `quill check` reports the record.
+
 ## 7. The `quill` command
 
 `quill [-dir DIR] <verb> [flags]`; the flags of every verb are in [reference.md](reference.md).
