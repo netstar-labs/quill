@@ -360,7 +360,9 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
    numbers of an unflushed suffix are reassigned, so a caller must `Flush` before acknowledging a
    sequence upstream. No consumer or reader can have seen such a number.
 5. **One writer per log, one process per consumer name.** A second writable open, or a second open of the
-   same consumer, fails fast with `ErrLocked`.
+   same consumer, fails fast with `ErrLocked`. The lock is the file `quill.lock`: if that file is removed or
+   replaced under a live writer, the writer finds out at its next flush or prune pass and fails with `ErrFailed`
+   (decision 62), but a second writer that opened in between is not stopped, so never delete it.
 6. **Corruption is never served silently.** A segment corrupt in the middle fails to load, is never
    modified, is named by `Err()` and `quill check`, and reaches readers as a gap: reads stop before it with a
    `GapError`, never skipping it.

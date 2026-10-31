@@ -90,6 +90,10 @@ func (l *Log) Prune(force bool) error {
 }
 
 func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
+	if l.lockLostLocked() {
+		l.broadcastLocked()
+		return l.failed
+	}
 	if l.policyErr != nil {
 		l.recordPolicy()
 	}

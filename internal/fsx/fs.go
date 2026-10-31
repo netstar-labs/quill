@@ -13,6 +13,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"os"
 )
 
 // FS is the set of file operations quill uses.
@@ -53,6 +54,16 @@ type File interface {
 	// Close or by the process ending.
 	TryLock() error
 	Close() error
+}
+
+// SameFile reports whether two FileInfos from one FS describe the same file: os.SameFile for
+// the real file system, the simulator's file identity (its Sys value) for Sim.
+func SameFile(a, b fs.FileInfo) bool {
+	if ia, ok := a.Sys().(uint64); ok {
+		ib, ok := b.Sys().(uint64)
+		return ok && ia == ib
+	}
+	return os.SameFile(a, b)
 }
 
 // ErrLocked is returned by TryLock when another holder has the lock.

@@ -2,7 +2,10 @@ package quill
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"time"
 
 	"github.com/netstar-labs/quill/internal/fsx"
@@ -27,6 +30,10 @@ func (l *Log) flushLocked() error {
 		l.recordPolicy()
 	}
 	if l.failed != nil {
+		return l.failed
+	}
+	if l.lockLostLocked() {
+		l.broadcastLocked()
 		return l.failed
 	}
 	if l.bufCount == 0 {
@@ -67,6 +74,31 @@ func (l *Log) flushLocked() error {
 	err := l.publishLocked()
 	l.broadcastLocked()
 	return err
+}
+
+// lockLostLocked fails the log, and reports true, when the quill.lock this writer holds is no
+// longer the file at that path: it was removed or replaced (a tmp cleaner, a restore over the
+// directory), so a second writer can have opened and flock'd a new file, and the two would
+// overwrite each other's acknowledged records. Any other lstat error is not a verdict and is
+// ignored. Called with the log's lock held; costs one lstat per flush and prune pass.
+func (l *Log) lockLostLocked() bool {
+	if l.failed != nil {
+		return false
+	}
+	held, err := l.lock.Stat()
+	if err != nil {
+		return false
+	}
+	cur, err := l.fs.Lstat(l.path(lockName))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	if err == nil && fsx.SameFile(held, cur) {
+		return false
+	}
+	l.fail(errors.New("quill.lock is no longer the file this writer holds: it was removed or replaced, so another writer may have opened the log"))
+	l.logf(slog.LevelError, "writer lost its lock file; the log is failed", "path", l.path(lockName))
+	return true
 }
 
 // fail puts the log in the failed state.

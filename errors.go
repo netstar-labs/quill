@@ -29,8 +29,9 @@ var (
 	ErrLocked = errors.New("quill: locked by another holder")
 	// ErrNoLog reports a directory that is not a log: no quill.format, or no quill.tail yet.
 	ErrNoLog = errors.New("quill: not a log")
-	// ErrFailed reports a log that hit an fsync error: every later Append, Flush and Sync fails
-	// until the log is closed and reopened (decision 37).
+	// ErrFailed reports a log that hit an fsync error, or whose quill.lock was removed or
+	// replaced under the writer: every later Append, Flush and Sync fails until the log is
+	// closed and reopened (decisions 37, 62).
 	ErrFailed = errors.New("quill: log failed; close and reopen")
 	// ErrWrongLog reports a consumer file whose log id is another log's.
 	ErrWrongLog = errors.New("quill: consumer belongs to another log")
