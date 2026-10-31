@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/netstar-labs/quill"
@@ -30,6 +32,15 @@ func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 			cfg.Perm = info.Mode().Perm() | 0o600
 		}
 	}
+	cfg.Logger = slog.New(cutOnly{slog.NewTextHandler(c.err, &slog.HandlerOptions{
+		Level: slog.LevelWarn,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return a
+		},
+	})})
 	cfg.ProtectedConsumers = nil                    // even one read from the policy: never take a consumer's lock
 	if cfg.SegmentBytes == 0 && cfg.MaxBytes == 0 { // MaxBytes must be at least twice SegmentBytes
 		cfg.SegmentBytes, cfg.MaxPayloadBytes = quill.MaxSegmentBytes, quill.MaxPayloadBytes
@@ -51,6 +62,21 @@ func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 	}
 	return l, exitOK
 }
+
+// cutOnly passes to its handler only the record Open writes when it cuts the newest segment past
+// the marker: that is a loss the operator must be told about, whichever verb opened the log,
+// while the retention lines the other verbs would provoke are not output these verbs ever had.
+type cutOnly struct{ slog.Handler }
+
+func (h cutOnly) Handle(ctx context.Context, r slog.Record) error {
+	if !strings.HasPrefix(r.Message, "cut the newest segment") {
+		return nil
+	}
+	return h.Handler.Handle(ctx, r)
+}
+
+func (h cutOnly) WithAttrs(a []slog.Attr) slog.Handler { return cutOnly{h.Handler.WithAttrs(a)} }
+func (h cutOnly) WithGroup(n string) slog.Handler      { return cutOnly{h.Handler.WithGroup(n)} }
 
 // withWriter opens the log writable, runs fn, and closes the log, discarding Close's
 // error; cmdAppend and cmdRecover report it and so use openWriter directly.

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"runtime"
 	"slices"
@@ -35,6 +36,7 @@ type segInfo struct {
 	frames int
 	end    int64    // the byte after the last valid frame
 	index  []anchor // one anchor per indexStride of bytes, the first frame always
+	stop   error    // recoverSegment: why the forward parse stopped short of the file's end (a frame error), else nil
 }
 
 // SegmentError describes damage in a segment file: the byte where the damage starts and the
@@ -262,6 +264,7 @@ func recoverSegment(r io.ReaderAt, size int64, durable int64, path string) (info
 		info.index = append(info.index, tail.index...)
 	}
 	info.end = tail.end
+	info.stop = err
 	return info, cut, nil
 }
 
@@ -408,6 +411,14 @@ func (l *Log) load() error {
 			_ = f.Close()
 			return err
 		}
+		// Say what was cut. A torn frame is the routine crash tail; a complete-length frame that
+		// failed its checks is damage, and may have been an acknowledged record (decision 39).
+		kind := "damaged"
+		if errors.Is(info.stop, errTornFrame) {
+			kind = "torn"
+		}
+		l.logf(slog.LevelWarn, "cut the newest segment past the marker", "segment", a.path,
+			"offset", info.end, "bytes", size-info.end, "kind", kind)
 	}
 	if a.frames == 0 {
 		a.first = head + 1

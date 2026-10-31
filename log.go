@@ -62,7 +62,9 @@ type Config struct {
 	// ProtectedConsumers names consumers the writer creates, protected, when it opens the log. A
 	// file already protected is left alone, so a running consumer does not block a restart.
 	ProtectedConsumers []string
-	// Logger receives retention deletions, stale consumers, bulk-expiry warnings and failures.
+	// Logger receives retention deletions, stale consumers, bulk-expiry warnings and failures,
+	// and a warning from Open when it cuts the newest segment past the marker (with the segment,
+	// the offset, the bytes cut and whether the first rejected frame was incomplete or damaged).
 	// Its handler, Enabled included, runs synchronously with the log's lock held, on the
 	// goroutine that made the record (an Append, Flush, Roll, Prune or Close call, or the
 	// log's flusher). It must therefore neither call the Log, which deadlocks it, nor block,

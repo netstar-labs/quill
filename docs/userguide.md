@@ -160,7 +160,7 @@ arrives during creation retries).
 | `MaxReadBytes` | 16 MiB | A `Read` stops once at least this many payload bytes are returned (so it can exceed it by up to one record), and returns at least one record |
 | `ProtectedConsumers` | none | Created, protected, at open; an already protected file is left alone, so a running consumer does not block a restart |
 | `ConsumerTTL` | off | See §4 |
-| `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures. Its handler, `Enabled` included, runs with the log's lock held, so it must neither call the `Log` (that deadlocks it) nor block (that stalls `Append`, `Read`, `Sync` and the flusher): hand the record to another goroutine and return |
+| `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures, and for the warning `Open` gives when it cuts the newest segment past the marker (`segment`, `offset`, `bytes`, and `kind`: `torn` for an incomplete final frame, the routine crash tail, or `damaged` for a complete-length frame that failed its checks, which may have been an acknowledged record). Its handler, `Enabled` included, runs with the log's lock held, so it must neither call the `Log` (that deadlocks it) nor block (that stalls `Append`, `Read`, `Sync` and the flusher): hand the record to another goroutine and return |
 | `Perm` | 0600 (dirs 0700) | File mode. A `Reader`, the CLI and `Archive` create their files (consumer offsets, an archive's files) with the mode of the log's `quill.tail`, so a consumer in the log's group is readable by the writer. State files are exactly that mode; the writer's segments, lock files and every directory go through the process umask, so for a group arrangement run the writer with umask 002 (`Perm` 0660 under umask 022 gives `0640` segments and `0750` directories, and a group consumer cannot create its files in `consumers/`). The CLI's offline write verbs (`append`, `roll`, `recover`, `prune`) open with no `Perm` of their own and keep the mode `quill.tail` already has |
 | `NoMaintenance` | off | For offline tools: no background prune or age rotation, and `quill.policy` is not written |
 
@@ -279,6 +279,15 @@ retention deletes while it scans is skipped, not reported; one already missing f
 A writable open (`Open`, or `quill recover`) performs recovery: it verifies every sealed
 segment, parses the newest segment forward from the marker's offset, truncates a torn tail,
 and republishes `quill.tail`. A torn tail after a crash needs nothing else.
+
+Whenever that truncation removes bytes, the open reports it: a `Warn` record on `Config.Logger`
+("cut the newest segment past the marker", with `segment`, `offset`, `bytes` and `kind`), and on
+standard error from every CLI verb that opens the log writable (`append`, `roll`, `prune`,
+`recover`), in the same words. `kind=torn` means the first rejected frame was incomplete, the
+routine crash tail. `kind=damaged` means it was complete-length but failed its CRC or sequence
+check: bit rot, or damage between a stale marker and the end of the segment, where the cut may
+have removed an acknowledged record (decision 39). The verb still exits 0, and the cut is not
+repeated on the next open, so keep the line if you need to know.
 
 `Open` fails with **`ErrCorrupt`** when the newest segment is damaged below `quill.tail.off`,
 when the marker names a sequence above the last valid frame, when two segments overlap, or

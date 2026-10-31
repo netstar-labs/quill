@@ -119,7 +119,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | `MaxBatchBytes` | 16 MiB | Bound on an `AppendBatch` of more than one record, checked as the sum of `len(payload) + 34` per record (an upper bound of the encoded size, so about 479,000 one-byte records at the default); a larger one is refused (decision 46). A single record is bounded by `MaxPayloadBytes` alone, so it may exceed this |
 | `MaxReadBytes` | 16 MiB | A `Read` stops once at least this many payload bytes are returned (so it can exceed it by up to one record), and returns at least one record |
 | `ProtectedConsumers` | none | Names the writer creates, protected, at the first retained sequence when it opens the log, so a lazy consumer is protected before its process starts (decision 67). A file that already says protected is left alone, so the writer can restart while that consumer runs; switching an unprotected file on needs the consumer's lock |
-| `Logger` | nil (silent) | A `*slog.Logger` for retention deletions, stale consumers, bulk-expiry warnings and failures. Its handler, `Enabled` included, runs synchronously with the log's lock held, so it must neither call the `Log` nor block; hand the record to another goroutine and return (decision 50) |
+| `Logger` | nil (silent) | A `*slog.Logger` for retention deletions, stale consumers, bulk-expiry warnings and failures, and for the warning `Open` gives when it cuts the newest segment past the marker (decision 39). Its handler, `Enabled` included, runs synchronously with the log's lock held, so it must neither call the `Log` nor block; hand the record to another goroutine and return (decision 50) |
 | `Perm` | 0600 (directories 0700) | File mode; every state file is opened without following symlinks (decision 51). State files are exactly `Perm`; the writer's segments, lock files and directories go through the process umask and can be narrower (`Perm` 0660 under umask 022: `0640` segments, `0750` directories) |
 | `MaxRecords` | 0 (off) | Keep roughly the newest N records, segment-granular like every cap; the record count is exact because sequences are contiguous, and like the other caps it overrides consumer protection (decisions 33, 57) |
 | `ConsumerTTL` | 0 (off) | A **protected** consumer that has been **behind** for this long, counted from its last commit or from when it fell behind, whichever is later, stops protecting segments. Its offset file is kept (decisions 31, 45) |
@@ -354,7 +354,7 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
    sequence after the highest one read is always safe.
 3. **A crash loses a suffix, not a middle.** At most the unflushed tail is lost; a torn final frame is
    found by parsing forward from the marker's offset and truncated on the next writable open (decision 39). One
-   residual: damage between a stale marker and the true end of the newest segment looks like a torn tail. Tested with a real
+   residual: damage between a stale marker and the true end of the newest segment looks like a torn tail; the open reports every cut, and says whether the first rejected frame was torn or damaged. Tested with a real
    `SIGKILL` and against a crash-simulating file system (decision 52).
 4. **Sequences are contiguous.** After any crash the next sequence is the last valid frame's plus one; a marker ahead of the data fails `Open`. The
    numbers of an unflushed suffix are reassigned, so a caller must `Flush` before acknowledging a
