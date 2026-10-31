@@ -120,7 +120,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | `MaxReadBytes` | 16 MiB | A `Read` stops once at least this many payload bytes are returned (so it can exceed it by up to one record), and returns at least one record |
 | `ProtectedConsumers` | none | Names the writer creates, protected, at the first retained sequence when it opens the log, so a lazy consumer is protected before its process starts (decision 67). A file that already says protected is left alone, so the writer can restart while that consumer runs; switching an unprotected file on needs the consumer's lock |
 | `Logger` | nil (silent) | A `*slog.Logger` for retention deletions, stale consumers, bulk-expiry warnings and failures. Its handler, `Enabled` included, runs synchronously with the log's lock held, so it must neither call the `Log` nor block; hand the record to another goroutine and return (decision 50) |
-| `Perm` | 0600 (directories 0700) | File mode; every state file is opened without following symlinks (decision 51) |
+| `Perm` | 0600 (directories 0700) | File mode; every state file is opened without following symlinks (decision 51). State files are exactly `Perm`; the writer's segments, lock files and directories go through the process umask and can be narrower (`Perm` 0660 under umask 022: `0640` segments, `0750` directories) |
 | `MaxRecords` | 0 (off) | Keep roughly the newest N records, segment-granular like every cap; the record count is exact because sequences are contiguous, and like the other caps it overrides consumer protection (decisions 33, 57) |
 | `ConsumerTTL` | 0 (off) | A **protected** consumer that has been **behind** for this long, counted from its last commit or from when it fell behind, whichever is later, stops protecting segments. Its offset file is kept (decisions 31, 45) |
 
@@ -341,7 +341,7 @@ macOS `File.Sync` issues `F_FULLFSYNC` (**verified** in the Go source), which is
 in another user account needs a group arrangement; a process that only reads needs read access, and one that
 holds a consumer needs write access to `consumers/`. Consumer files created through a `Reader` or the CLI, and an
 `Archive` destination, take the log's mode (read from `quill.tail`), so the writer can read what a consumer in the
-group creates; a lock file is created through the umask (Stage 2 audit, owner-approved 2026-10-30). Encryption at rest is a non-goal. **Hot backup:** copy
+group creates; a lock file is created through the umask (Stage 2 audit, owner-approved 2026-10-30). The writer's segments and every directory (the log directory, `consumers/`, an `Archive` destination) are created through the umask as well, so a group arrangement needs umask 002 for the writer, or a `chmod` after `Open` (Stage 2 audit, 2026-10-31, A3-12). Encryption at rest is a non-goal. **Hot backup:** copy
 `quill.tail` first, then the segments in id order, then `consumers/`. A restored log keeps its log ID, so a
 consumer that is ahead of the restored head fails with `ErrAhead` and must be rewound deliberately (`quill commit -offset N`, which opens it with `ConsumerOptions.Rewind`; Stage 2 audit, owner-approved 2026-10-30).
 

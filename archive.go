@@ -25,8 +25,10 @@ import (
 // quill.format is newer than this build is ErrFutureVersion, another log's is ErrWrongLog,
 // and any other unusable marker is ErrCorrupt.
 //
-// Everything Archive creates in the destination, and the source's consumer files, takes the
-// source log's file mode, read from its quill.tail (decision 51).
+// The destination's segments and state files, and the source's consumer files, take the
+// source log's file mode exactly, read from its quill.tail (decision 51). The destination's
+// directories are requested with the matching execute bits and go through the process
+// umask, so they can come out narrower.
 //
 // The archiver is a protected consumer, so retention keeps a segment until it is copied;
 // the caps still win, so an archive can fall behind under disk pressure.

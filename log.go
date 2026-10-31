@@ -68,7 +68,10 @@ type Config struct {
 	// which stalls every Append, Read, Sync and the flusher: hand the record to another
 	// goroutine and return.
 	Logger *slog.Logger
-	// Perm is the file mode (0600); directories get the matching execute bits (0700).
+	// Perm is the file mode (0600); directories get the matching execute bits (0700). State
+	// files (quill.format, quill.tail, quill.policy, consumer offsets) are exactly Perm. The
+	// writer's segments, its lock files and every directory are created through the process
+	// umask, so under umask 022 Perm 0660 gives 0640 segments and 0750 directories.
 	Perm fs.FileMode
 	// MaxRecords keeps roughly the newest N records (0: off).
 	MaxRecords int64

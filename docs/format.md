@@ -21,8 +21,12 @@ one with `ErrFutureVersion`. The module version and the format version are separ
 The directory's base name is the topic name; it is not stored anywhere inside. Once
 `quill.format` exists, unknown files in the directory are ignored; a file named like a segment
 that fails validation is a load error. Directories are created `0700` and files `0600` by
-default. A consumer file created through a `Reader` or the CLI, and every file and directory `Archive` creates, take
-the log's mode, read from the permission bits of `quill.tail`; a lock file is created through the umask.
+default. A consumer file created through a `Reader` or the CLI, and every file `Archive` creates, are requested with
+the log's mode, read from the permission bits of `quill.tail`. State files (`quill.format`, `quill.tail`, `quill.policy`,
+consumer offset files) and the segments `Archive` copies are chmodded to that mode exactly. Everything else goes through
+the process umask and can come out narrower: the writer's own segments, every lock file, and every directory
+(the log directory, `consumers/`, an `Archive` destination). `Perm` 0660 under umask 022 gives `0640` segments and `0750`
+directories, so a group that needs write access to `consumers/` needs umask 002 or a `chmod` by the operator.
 
 ## The frame
 

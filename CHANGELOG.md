@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the documentation said the writer's segments and the log's directories took `Config.Perm` exactly. They are created through the process umask and never chmodded, so
+  `Perm` 0660 under umask 022 gives `0640` segments and `0750` directories (state files and the segments `Archive` copies are exact); a group that needs write access to
+  `consumers/` needs umask 002 for the writer. Behaviour is unchanged, only the documented claim. Decisions 51 and 74 are amended.
+
 - Fixed: a `quill.tail` with `maxseg` at or above 9999999999 was accepted, so the next rotation created an eleven-digit segment name that no directory scan
   recognises (every later `Open` then failed with `ErrCorrupt`), and a `maxseg` of 2^64-1 wrapped the next id to 0 so every rotation failed. `maxseg` (and so `seg`)
   above 9999999999 is now a malformed marker, and the writer refuses to seal into an id above it. No log quill produces is affected.
