@@ -35,7 +35,10 @@ frame = uvarint(bodyLen) | body | crc32(body)        crc: 4 bytes, big-endian, I
 body  = uvarint(seq) | uvarint(at) | uvarint(len(payload)) | payload
 ```
 
-- `uvarint` is the unsigned LEB128 of `encoding/binary` (`AppendUvarint`), at most ten bytes.
+- `uvarint` is the unsigned LEB128 of `encoding/binary` (`AppendUvarint`), at most ten bytes, and always
+  the minimal encoding (no padding such as `0x80 0x00` for zero). A frame with a non-minimal varint, in its length prefix or its
+  body, is damaged and is refused by every reader and by a writable open, so the length a verifier measures is the length a
+  reader resumes at.
 - `seq` is the record's sequence number, per log, from 1. The writer never assigns 2^64 − 1, so
   the ceiling is 2^64 − 2 and `head + 1` never wraps; a log whose last frame (or whose marker)
   names 2^64 − 1 is refused with `ErrCorrupt`, by a writable open and by a reader alike.

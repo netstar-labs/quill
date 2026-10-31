@@ -48,6 +48,18 @@ func uvarintLen(v uint64) int {
 	return (bits.Len64(v|1) + 6) / 7
 }
 
+// uvarint is binary.Uvarint that also refuses a non-minimal encoding (a padded 0x80 0x00
+// for zero): the format's varint is the one AppendUvarint writes, and a frame whose varints
+// were longer than that would have a real length that frameLen, and so a reader's resume
+// cursor, does not give. n is negative for it, as for an overflow.
+func uvarint(b []byte) (uint64, int) {
+	v, n := binary.Uvarint(b)
+	if n > 0 && n != uvarintLen(v) {
+		return 0, -1
+	}
+	return v, n
+}
+
 // frameLen is the encoded size of a record.
 func frameLen(rec *Record) int {
 	body := bodyLen(rec)
@@ -74,7 +86,7 @@ func appendFrame(dst []byte, rec *Record) []byte {
 // aliases data, and the frame's total length. errTornFrame means data ends inside the frame
 // (more bytes might complete it); errBadFrame means the bytes are not a frame.
 func decodeFrame(data []byte) (Record, int, error) {
-	bodyLen, n := binary.Uvarint(data)
+	bodyLen, n := uvarint(data)
 	switch {
 	case n < 0, n > 0 && bodyLen > maxFrameBody:
 		return Record{}, 0, errBadFrame
@@ -102,17 +114,17 @@ func decodeFrame(data []byte) (Record, int, error) {
 // decodeBody decodes a body whose CRC has been checked. The payload must end exactly at the
 // body's end: a writer never leaves slack, so slack is damage.
 func decodeBody(body []byte) (Record, error) {
-	seq, n := binary.Uvarint(body)
+	seq, n := uvarint(body)
 	if n <= 0 {
 		return Record{}, errBadFrame
 	}
 	body = body[n:]
-	at, n := binary.Uvarint(body)
+	at, n := uvarint(body)
 	if n <= 0 {
 		return Record{}, errBadFrame
 	}
 	body = body[n:]
-	plen, n := binary.Uvarint(body)
+	plen, n := uvarint(body)
 	if n <= 0 || uint64(len(body[n:])) != plen {
 		return Record{}, errBadFrame
 	}

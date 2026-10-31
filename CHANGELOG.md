@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a frame whose varints were not minimal (a length prefix padded as `0x8c 0x00`, say) passed `Check` and a writable `Open`, but a read that ended a batch after it
+  resumed one byte inside the frame and reported `ErrCorrupt` ("torn frame") or, in a sealed segment, a `GapError`. The decoder now refuses a non-minimal varint, as
+  `docs/format.md` always specified, so `Check`, `Open` and every read agree that such a frame is corruption. No log quill writes contains one.
+
 - Fixed: the documentation said the writer's segments and the log's directories took `Config.Perm` exactly. They are created through the process umask and never chmodded, so
   `Perm` 0660 under umask 022 gives `0640` segments and `0750` directories (state files and the segments `Archive` copies are exact); a group that needs write access to
   `consumers/` needs umask 002 for the writer. Behaviour is unchanged, only the documented claim. Decisions 51 and 74 are amended.

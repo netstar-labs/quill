@@ -1,7 +1,6 @@
 package quill
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -152,7 +151,7 @@ func (w *window) frameAt(pos int64) (Record, int, error) {
 	if err != nil {
 		return Record{}, 0, err
 	}
-	bodyLen, n := binary.Uvarint(hdr)
+	bodyLen, n := uvarint(hdr)
 	switch {
 	case n < 0, n > 0 && bodyLen > maxFrameBody:
 		return Record{}, 0, errBadFrame
