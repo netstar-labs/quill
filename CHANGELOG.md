@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `quill append` with no arguments read the whole of stdin into memory before `MaxBatchBytes` was checked, so memory was proportional to the input (100 MB of
+  newlines took about 4 GB, and a pipe that never ends grew until the process was killed). It now applies the same bound while it reads and refuses the batch,
+  with the same `payload too large` error, as soon as the sum of `len(line) + 34` passes the limit, after at most one more scanner buffer. Nothing is appended.
+
 - Fixed: a FIFO planted as `quill.tail`, `quill.format`, `quill.policy` or an entry of `consumers/` blocked the read-only `open(2)` that was meant to
   refuse it, because `readState` checked the file type only after the open returned. `Open`, `OpenReader`, `ReadPolicy` and the command line verbs hung, and
   a FIFO in `consumers/` froze the writer at the next segment rotation (the consumer listing runs under the log's mutex), so `Append`, `Sync` and `Close`

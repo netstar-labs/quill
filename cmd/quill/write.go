@@ -94,7 +94,16 @@ func (c *cli) appendRecords(l *quill.Log, args []string) (last uint64, durable b
 	} else {
 		sc := bufio.NewScanner(c.in)
 		sc.Buffer(make([]byte, 1<<20), quill.MaxPayloadBytes)
+		// The library's check runs only once the batch is built, so apply it as the lines arrive: a
+		// batch of more than one record is refused when the sum of len+34 passes MaxBatchBytes,
+		// which also bounds the line count. The CLI opens the log with the default.
+		size := 0
 		for sc.Scan() {
+			size += len(sc.Bytes()) + 34
+			if len(payloads) > 0 && size > quill.DefaultMaxBatchBytes {
+				return 0, false, c.errorf("%v: stdin is a batch of more than %d bytes, MaxBatchBytes is %d",
+					quill.ErrPayloadTooLarge, quill.DefaultMaxBatchBytes, quill.DefaultMaxBatchBytes)
+			}
 			payloads = append(payloads, append([]byte(nil), sc.Bytes()...))
 		}
 		if err := sc.Err(); err != nil {
