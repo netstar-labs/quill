@@ -17,7 +17,8 @@ import (
 type Config struct {
 	// Dir is the log's directory, created if missing. Its base name is the topic name. A
 	// symbolic link to a directory is followed, as OpenReader follows one, whether it is Dir
-	// itself or a directory above it; the files inside the log directory never are.
+	// itself or a directory above it; the files inside the log directory never are. A relative
+	// Dir is made absolute at Open, so a later os.Chdir does not move the log.
 	Dir string
 	// Retention: whole sealed segments older than this are deleted. 0 means 24 h; negative
 	// disables expiry. Set it longer than the worst delay of any unprotected consumer.
@@ -356,7 +357,11 @@ func Open(cfg Config) (*Log, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	dir, err := resolveDirLink(cfg.fs, filepath.Clean(cfg.Dir))
+	abs, err := filepath.Abs(cfg.Dir) // bound to the working directory now, not at each later syscall
+	if err != nil {
+		return nil, err
+	}
+	dir, err := resolveDirLink(cfg.fs, abs)
 	if err != nil {
 		return nil, err
 	}

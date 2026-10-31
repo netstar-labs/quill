@@ -105,7 +105,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 
 | Field | Default | Notes |
 |---|---|---|
-| `Dir` | required | The log's directory, created if missing. Its base name is the topic name. A symbolic link to a directory is followed, as `Dir` or above it, by `Open` as by `OpenReader`; a link that leads to anything else is `ErrNoLog` |
+| `Dir` | required | The log's directory, created if missing. Its base name is the topic name. A symbolic link to a directory is followed, as `Dir` or above it, by `Open` as by `OpenReader`; a link that leads to anything else is `ErrNoLog`. A relative `Dir` is made absolute at `Open` (and a relative `OpenReader` directory at `OpenReader`), so a later `os.Chdir` does not move the log |
 | `Retention` | `24h` | Whole sealed segments older than this are deleted. `0` means the default; negative disables expiry. **Set it longer than the worst delay of any consumer** |
 | `PruneInterval` | `min(Retention, 1m)`, ≥ 1 s | Sweep period; one minute when `Retention` is negative |
 | `FlushBytes` / `FlushInterval` | 64 KiB / 250 ms | Buffer size and background flush period |

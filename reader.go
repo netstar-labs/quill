@@ -93,7 +93,11 @@ func OpenReader(dir string, opts ReaderOptions) (*Reader, error) {
 	if opts.clock == nil {
 		opts.clock = time.Now
 	}
-	r := &Reader{fs: opts.fs, dir: filepath.Clean(dir), opts: opts, segs: map[uint64]*readerSegment{}}
+	abs, err := filepath.Abs(dir) // bound to the working directory now, as Open does
+	if err != nil {
+		return nil, err
+	}
+	r := &Reader{fs: opts.fs, dir: abs, opts: opts, segs: map[uint64]*readerSegment{}}
 	r.bufPool.New = func() any { b := make([]byte, 0, windowChunk); return &b }
 	id, err := loadFormat(r.fs, r.path(formatName))
 	if err != nil {
