@@ -59,14 +59,16 @@ type consumerStore struct {
 	head func() (uint64, error)
 }
 
-// first is the first retained sequence, where a new consumer starts.
-func (st *consumerStore) first() (uint64, error) {
+// bounds is the first retained sequence, the lowest offset Commit accepts, and where a new
+// consumer starts: the same unless a damaged oldest segment left a hole below the first, which
+// a new consumer meets as a gap instead of starting past it silently (decision 38).
+func (st *consumerStore) bounds() (first, start uint64, err error) {
 	v, release, err := st.src.view()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	release()
-	return v.first, nil
+	return v.first, v.start(), nil
 }
 
 func (st *consumerStore) path(name string) string {
@@ -74,7 +76,8 @@ func (st *consumerStore) path(name string) string {
 }
 
 // open takes the consumer's lock, creates its file if absent at the first retained
-// sequence, checks the log id and the offset, and applies the protect option.
+// sequence (at sequence 1 when a damaged oldest segment left a hole from 1, so the first read
+// meets the gap; decision 38), checks the log id and the offset, and applies the protect option.
 func (st *consumerStore) open(name string, opts ConsumerOptions) (*Consumer, error) {
 	if err := validConsumerName(name); err != nil {
 		return nil, err
@@ -124,11 +127,11 @@ func (c *Consumer) init(opts ConsumerOptions) error {
 	data, err := readState(st.fs, st.path(name))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		first, err := st.first()
+		_, start, err := st.bounds()
 		if err != nil {
 			return err
 		}
-		c.state = consumerState{ID: st.id, Next: first, Protect: opts.Protect == ProtectOn}
+		c.state = consumerState{ID: st.id, Next: start, Protect: opts.Protect == ProtectOn}
 		return c.write(true)
 	case err != nil:
 		return err
@@ -210,7 +213,7 @@ func (c *Consumer) Commit(next uint64) error {
 	if err != nil {
 		return err
 	}
-	first, err := c.store.first()
+	first, _, err := c.store.bounds()
 	if err != nil {
 		return err
 	}
@@ -335,7 +338,9 @@ func (l *Log) consumerStore() *consumerStore {
 }
 
 // Consumer takes a handle on a named consumer, creating its offset file at the first retained
-// sequence if absent. It holds the consumer's lock until Close.
+// sequence if absent, or at sequence 1 when a damaged oldest segment is a hole from 1 (damage is
+// loss, not expiry, so the first read returns its *GapError and Commit(To+1) goes past it).
+// It holds the consumer's lock until Close.
 func (l *Log) Consumer(name string, opts ConsumerOptions) (*Consumer, error) {
 	return l.consumerStore().open(name, opts)
 }

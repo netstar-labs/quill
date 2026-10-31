@@ -383,6 +383,12 @@ func (l *Log) deleteLocked(n int, offsets []consumerOffset) error {
 			kept = append(kept, h)
 		}
 	}
+	// A damaged segment that is now the oldest file is a hole from 1 up to the first retained
+	// sequence, as a fresh load and a Reader see it. Its own hole ended below first and was just
+	// dropped with the deleted prefix, though the file is still there.
+	if len(l.sealed) > 0 && l.sealed[0].bad != nil && first > 1 {
+		kept = append([]Hole{{From: 1, To: first - 1}}, kept...)
+	}
 	l.holes = kept
 	if l.loadErr != nil {
 		// The load error names the first damaged segment still on disk: when that one is gone

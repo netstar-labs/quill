@@ -9,13 +9,13 @@
 |---|---|---|
 | `ls` | none | list the logs under a parent directory, with bytes, segments, retention and caps from quill.policy |
 | `stat` | none | print a log's head, first retained sequence, segments, bytes, records, holes and marker age |
-| `read` | none | print records from an offset (default the first retained) |
-| `cat` | none | print every retained record, from the first |
+| `read` | none | print records from an offset (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap) |
+| `cat` | none | print every retained record from the start of the log; a damaged oldest segment is reported as a gap |
 | `tail` | none | print the last records, and keep following with -follow |
 | `append` | log | append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock |
 | `consumers` | none | list the consumers: offset, lag, protection |
 | `commit` | consumer | set a consumer's offset: -offset <next sequence> or -time <time> |
-| `register` | consumer | create a consumer at the first retained sequence, or change its protection |
+| `register` | consumer | create a consumer at the first retained sequence (at 1 when a damaged oldest segment left a gap), or change its protection |
 | `unregister` | consumer | delete a consumer's offset file (its lock file stays) |
 | `check` | none | verify every segment, hole, consumer file and the clock; exit 3 when UNHEALTHY |
 | `prune` | log | run a retention pass now with the policy in quill.policy or the flags; needs the writer's lock |
@@ -48,7 +48,7 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 
 ## `quill read`
 
-Print records from an offset (default the first retained).
+Print records from an offset (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap).
 
 Lock: none (runs beside a live writer, sees records up to quill.tail).
 
@@ -56,14 +56,14 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 |---|---|---|
 | `-b64` | `false` | print every payload as base64 |
 | `-dir` | `—` | the log directory |
-| `-from` | `0` | the first sequence to print (default the first retained) |
+| `-from` | `0` | the first sequence to print (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap) |
 | `-json` | `false` | newline-delimited JSON: seq, at, time, len, payload or payload_b64 |
 | `-limit` | `0` | stop after this many records (0: no limit) |
 | `-since` | `—` | start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h) |
 
 ## `quill cat`
 
-Print every retained record, from the first.
+Print every retained record from the start of the log; a damaged oldest segment is reported as a gap.
 
 Lock: none (runs beside a live writer, sees records up to quill.tail).
 
@@ -71,7 +71,7 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 |---|---|---|
 | `-b64` | `false` | print every payload as base64 |
 | `-dir` | `—` | the log directory |
-| `-from` | `0` | the first sequence to print (default the first retained) |
+| `-from` | `0` | the first sequence to print (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap) |
 | `-json` | `false` | newline-delimited JSON: seq, at, time, len, payload or payload_b64 |
 | `-limit` | `0` | stop after this many records (0: no limit) |
 | `-since` | `—` | start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h) |
@@ -87,7 +87,7 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 | `-b64` | `false` | print every payload as base64 |
 | `-dir` | `—` | the log directory |
 | `-follow` | `false` | keep printing new records until interrupted |
-| `-from` | `0` | the first sequence to print (default the first retained) |
+| `-from` | `0` | the first sequence to print (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap) |
 | `-json` | `false` | newline-delimited JSON: seq, at, time, len, payload or payload_b64 |
 | `-limit` | `0` | stop after this many records (0: no limit) |
 | `-n` | `10` | how many of the last records |
@@ -130,7 +130,7 @@ Lock: the consumer's lock only (runs beside a live writer).
 
 ## `quill register`
 
-Create a consumer at the first retained sequence, or change its protection.
+Create a consumer at the first retained sequence (at 1 when a damaged oldest segment left a gap), or change its protection.
 
 Lock: the consumer's lock only (runs beside a live writer).
 

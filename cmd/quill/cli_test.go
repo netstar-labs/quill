@@ -500,3 +500,62 @@ func TestTailFollowPrintsAtOnceNotAtExit(t *testing.T) {
 		t.Fatalf("the record was not written while the follow was waiting; before the interrupt: %q, after: %q", got, out.String())
 	}
 }
+
+// A damaged oldest segment is a hole from 1, not expiry: read and cat from the default start
+// stop at the gap with exit 1, as -from 1 does, instead of printing from the first good
+// segment and exiting 0 (decision 38). -from past the hole still works.
+func TestReadFromTheDefaultStartReportsADamagedOldestSegment(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "orders")
+	l, err := quill.Open(quill.Config{Dir: dir, Retention: -1, SegmentBytes: 1024, FlushInterval: time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 30; i++ {
+		if _, err := l.Append(bytes.Repeat([]byte("r"), 100)); err != nil {
+			t.Fatal(err)
+		}
+		if i%5 == 4 { // rotation happens at a flush
+			if err := l.Flush(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	seg := filepath.Join(dir, "0000000000.log")
+	info, err := os.Stat(seg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(seg, bytes.Repeat([]byte{0xA5}, int(info.Size())), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, out, _ := exec(t, "", "stat", "-dir", dir)
+	var first uint64
+	i := strings.Index(out, "first ")
+	if !strings.Contains(out, "hole 1-") || i < 0 {
+		t.Fatalf("setup: %s", out)
+	}
+	if _, err := fmt.Sscanf(out[i:], "first %d", &first); err != nil || first < 2 {
+		t.Fatalf("setup: %v: %s", err, out)
+	}
+	want := fmt.Sprintf("records 1 to %d are unavailable", first-1)
+	for _, verb := range []string{"read", "cat"} {
+		code, out, errOut := exec(t, "", verb, "-dir", dir)
+		if code != exitError || out != "" || !strings.Contains(errOut, want) {
+			t.Fatalf("%s: exit %d, stdout %q, stderr %q; want exit %d and %q", verb, code, out, errOut, exitError, want)
+		}
+	}
+	// tail -n asking for more records than the retained ones is a read of the whole log; one
+	// that stays past the hole is not.
+	if code, out, errOut := exec(t, "", "tail", "-dir", dir, "-n", "1000"); code != exitError || out != "" || !strings.Contains(errOut, want) {
+		t.Fatalf("tail -n 1000: exit %d, stdout %q, stderr %q; want exit %d and %q", code, out, errOut, exitError, want)
+	}
+	if code, out, _ := exec(t, "", "tail", "-dir", dir, "-n", "3"); code != exitOK || strings.Count(out, "\n") != 3 {
+		t.Fatalf("tail -n 3: exit %d: %q", code, out)
+	}
+	if code, out, _ := exec(t, "", "read", "-dir", dir, "-from", fmt.Sprint(first), "-limit", "1"); code != exitOK || out == "" {
+		t.Fatalf("read -from %d: exit %d: %q", first, code, out)
+	}
+}

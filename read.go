@@ -34,7 +34,9 @@ func (l *Log) Scan(offset uint64, limit int, fn func(Record) bool) error {
 	return scanFrom(l, offset, limit, fn)
 }
 
-// ScanAll scans every retained record in order.
+// ScanAll scans every retained record in order, from sequence 1 when a damaged oldest segment
+// is a hole from 1 (it then returns that *GapError first), otherwise from the first retained
+// sequence. Scan with offset 0 is the same.
 func (l *Log) ScanAll(fn func(Record) bool) error {
 	return scanFrom(l, 0, 0, fn)
 }
@@ -73,6 +75,16 @@ type segView struct {
 	holes []Hole
 	head  uint64
 	first uint64 // the first retained sequence; head + 1 when the log holds no records
+}
+
+// start is where a read from the beginning starts: the first retained sequence, or sequence 1
+// when a damaged oldest segment left a hole from 1 below it. Retention deleting a prefix is
+// expiry and is skipped; damage is loss, and the read meets it as a gap (decision 38).
+func (v *segView) start() uint64 {
+	if len(v.holes) > 0 && v.holes[0].From == 1 {
+		return 1
+	}
+	return v.first
 }
 
 // locate finds the segment holding seq, or a gap.
@@ -120,7 +132,7 @@ func readFrom(src source, offset uint64, limit int) ([]Record, error) {
 	return out, err
 }
 
-// scanFrom scans from offset; offset 0 means the first retained sequence.
+// scanFrom scans from offset; offset 0 means the beginning (segView.start).
 func scanFrom(src source, offset uint64, limit int, fn func(Record) bool) error {
 	_, err := scanSource(src, cursor{seq: offset}, limit, 0, false, true, nil, fn)
 	return err
@@ -143,7 +155,7 @@ func readWait(ctx context.Context, src source, offset uint64, limit int) ([]Reco
 // past maxBytes, and always at least one. copyPayloads makes each payload its own allocation.
 // A gap met after records were delivered is returned at once when gapAfter is set (Scan:
 // the callback already has the records) and otherwise left for the next call (Read: the
-// records are the result). A from.seq of 0 means the first retained sequence. It returns
+// records are the result). A from.seq of 0 means the beginning (segView.start). It returns
 // where it stopped, for the next scan to continue from. expect, when not nil, is called once,
 // just before the first record is delivered, with how many records the scan may deliver at
 // most (at least 1, at most maxExpect), so a caller collecting them can size its slice
@@ -156,7 +168,7 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 	defer release()
 	cur := from.seq
 	if cur == 0 {
-		cur = v.first
+		cur = v.start()
 	}
 	count, bytes := 0, 0
 	pool := src.bufferPool()

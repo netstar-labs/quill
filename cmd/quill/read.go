@@ -129,7 +129,17 @@ func (c *cli) start(r *quill.Reader) (uint64, int) {
 	if err != nil {
 		return 0, c.errorf("%v", err)
 	}
-	return st.First, exitOK
+	return beginning(st), exitOK
+}
+
+// beginning is where a read of the whole log starts: the first retained sequence, or sequence 1
+// when a damaged oldest segment left a hole below it, which is loss, not expiry, so the read
+// meets the gap instead of starting past it (decision 38).
+func beginning(st quill.Stats) uint64 {
+	if len(st.Holes) > 0 && st.Holes[0].From == 1 {
+		return 1
+	}
+	return st.First
 }
 
 func cmdRead(c *cli, args []string) int { return printFrom(c) }
@@ -198,7 +208,7 @@ func cmdTail(c *cli, args []string) int {
 			if err != nil {
 				return c.errorf("%v", err)
 			}
-			from = max(st.Head+1-min(c.n, st.Head), st.First)
+			from = max(st.Head+1-min(c.n, st.Head), beginning(st))
 		}
 		return printRecords(c, r, from, c.follow)
 	})

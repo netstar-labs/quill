@@ -180,7 +180,8 @@ func (r *Reader) Scan(offset uint64, limit int, fn func(Record) bool) error {
 	return scanFrom(r, offset, limit, fn)
 }
 
-// ScanAll scans every retained record the marker names, in order.
+// ScanAll scans every retained record the marker names, in order, as Log.ScanAll: from
+// sequence 1 when a damaged oldest segment is a hole from 1, so the read meets the gap.
 func (r *Reader) ScanAll(fn func(Record) bool) error { return scanFrom(r, 0, 0, fn) }
 
 func (r *Reader) maxReadBytes() int      { return r.opts.MaxReadBytes }

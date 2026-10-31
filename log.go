@@ -64,7 +64,8 @@ type Config struct {
 	// MaxReadBytes is the payload bytes after which one Read stops: it returns at least one record,
 	// and the last record may carry the total past this bound (16 MiB).
 	MaxReadBytes int
-	// ProtectedConsumers names consumers the writer creates, protected, when it opens the log. A
+	// ProtectedConsumers names consumers the writer creates, protected, when it opens the log, at
+	// the first retained sequence (at 1 when a damaged oldest segment is a hole from 1). A
 	// file already protected is left alone, so a running consumer does not block a restart.
 	ProtectedConsumers []string
 	// Logger receives retention deletions, stale consumers, a warning naming each consumer whose

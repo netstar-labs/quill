@@ -117,8 +117,9 @@ func TestDamageBelowTheMarkerFailsOpenAndLeavesTheFileUnchanged(t *testing.T) {
 	if err != nil || checkContiguous(t, recs, 6) != 12 {
 		t.Fatalf("after the hole: %v %v", seqsOf(recs), err)
 	}
-	if recs, err := readAll(l); err != nil || checkContiguous(t, recs, 6) != 12 {
-		t.Fatalf("ScanAll starts at the first retained sequence: %v %v", seqsOf(recs), err)
+	// A damaged oldest segment is loss, not expiry: ScanAll meets the gap (Stage 2 audit A3-10).
+	if recs, err := readAll(l); !isGap(err, 1, 5) || len(recs) != 0 {
+		t.Fatalf("ScanAll over a damaged oldest segment: %v %v", seqsOf(recs), err)
 	}
 	if err := l.Scan(1, 0, func(Record) bool { return true }); !isGap(err, 1, 5) {
 		t.Fatalf("Scan from 1: %v", err)

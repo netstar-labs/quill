@@ -94,7 +94,10 @@ Reads return records with `Seq >= offset` in order. Where records are unavailabl
 a `*quill.GapError{From, To}`: `From` is the offset asked for, `To` the last missing sequence.
 Two causes: retention deleted them (the offset is below `Stat().First`), or a hole in the
 middle (a damaged or deleted segment, including one a retention sweep deleted while a reader was
-opening it). Nothing is skipped silently; resume from `To + 1`
+opening it). A damaged oldest segment is a hole from 1, not expiry: `ScanAll`, a scan from offset 0, `quill read`
+and `quill cat` without `-from`, and a new consumer start below it and meet the gap, where a deleted prefix is skipped
+because the scan starts at `Stat().First`; `quill tail -n N` meets it when N reaches back that far, while `-since` and
+`OffsetForTime` still start at `Stat().First`. Nothing is skipped silently; resume from `To + 1`
 deliberately. An I/O error while reading (`EIO`, for example) is not a gap and not `ErrCorrupt`: the read returns that
 error, matchable with `errors.Is`, and reading again retries it; `Open` fails with it if it meets one verifying a
 sealed segment. A sealed segment that cannot be opened at all (too many open files, permission denied) is a hole. An iterator yields an error once and ends; a gap is resumed by iterating again
@@ -115,7 +118,8 @@ err = c.Close()
 - A consumer's offset is the **next sequence to read**; the idiom is `Commit(lastRead + 1)`.
   `Commit` accepts values from the first retained sequence to `Head + 1` and refuses others
   with `ErrOffsetRange`; a rewind is allowed.
-- Opening a handle creates the file at the first retained sequence if absent, and takes
+- Opening a handle creates the file at the first retained sequence if absent (at sequence 1 when a damaged
+  oldest segment left a hole below it, so the consumer's first read reports the gap), and takes
   `consumers/<name>.lock`; a second open of the same name, in any process, fails with
   `ErrLocked`. Names are `[a-z0-9_-]`, 1 to 200 characters; a leading underscore is reserved,
   except `_archive`, the archiver's own consumer, which `Consumer`, `DeleteConsumer` and the CLI accept.

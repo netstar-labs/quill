@@ -65,9 +65,9 @@ func init() {
 		{name: "stat", summary: "print a log's head, first retained sequence, segments, bytes, records, holes and marker age", lock: "none",
 			flags: func(fs *flag.FlagSet, c *cli) { fs.BoolVar(&c.json, "json", false, "one JSON object") },
 			run:   cmdStat},
-		{name: "read", summary: "print records from an offset (default the first retained)", lock: "none",
+		{name: "read", summary: "print records from an offset (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap)", lock: "none",
 			flags: readFlags, run: cmdRead},
-		{name: "cat", summary: "print every retained record, from the first", lock: "none",
+		{name: "cat", summary: "print every retained record from the start of the log; a damaged oldest segment is reported as a gap", lock: "none",
 			flags: readFlags, run: cmdRead},
 		{name: "tail", summary: "print the last records, and keep following with -follow", lock: "none",
 			flags: func(fs *flag.FlagSet, c *cli) {
@@ -90,7 +90,7 @@ func init() {
 				fs.StringVar(&c.offset, "offset", "", "the next sequence to read")
 				fs.StringVar(&c.at, "time", "", "the time to seek to (RFC 3339, @unix, or a duration ago such as 2h)")
 			}, run: cmdCommit},
-		{name: "register", summary: "create a consumer at the first retained sequence, or change its protection", lock: "consumer",
+		{name: "register", summary: "create a consumer at the first retained sequence (at 1 when a damaged oldest segment left a gap), or change its protection", lock: "consumer",
 			flags: func(fs *flag.FlagSet, c *cli) {
 				fs.StringVar(&c.name, "name", "", "the consumer")
 				fs.BoolVar(&c.protect, "protect", false, "retention keeps its unread segments")
@@ -126,7 +126,7 @@ func init() {
 }
 
 func readFlags(fs *flag.FlagSet, c *cli) {
-	fs.Var((*decimalFlag)(&c.from), "from", "the first sequence to print (default the first retained)")
+	fs.Var((*decimalFlag)(&c.from), "from", "the first sequence to print (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap)")
 	fs.Var((*decimalFlag)(&c.limit), "limit", "stop after this many records (0: no limit)")
 	fs.StringVar(&c.since, "since", "", "start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h)")
 	fs.BoolVar(&c.json, "json", false, "newline-delimited JSON: seq, at, time, len, payload or payload_b64")
