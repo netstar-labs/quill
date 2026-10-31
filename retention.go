@@ -21,6 +21,13 @@ type consumerView struct {
 	hasProtected bool
 	broken       bool // a consumer file could not be read: protect everything
 	stale        []string
+	probeFailed  []probeFailure // protected consumers kept live because their staleness probe errored
+}
+
+// probeFailure is a ConsumerTTL probe that could not run: the consumer is treated as live.
+type probeFailure struct {
+	name string
+	err  error
 }
 
 // consumers reads the consumer files for a prune pass and decides which protected consumers
@@ -46,12 +53,13 @@ func (l *Log) consumers(now time.Time) consumerView {
 			continue
 		}
 		if l.cfg.ConsumerTTL > 0 && c.Offset <= head {
-			mtime, err := st.mtime(c.Name)
 			stale := false
+			mtime, err := st.mtime(c.Name)
 			if err == nil && now.Sub(mtime) >= l.cfg.ConsumerTTL {
 				// The record at the offset, or the first retained one when a cap already
 				// deleted it (decision 82).
-				recs, err := l.Read(c.Offset, 1)
+				var recs []Record
+				recs, err = l.Read(c.Offset, 1)
 				var g *GapError
 				if errors.As(err, &g) {
 					recs, err = l.Read(g.To+1, 1)
@@ -59,6 +67,11 @@ func (l *Log) consumers(now time.Time) consumerView {
 				if err == nil && len(recs) == 1 && now.Unix()-recs[0].At >= ttl {
 					stale = true
 				}
+			}
+			// A probe that errors cannot show the consumer is stale, so it stays live (it
+			// protects), but the pass says the TTL was not evaluated.
+			if err != nil {
+				cv.probeFailed = append(cv.probeFailed, probeFailure{c.Name, err})
 			}
 			if stale {
 				cv.stale = append(cv.stale, c.Name)
@@ -100,6 +113,9 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 	l.stale, l.offsets = cv.stale, cv.offsets
 	for _, name := range cv.stale {
 		l.logf(slog.LevelWarn, "consumer is stale and no longer protects segments", "consumer", name)
+	}
+	for _, f := range cv.probeFailed {
+		l.logf(slog.LevelWarn, "consumer staleness probe failed; treating it as live", "consumer", f.name, "err", f.err)
 	}
 	// Age rotation: a quiet active segment is sealed so retention can reach it.
 	if l.cfg.SegmentMaxAge > 0 && l.active.frames > 0 && now.Unix()-l.active.lastAt >= int64(l.cfg.SegmentMaxAge.Seconds()) {

@@ -106,7 +106,7 @@ A consumer file holds the log id, the next sequence to read and a protect flag, 
 written only under the consumer's own `flock`, by temp file, fsync, rename. The writer's prune
 pass reads every consumer file: an unparseable one protects everything; a protected one
 protects its unread sealed segments unless `ConsumerTTL` finds it stale (behind, with an old
-file and an old record at its offset); the caps override protection and `Dropped` counts the
+file and an old record at its offset; a probe that errors leaves it live and logs a `Warn`); the caps override protection and `Dropped` counts the
 loss. The caps that run at every seal do not read the consumer files, which would stall every append under the log's lock: they count `Dropped` against the offsets the last prune pass read. The age sweep takes the longest expired prefix of sealed segments, cuts it at protection,
 then at a quarter of the sealed segments per pass, rounded up (the clock guard), then the caps extend it;
 the marker is published and the directory fsynced before any unlink, and again before each
