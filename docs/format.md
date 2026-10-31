@@ -201,15 +201,18 @@ act on it (`prune`) or uses the segment-size ceiling (`append`, `roll`, `recover
 
 ```
 {
-  "retention": "24h0m0s",
-  "segment_bytes": 8388608,
-  "segment_max_age": "24h0m0s",
-  "max_bytes": 0,
-  "min_free_bytes": 0,
-  "max_records": 0,
-  "max_payload_bytes": 67108832,
-  "consumer_ttl": "0s",
-  "protected_consumers": ["billing", "reports"]
+  "retention": "36h0m0s",
+  "segment_bytes": 1048576,
+  "segment_max_age": "5h0m0s",
+  "max_bytes": 67108864,
+  "min_free_bytes": 3145728,
+  "max_records": 12345,
+  "max_payload_bytes": 65536,
+  "consumer_ttl": "7h0m0s",
+  "protected_consumers": [
+    "billing",
+    "audit"
+  ]
 }
 ```
 

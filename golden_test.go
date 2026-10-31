@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -52,10 +53,19 @@ func stateGoldens() map[string][]byte {
 		"quill.format":     encodeFormat(testID),
 		"consumer":         encodeConsumer(consumerState{ID: testID, Next: 1234568, Protect: true}),
 		"consumer-default": encodeConsumer(consumerState{ID: testID, Next: 1}),
-		"quill.policy": encodePolicy(policy{Retention: "24h0m0s", SegmentBytes: 8 << 20, SegmentMaxAge: "24h0m0s",
-			MaxBytes: 0, MinFreeBytes: 0, MaxRecords: 0, MaxPayloadBytes: maxPayloadBytes, ConsumerTTL: "0s",
-			ProtectedConsumers: []string{"_archive", "billing"}}),
+		"quill.policy":     encodePolicy(goldenPolicy()),
 	}
+}
+
+// goldenPolicy gives every field a value no other field has, and none the writer cannot
+// produce (a protected consumer cannot start with an underscore), so a decoder that swaps
+// the meaning of two fields, as well as one that drops a field, shows. testdata/golden/
+// quill.policy must equal what the writer writes for the same settings
+// (TestOpenWritesEveryConfigFieldToItsOwnPolicyKey pins that layout, distinctPolicyJSON).
+func goldenPolicy() policy {
+	return policy{Retention: "36h0m0s", SegmentBytes: 1 << 20, SegmentMaxAge: "5h0m0s",
+		MaxBytes: 64 << 20, MinFreeBytes: 3 << 20, MaxRecords: 12345, MaxPayloadBytes: 1 << 16,
+		ConsumerTTL: "7h0m0s", ProtectedConsumers: []string{"billing", "audit"}}
 }
 
 func goldenImage() []byte {
@@ -93,6 +103,16 @@ func failGolden(t *testing.T, artifact, name, got, want string) {
 		artifact, name, got, want)
 }
 
+// failGoldenDecode is the failure of the decode direction: a file already on disk, written
+// by an earlier version, is now read differently. The remedy is the same as for the encoder.
+func failGoldenDecode(t *testing.T, artifact, name, detail string) {
+	t.Helper()
+	t.Fatalf("%s DECODING CHANGED (%s): %s\n"+
+		"A log written before this change is now read differently. If the change is intended it needs a new "+
+		"quill.format version, not a new meaning for this one. Do not edit the expected values or re-record "+
+		"this golden to make the test pass.", artifact, name, detail)
+}
+
 func TestFrameGolden(t *testing.T) {
 	var frames [][]byte
 	for _, g := range frameGoldens() {
@@ -109,7 +129,7 @@ func TestFrameGolden(t *testing.T) {
 		}
 		rec, n, err := decodeFrame(frame)
 		if err != nil || n != len(frame) || !recEqual(rec, g.rec) {
-			t.Fatalf("frame DECODING CHANGED (%s): %+v %d %v, want %+v", g.name, rec, n, err, g.rec)
+			failGoldenDecode(t, "frame", g.name, fmt.Sprintf("%+v %d %v, want %+v", rec, n, err, g.rec))
 		}
 		frames = append(frames, frame)
 	}
@@ -120,12 +140,17 @@ func TestFrameGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(image, bytes.Join(frames, nil)) {
-		failGolden(t, "segment image", "segment.log", hex.EncodeToString(image), hex.EncodeToString(bytes.Join(frames, nil)))
+	if want := bytes.Join(frames, nil); !bytes.Equal(image, want) {
+		// Both sides are recorded artifacts (the checked-in file and the pasted frames), so
+		// neither is "now": the two records disagree, and the encoder is not involved.
+		t.Fatalf("segment image DISAGREES with recordedFrames (segment.log).\n  segment.log    %s\n  recordedFrames %s\n"+
+			"The checked-in file and the pasted frames do not agree: one was re-recorded or edited without the other. "+
+			"Do not re-record either to make the test pass: a changed format needs a new quill.format version.",
+			hex.EncodeToString(image), hex.EncodeToString(want))
 	}
 	info, cut, err := recoverSegment(bytes.NewReader(image), int64(len(image)), 0, "")
 	if err != nil || !cut || info.frames != 1 || info.end != int64(len(frames[0])) {
-		t.Fatalf("recovery of the golden image: %+v %v %v", info, cut, err)
+		failGoldenDecode(t, "segment image", "segment.log", fmt.Sprintf("recovery: %+v %v %v", info, cut, err))
 	}
 }
 
@@ -139,6 +164,11 @@ func TestStateFileGoldens(t *testing.T) {
 			failGolden(t, "state file", name, fmt.Sprintf("%q", want), fmt.Sprintf("%q", got))
 		}
 	}
+	// The recorded policy is a file the writer can produce: it is the one a writer opened with
+	// the same settings writes.
+	if got, _ := os.ReadFile(filepath.Join(goldenDir, "quill.policy")); string(got) != distinctPolicyJSON {
+		t.Fatalf("testdata/golden/quill.policy is not what the writer writes for its settings:\n%s\nwant\n%s", got, distinctPolicyJSON)
+	}
 	// Decoding the recorded files gives the recorded values.
 	read := func(name string) []byte {
 		b, err := os.ReadFile(filepath.Join(goldenDir, name))
@@ -148,19 +178,19 @@ func TestStateFileGoldens(t *testing.T) {
 		return b
 	}
 	if tl, err := decodeTail(read("quill.tail")); err != nil || tl != (tail{Seq: 1234567, Seg: 42, Off: 8_000_001, MaxSeg: 45}) {
-		t.Fatalf("quill.tail DECODING CHANGED: %+v %v", tl, err)
+		failGoldenDecode(t, "state file", "quill.tail", fmt.Sprintf("%+v %v", tl, err))
 	}
 	if id, err := decodeFormat(read("quill.format")); err != nil || id != testID {
-		t.Fatalf("quill.format DECODING CHANGED: %q %v", id, err)
+		failGoldenDecode(t, "state file", "quill.format", fmt.Sprintf("%q %v", id, err))
 	}
 	if c, err := decodeConsumer(read("consumer")); err != nil || c != (consumerState{testID, 1234568, true}) {
-		t.Fatalf("consumer DECODING CHANGED: %+v %v", c, err)
+		failGoldenDecode(t, "state file", "consumer", fmt.Sprintf("%+v %v", c, err))
 	}
 	if c, err := decodeConsumer(read("consumer-default")); err != nil || c != (consumerState{testID, 1, false}) {
-		t.Fatalf("consumer DECODING CHANGED: %+v %v", c, err)
+		failGoldenDecode(t, "state file", "consumer-default", fmt.Sprintf("%+v %v", c, err))
 	}
 	p, ok := decodePolicy(read("quill.policy"))
-	if !ok || p.Retention != "24h0m0s" || p.SegmentBytes != 8<<20 || p.MaxPayloadBytes != maxPayloadBytes || len(p.ProtectedConsumers) != 2 {
-		t.Fatalf("quill.policy DECODING CHANGED: %+v %v", p, ok)
+	if want := goldenPolicy(); !ok || !reflect.DeepEqual(p, want) {
+		failGoldenDecode(t, "state file", "quill.policy", fmt.Sprintf("%+v %v, want %+v", p, ok, want))
 	}
 }
