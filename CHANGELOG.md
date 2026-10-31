@@ -5,6 +5,8 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a `Reader` or consumer kept open while its log directory was replaced by a different log never re-checked the log id, so `Consumer.Commit` wrote a consumer file stamped with the old id into the new log (a fresh open then failed `ErrWrongLog`, and the file pinned the new log's retention as a broken consumer). `Commit` and the wait inside `ReadWait` and `Follow` now re-read `quill.format` and return `ErrWrongLog` on a mismatch. Plain `Read` and `Scan` still do not re-check, to keep their cost; close and reopen after replacing a log.
+
 - Fixed: the duplicate-key check lost track of the enclosing object after any array or object member, so a repeated key following a container-valued member (`{"a":[],"b":1,"b":2}`) went undetected. No path reaches it today: `quill.tail` has four integer fields, so a container value is already a decode error. The check is now correct for any document.
 
 - Fixed: a segment whose frames climbed to sequence 2^64-1 and carried on at 0, 1, 2 passed a writable `Open`, because the contiguity test (previous + 1) wrapped to 0. `Open` then

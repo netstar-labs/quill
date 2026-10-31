@@ -182,7 +182,8 @@ func (r *Reader) ScanAll(fn func(Record) bool) error { return scanFrom(r, 0, 0, 
 func (r *Reader) maxReadBytes() int      { return r.opts.MaxReadBytes }
 func (r *Reader) bufferPool() *sync.Pool { return &r.bufPool }
 
-// wait polls the marker until it names offset or the context ends.
+// wait polls the marker until it names offset or the context ends. It also returns ErrWrongLog
+// when the directory now holds another log than the one opened.
 func (r *Reader) wait(ctx context.Context, offset uint64) error {
 	t := time.NewTicker(r.opts.PollInterval)
 	defer t.Stop()
@@ -192,6 +193,10 @@ func (r *Reader) wait(ctx context.Context, offset uint64) error {
 		r.mu.Unlock()
 		if closed {
 			return ErrClosed
+		}
+		// Once per poll: a directory replaced by another log since open is not waited on.
+		if err := checkLogID(r.fs, r.dir, r.id); err != nil {
+			return err
 		}
 		tl, err := r.readTail()
 		if err != nil {

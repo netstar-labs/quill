@@ -262,7 +262,8 @@ roll` first (or `Roll()` in the writer). Under disk pressure the caps still win,
 archive can fall behind; `Stat().Dropped` counts the loss. A source that lost segments gives
 an archive with the same hole, and the verb says so.
 
-**Moving, renaming, deleting a log** are directory operations done while no writer holds it.
+**Moving, renaming, deleting a log** are directory operations done while no writer holds it and no reader or consumer has it open. A handle opened before a directory was replaced by another log
+refuses `Commit`, and gives up `ReadWait` and `Follow` when they wait, with `ErrWrongLog`; plain reads do not re-check, so close and reopen.
 
 **Filesystems.** Supported: a local POSIX filesystem with working `flock`, atomic `rename` and
 honest `fsync` (ext4, xfs, btrfs, APFS). Not supported: NFS, SMB, FUSE; bind mounts and overlay

@@ -243,6 +243,23 @@ func loadFormat(fsys fsx.FS, path string) (logID, error) {
 	return id, nil
 }
 
+// checkLogID re-reads quill.format in dir and returns ErrWrongLog when it names a log other than
+// id: the directory was replaced by another log while a handle opened on id was live. A missing
+// marker is ErrNoLog; any other failure is returned as loadFormat gives it.
+func checkLogID(fsys fsx.FS, dir string, id logID) error {
+	have, err := loadFormat(fsys, filepath.Join(dir, formatName))
+	if errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%w: %s has no %s", ErrNoLog, dir, formatName)
+	}
+	if err != nil {
+		return err
+	}
+	if have != id {
+		return fmt.Errorf("%w: %s now holds log %s, this handle was opened on %s", ErrWrongLog, dir, have, id)
+	}
+	return nil
+}
+
 // consumerState is one consumer file: "<log id> <next> <protect>\n".
 type consumerState struct {
 	ID      logID

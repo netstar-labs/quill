@@ -192,13 +192,19 @@ func (c *Consumer) Protected() bool {
 }
 
 // Commit stores next as the offset: the idiom is Commit(lastRead + 1). It accepts values
-// from the first retained sequence to Head + 1 and refuses others with ErrOffsetRange. Commit
+// from the first retained sequence to Head + 1 and refuses others with ErrOffsetRange, and
+// refuses with ErrWrongLog when the directory now holds another log than the handle opened. Commit
 // once per batch: each commit is a file write and fsync. It never changes the protect flag.
 func (c *Consumer) Commit(next uint64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
 		return ErrClosed
+	}
+	// The handle's id was checked at open; a directory replaced since then would take a file
+	// stamped with the old id.
+	if err := checkLogID(c.store.fs, c.store.dir, c.store.id); err != nil {
+		return err
 	}
 	head, err := c.store.head()
 	if err != nil {
