@@ -121,6 +121,11 @@ func checkDuplicateKeys(data []byte) error {
 				continue
 			default:
 				stack = stack[:len(stack)-1]
+				// the closed container is a value of its parent, not of itself
+				top = nil
+				if len(stack) > 0 {
+					top = stack[len(stack)-1]
+				}
 			}
 		case string:
 			if top != nil && top.object && top.expectKey {

@@ -98,6 +98,29 @@ func TestAGenuineReplacementCharacterAndAValidPairStay(t *testing.T) {
 	}
 }
 
+// A closed array or object is a consumed value: the enclosing object must expect a key
+// again, or every key after the first container-valued member goes unrecorded.
+func TestDuplicateKeyAfterAContainerValueIsRefused(t *testing.T) {
+	cases := map[string]string{
+		"after empty array":    `{"a":[],"b":1,"B":2}`,
+		"after empty object":   `{"a":{},"b":1,"b":2}`,
+		"key of the container": `{"a":{"x":1},"a":2}`,
+		"after nested array":   `{"a":[1,[2,3],{"k":1}],"b":1,"b":2}`,
+		"in an array element":  `[{"a":[],"b":1,"b":2}]`,
+		"after two containers": `{"a":[],"b":{},"c":1,"c":2}`,
+	}
+	for name, in := range cases {
+		if err := checkDuplicateKeys([]byte(in)); !errors.Is(err, ErrDuplicateKey) {
+			t.Errorf("%s: %q: got %v, want ErrDuplicateKey", name, in, err)
+		}
+	}
+	for _, in := range []string{`{"a":[],"b":1,"c":{}}`, `{"a":{"x":1},"b":{"x":2}}`, `[{"a":1},{"a":2}]`} {
+		if err := checkDuplicateKeys([]byte(in)); err != nil {
+			t.Errorf("%q: got %v, want nil", in, err)
+		}
+	}
+}
+
 func FuzzUnmarshalNeverPanics(f *testing.F) {
 	f.Add([]byte(`{"seq":1,"seg":2,"off":3,"maxseg":4}`))
 	f.Add([]byte(`"𐀀"`))

@@ -5,6 +5,8 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the duplicate-key check lost track of the enclosing object after any array or object member, so a repeated key following a container-valued member (`{"a":[],"b":1,"b":2}`) went undetected. No path reaches it today: `quill.tail` has four integer fields, so a container value is already a decode error. The check is now correct for any document.
+
 - Fixed: a segment whose frames climbed to sequence 2^64-1 and carried on at 0, 1, 2 passed a writable `Open`, because the contiguity test (previous + 1) wrapped to 0. `Open` then
   reported a `First` above `Head` and the next append was numbered 3. Nothing is now accepted after a frame numbered 2^64-1, so such a log is `ErrCorrupt`. No log quill writes
   contains one: the writer stops at `ErrSeqExhausted` before 2^64-1.
