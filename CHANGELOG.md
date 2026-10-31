@@ -5,6 +5,8 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: the CLI's offline write verbs (`append`, `roll`, `recover`, `prune`) opened the log with no `Perm`, so each rewrote `quill.tail` (and `roll` and `append` created the new segment) with mode 0600 in a log created with `Perm` 0660. Because a `Reader`, the CLI's `register` and `Archive` take their mode from `quill.tail`, one routine `roll` or `recover` switched the group arrangement off. The verbs now keep the mode `quill.tail` already has (never below 0600).
+
 - Fixed: `Open` and `OpenReader` kept a relative directory relative, so a later `os.Chdir` in the process redirected every later file operation: the writer's flushes failed with `ENOENT`, or wrote the marker and segments into an unrelated directory holding the same relative path. The directory is now made absolute when the log is opened.
 - Fixed: a `Reader` or consumer kept open while its log directory was replaced by a different log never re-checked the log id, so `Consumer.Commit` wrote a consumer file stamped with the old id into the new log (a fresh open then failed `ErrWrongLog`, and the file pinned the new log's retention as a broken consumer). `Commit` and the wait inside `ReadWait` and `Follow` now re-read `quill.format` and return `ErrWrongLog` on a mismatch. Plain `Read` and `Scan` still do not re-check, to keep their cost; close and reopen after replacing a log.
 

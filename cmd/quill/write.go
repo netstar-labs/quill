@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/netstar-labs/quill"
@@ -16,10 +18,18 @@ import (
 // consumer's lock (decision 99). A Config with no SegmentBytes
 // takes SegmentBytes and MaxPayloadBytes from the policy when it parses, else the ceilings,
 // so opening never seals an active segment the writer's size allows (decision 99). The
-// caller closes it.
+// caller closes it. A Config with no Perm takes the mode of the log's quill.tail (owner
+// read and write kept), so a verb that rewrites the marker or creates a segment does not
+// reset a group-readable log to 0600: Reader, register and Archive take their mode from the
+// marker.
 func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 	cfg.Dir = c.dir
 	cfg.NoMaintenance = true
+	if cfg.Perm == 0 {
+		if info, err := os.Lstat(filepath.Join(c.dir, "quill.tail")); err == nil && info.Mode().IsRegular() {
+			cfg.Perm = info.Mode().Perm() | 0o600
+		}
+	}
 	cfg.ProtectedConsumers = nil                    // even one read from the policy: never take a consumer's lock
 	if cfg.SegmentBytes == 0 && cfg.MaxBytes == 0 { // MaxBytes must be at least twice SegmentBytes
 		cfg.SegmentBytes, cfg.MaxPayloadBytes = quill.MaxSegmentBytes, quill.MaxPayloadBytes
