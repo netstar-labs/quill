@@ -864,3 +864,217 @@ says so (ee11f57), and compatibility with the reference rests on the specificati
 reference-written segment (a few records, one with an empty payload and one with a negative timestamp), check it in under
 testdata with its provenance given as "the reference implementation" and decode it in `TestFrameGolden`; that
 would settle decision 3 by bytes.
+
+## Pass A5: silent-degradation audit
+
+Date 2026-10-31. Pass A5 (record: [silent-degradation.md](silent-degradation.md)) applied seven fixes, each re-attacked by a
+fix-skeptic (7 of 7 FIXED-VERIFIED): A5-2, A5-16, A5-21, A5-31, A5-39, A5-40 and A5-42. It held eleven items for the owner.
+Every held item changes observable behaviour (a `Stats` field, an `Err()` rule, an exit code, a CLI line, a validation
+refusal or documented output), so none was applied. No fix is written for any of them; each section gives the auditors'
+proposal as the recommended answer. The recommended answers are the recorder's reading of the auditors' proposals and the
+skeptics' notes, and are recommendations, not decisions. The full items (grounds, warrant, backing, rebuttal, votes,
+reproductions) are in the record.
+
+Three of the items share one design question and should be decided together: A5-10 (what `Err()` means), A5-1 (what a
+background failure reports) and A5-22 (what `diskFull` reports). Two share another, the CLI's stderr: A5-36 and the
+broken-consumer Warn left over from A5-17. The offline write verbs now carry a stderr Logger (cmd/quill/write.go, the
+`lossOnly` filter, from A5-2 and A5-42) that passes two messages only; widening that filter is the smallest route for the
+second group (inferred from reading write.go:74).
+
+| id | sev | one line | recommended | status |
+|----|-----|----------|-------------|--------|
+| A5-10 | medium | `Err()` is one latched slot: a load error masks later background errors and a recovered error never clears | stop the masking, clear on recovery | held; decide with A5-1 and A5-22 |
+| A5-1 | medium | flush, publish, rotate and prune failures reach only `Err()`; nothing is logged, timed or counted | log each transition; add `Stats` fields | held |
+| A5-36 | medium | `quill prune` exits 0 with no message when an unlink fails, a consumer file is corrupt or the clock guard withholds segments | widen the stderr filter; exit 1 on `Err()` | held |
+| A5-18 | medium | a consumer below the first retained sequence reads healthy in `quill consumers` and `quill check` | derive a NOTE from the files | held |
+| A5-22 | medium | a failing statfs leaves `MinFreeBytes` unenforced or `diskFull` frozen, and `Err()` stays nil | set `Err()`, add `Stats.DiskFull` | held |
+| A5-29 | medium | `quill archive` reports a source gap once with exit 0, and not at all after `unregister` | exit 3 on a gap; compare with the destination's tail | held |
+| A5-3 | low | `ReadWait` and `Follow` on a failed log block until the context ends | return `ErrFailed` from the wait | held |
+| A5-9 | low | `quill prune` and `quill roll` discard `Close`'s error | report it, exit 1 | held |
+| A5-23 | low | the published disk bound is exceeded when `MaxBufferBytes` is below `FlushBytes` | refuse that Config in `validate` | held |
+| A5-32 | low | an archive rerun keeps a same-size damaged destination segment | verify the CRC and replace it | held |
+| A5-44 | low | `quill ls` omits a log whose reader cannot open | skip only `ErrNoLog`; print an error row | held |
+
+## A5-10: `Err()` is masked and never clears (medium)
+
+**Claim.** `Log.Err` returns the failed state, then the sealed-segment load error, then the last background error, so an old
+hole permanently hides every later rotation, flush or prune failure, and a background error is never cleared when the
+operation recovers. After any recovery `Err()` reports a failure that is over. Reproduced by a program on the public API on
+macOS: after a rotation blocker was removed and rotation succeeded, `Err()` still returned the old EEXIST; with a damaged
+sealed segment, a live rotation failure was invisible in `Err()`.
+
+**Why held.** The fix changes what the documented signal means (docs/userguide.md tells operators to watch `Err()`;
+scope.md calls it the background error and the sticky load error), and either adds `Stats` fields or changes what `Err()`
+returns. That is a public contract at v0.1.0.
+
+**Recommended answer.** Keep the sticky load error but stop it shadowing: return the join of the failed or load error and
+the background error, or add `Stats.BackgroundErr` and `Stats.BackgroundErrAt`. Clear the background error, or stamp a
+recovery time, when the operation that set it succeeds (flush clears the flush error, a rotation the rotation error, a clean
+prune pass the prune error). Drop the load error once the segment it names has been deleted and its hole pruned.
+
+**Fix written.** None. One case already works this way since A5-39: a policy write that fails and later succeeds clears its
+own `Err()` (log.go:664), which is the pattern to extend.
+
+## A5-1: background failures are not logged, timed or counted (medium)
+
+**Claim.** Every retryable background failure is reported through one latched field, surfaced only by `Err()`. Nothing
+reaches `Config.Logger` although the field documents "warnings and failures", `Stats` has no last-flush time, buffered
+count or failing flag, and nothing says how much acknowledged data is currently only in memory. Reproduced on the in-memory
+file system (580 appends acknowledged with durable head 1, Logger empty) and, by a second voter, on real files with
+`chmod 0500` (`Err()` still EACCES after the fault cleared and a clean flush).
+
+**Why held.** The minimum fix writes new log lines (a changed output); the fuller one adds exported `Stats` fields, which is
+an API addition.
+
+**Recommended answer.** Do the minimum now: log once on each transition into and out of a failing state (flush write,
+publish, rotate, prune) at Warn and Info through the existing Logger. Add `Stats.LastFlushOK`, `Stats.BufferedRecords` and
+`BufferedBytes` and `Stats.FlushFailing` before the first release: adding them later is only additive, but dashboards will
+be built on `Err()` in the meantime. Decide with A5-10.
+
+**Fix written.** None.
+
+## A5-36: `quill prune` exits 0 when it did less than asked (medium)
+
+**Claim.** An unlink failure, a corrupt consumer file and the clock guard each leave `quill prune` printing a counts line
+(`6 -> 6`, `10 -> 7`) and exiting 0 with empty stderr. Reproduced with the built CLI by both voters for the unlink failure
+(`chflags uchg`) and the clock guard, and for the corrupt consumer file by one.
+
+**Why held.** The fix adds stderr output to a verb and makes `quill prune` exit 1 in a case where it exits 0 today, and
+changes the library's `Prune` to return the unlink error instead of nil.
+
+**Recommended answer.** Widen the offline verbs' stderr filter to the three messages the pass can produce ("cannot delete
+segment", "age sweep limited by the clock guard", "age sweep stopped at a segment stamped in the future") and add the
+broken-consumer Warn (A5-17); have `cmdPrune` exit 1 when `Err()` is non-nil after the pass; have `Prune` return the unlink
+error. The clock guard stays a warning with exit 0, since `-force` is the documented answer to it.
+
+**Fix written.** None.
+
+## A5-18: a consumer that fell out of retention reads healthy (medium)
+
+**Claim.** A consumer below the first retained sequence, whether unprotected, overridden by a cap or stale under
+`ConsumerTTL`, shows in `quill consumers` a lag that counts deleted records, `protected` true and an empty NOTE, and `quill
+check` prints HEALTHY. `Dropped` and `StaleConsumers` are never printed by the CLI and `Dropped` is 0 after a writer
+restart. Reproduced by both voters with the built CLI (lag 80 with 16 records left; `Dropped` 8 then 0 after restart).
+
+**Why held.** The fix changes CLI output and the `ConsumerInfo` shape (a new field or note) and may change what `Lag`
+counts. Decisions 12 and 66 deliberately keep the counters in writer memory.
+
+**Recommended answer.** Derive, do not persist. `quill consumers` NOTE and a JSON field when the offset is below the first
+retained sequence; compute staleness for protected consumers from the policy's `ConsumerTTL` and the file mtime; log Warn
+with the consumer's name when a deletion passes a consumer's offset; print `dropped` in `quill prune`. This follows the
+precedent of decision 36, which added the "ahead of the head" note.
+
+**Fix written.** None.
+
+## A5-22: `MinFreeBytes` fails open when statfs fails (medium)
+
+**Claim.** On a statfs error `capsLocked` logs one Warn and leaves `diskFull` as it was, so the floor is unenforced, or a
+frozen `diskFull` keeps every append failing with ENOSPC after space returns, and `Err()` is nil in every state; `diskFull`
+is in no `Stats` field and its clearing is not logged. Reproduced on the statfs seam by one voter; the other traced the
+code.
+
+**Why held.** The fix sets `Err()` in a new state and adds `Stats` fields.
+
+**Recommended answer.** Set the background error when statfs fails or `diskFull` is set, log when `diskFull` clears, add
+`Stats.DiskFull` and `Stats.FreeBytesAtLastPass`; consider treating the floor as unmet only after N consecutive statfs
+failures rather than on the first. Fold into the `Err()` decision (A5-10).
+
+**Fix written.** None.
+
+## A5-29: `quill archive` and source loss (medium)
+
+**Claim.** Archive reports a source gap once, on stderr, exit 0; the next run is silent while the destination is UNHEALTHY.
+After `quill unregister -name _archive` (the documented reset) Archive prints nothing and exits 0 while the destination gets
+the same hole, because it never compares the committed offset with the destination's `quill.tail`. Reproduced by both voters
+with the built CLI. The user guide's "the verb says so" is false for the `unregister` case.
+
+**Why held.** The fix changes an exit status and Archive's documented return. The exit-0 half was ruled deliberate in round 1
+(A1-58, decisions 85 and 53); the silent-after-`unregister` half is new. One voter would not rule out that an explicit
+reset counts as acknowledging the loss.
+
+**Recommended answer.** Return a distinct non-zero exit (the unhealthy code, 3) for a gap, and have Archive compare the
+committed offset with the destination's `quill.tail` so the `unregister` case returns the `*GapError` too. If the owner keeps
+exit 0, correct the user guide sentence for the `unregister` case now.
+
+**Fix written.** None.
+
+## A5-3: waiting on a failed log never fails (low)
+
+**Claim.** After an fsync error `Log.ReadWait`, `Consumer.ReadWait` and `Log.Follow` block until the context ends and return
+only the context error, while `Append`, `Flush` and `Close` return `ErrFailed`. Reproduced by both voters on the in-memory
+file system.
+
+**Why held.** The fix changes documented `ReadWait` behaviour: it would return an error where it returned a context error.
+A caller may prefer to keep draining.
+
+**Recommended answer.** In `Log.wait` return the failed error when `l.failed != nil` and the head is below the offset; reads
+of existing records stay valid. Document it on `ReadWait` and `Follow`.
+
+**Fix written.** None.
+
+## A5-9: `quill prune` and `quill roll` discard `Close`'s error (low)
+
+**Claim.** `withWriter` (cmd/quill/write.go:85) discards the error of `Close`, which carries the final directory fsync, so
+a fatal fsync failure after a successful prune or roll exits 0; `append` and `recover` already report it (decision 100).
+Reproduced once, with an fsync error injected into a patched copy of the CLI (the shipped binary has no fault hook).
+
+**Why held.** It changes an exit code.
+
+**Recommended answer.** Report `Close` in `withWriter` as `cmdAppend` and `cmdRecover` do and exit 1.
+
+**Fix written.** None.
+
+## A5-23: the published disk bound is wrong for `MaxBufferBytes` below `FlushBytes` (low)
+
+**Claim.** The bound in scope.md and decision 69 uses `MaxBufferBytes` for the flush term, but the code (`maxActiveBytes`,
+log.go:203) uses the larger of it and `FlushBytes`, and `validate` accepts a smaller `MaxBufferBytes`. Reproduced by both
+voters: with `MaxBufferBytes` 1 the on-disk peak was 4,200,444 bytes against a published bound of 3,949,577.
+
+**Why held.** Either the guarantee's wording or `Open`'s acceptance of a Config changes.
+
+**Recommended answer.** Refuse `MaxBufferBytes < FlushBytes` in `validate` with `ErrConfig`: one line, nobody has a reason to
+set it, and the published formula becomes exact. The runner-up, rewording the formula with the maximum, loses because it
+keeps a Config that cannot do what its name says.
+
+**Fix written.** None.
+
+## A5-32: an archive rerun keeps a same-size damaged destination segment (low)
+
+**Claim.** archive.go:178 returns success for a destination segment that exists with the same size, without reading it, so a
+damaged copy survives a rewound rerun, the run exits 0, and only `quill check -dir dst` finds it. Reproduced by one voter
+with the built CLI.
+
+**Why held.** It changes documented behaviour (the rerun is idempotent and cheap because it skips).
+
+**Recommended answer.** Verify the CRC of a same-size destination file and replace it when it fails, or require a flag for a
+forced re-copy. Failing both, document that a destination is audited with `quill check`, not by a rerun.
+
+**Fix written.** None.
+
+## A5-44: `quill ls` omits a log it cannot open (low)
+
+**Claim.** cmd/quill/read.go:45-47 skips every `OpenReader` error, so a log with a corrupt `quill.format`, a future format or
+no permission vanishes from the listing and `ls` exits 0, while `stat` and `check` on it exit 1. Reproduced by both voters.
+
+**Why held.** It changes `ls` output and possibly its exit code.
+
+**Recommended answer.** Skip only `errors.Is(err, quill.ErrNoLog)`; for anything else print an "error:" row as the `Stat`
+failure branch does, and decide whether `ls` then exits 1.
+
+**Fix written.** None.
+
+## Not held, but worth the owner's eye
+
+- **A5-33 (closed by a pass A3 commit).** The umask finding was closed by 1f896c7, which documents that the writer's
+  segments and directories go through the umask. The finding's optional second half, a `quill check` warning when a segment's
+  mode differs from the marker's, was not applied: it would flag every writer run under a tighter umask, which the
+  documents now call normal. Apply it only as a new decision.
+- **A5-5 (refuted; hardening remains).** A Reader's plain `Read` still serves a replacement log from the old cursor; `Commit`
+  and a Reader's wait now return `ErrWrongLog` (495e457). If the owner wants plain reads to check too, it is one constant-cost
+  read of `quill.format` per view, which decision 83 declined on cost.
+- **A5-17 (prior-refuted).** The age sweep is still suspended silently by an unparseable consumer file; a Warn per pass naming
+  it was recorded as "would close it (not done)" in round 1 and is part of the A5-36 recommendation above.
+- **Residuals of the seven fixes** (reported by the fix-skeptics, in the record): A5-16 does not stop a second writer that
+  opens before the first writer's next flush; A5-21 leaves a pending marker publish on a full disk blocking every deletion,
+  which the skeptic flagged as a possible separate finding and did not test; A5-2 and A5-42 report only to a configured
+  Logger in the library.
