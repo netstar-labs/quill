@@ -353,3 +353,53 @@ func TestDecodeTailFastAgreesWithSlow(t *testing.T) {
 		t.Fatal("the fast path never accepted a mutated input")
 	}
 }
+
+// TestTailRefusesIDsTheSegmentNamesCannotHold: segment names carry ten decimal digits, so a
+// marker whose maxseg (and therefore seg) is above 9999999999 is refused by both decode
+// paths; one at the limit is accepted.
+func TestTailRefusesIDsTheSegmentNamesCannotHold(t *testing.T) {
+	for _, in := range []string{
+		`{"seq":3,"seg":0,"off":39,"maxseg":10000000000}` + "\n",
+		`{"seq":3,"seg":10000000000,"off":39,"maxseg":10000000000}` + "\n",
+		`{"seq":3,"seg":0,"off":39,"maxseg":18446744073709551615}` + "\n",
+		`{"seq":3,"seg":0,"off":39,"maxseg":18446744073709551615}`,
+	} {
+		if v, err := decodeTail([]byte(in)); err == nil {
+			t.Errorf("accepted %q as %+v", in, v)
+		} else if !errors.Is(err, errBadState) {
+			t.Errorf("%q: %v is not errBadState", in, err)
+		}
+	}
+	top := tail{Seq: 3, Seg: maxSegmentID, Off: 39, MaxSeg: maxSegmentID}
+	if v, err := decodeTail(encodeTail(top)); err != nil || v != top {
+		t.Fatalf("the largest representable id: %+v, %v", v, err)
+	}
+}
+
+// TestRotationRefusesAnIDTheSegmentNamesCannotHold: at maxseg 9999999999 the next id would
+// be an eleven-digit name no scan recognises, and at 2^64-1 it would wrap to 0. The seal
+// fails instead and no such file is created.
+func TestRotationRefusesAnIDTheSegmentNamesCannotHold(t *testing.T) {
+	for _, top := range []uint64{maxSegmentID, 1<<64 - 1} {
+		s := fsx.NewSim()
+		l := openSim(t, s, nil)
+		appendN(t, l, 1)
+		mustFlush(t, l)
+		l.mu.Lock()
+		l.maxSeg = top
+		l.mu.Unlock()
+		if err := l.Roll(); err == nil {
+			t.Errorf("maxseg %d: Roll sealed into an id the names cannot hold", top)
+		}
+		names, err := s.ReadDir("/log")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, n := range names {
+			if strings.HasSuffix(n, ".log") && n != segmentName(0) {
+				t.Errorf("maxseg %d: created %s", top, n)
+			}
+		}
+		_ = l.Close()
+	}
+}

@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a `quill.tail` with `maxseg` at or above 9999999999 was accepted, so the next rotation created an eleven-digit segment name that no directory scan
+  recognises (every later `Open` then failed with `ErrCorrupt`), and a `maxseg` of 2^64-1 wrapped the next id to 0 so every rotation failed. `maxseg` (and so `seg`)
+  above 9999999999 is now a malformed marker, and the writer refuses to seal into an id above it. No log quill produces is affected.
+
 - Fixed: at every segment seal the writer read every file in `consumers/` while holding the log's lock, to count `Dropped`, so a log with many consumer files
   (they are never expired, and any process that can create one can add more) stalled every `Append`, `Flush`, `Read` and `Sync` at each rotation: about 0.5 s
   with 20,000 files and 4.7 s with 100,000 (macOS). The seal now counts `Dropped` against the offsets the last prune pass (or `Open`) read and lists nothing,

@@ -35,6 +35,9 @@ const (
 // segmentName is the file name of segment id: ten decimal digits and ".log".
 func segmentName(id uint64) string { return fmt.Sprintf("%010d.log", id) }
 
+// maxSegmentID is the largest segment id the ten-digit names can hold.
+const maxSegmentID = 9_999_999_999
+
 // parseSegmentName returns the id of a segment file name, or false for any other name.
 func parseSegmentName(name string) (uint64, bool) {
 	digits, ok := strings.CutSuffix(name, ".log")
@@ -78,7 +81,8 @@ func appendTail(dst []byte, t tail) []byte {
 func encodeTail(t tail) []byte { return appendTail(nil, t) }
 
 // decodeTail parses quill.tail strictly: exactly the four fields, every one present, seg at
-// most maxseg and off at most maxSegmentBytes (no segment is longer, and a reader would
+// most maxseg, maxseg at most maxSegmentID (the ten-digit names hold no more) and off at
+// most maxSegmentBytes (no segment is longer, and a reader would
 // otherwise carry a value beyond an int64 into a slice bound). The bytes encodeTail writes take decodeTailFast; every other input,
 // valid or not, takes decodeTailSlow, so its verdict and message are the strict decoder's
 // (decision 105).
@@ -124,7 +128,7 @@ func decodeTailFast(data []byte) (t tail, ok bool) {
 		*f.dst = v
 		rest = rest[len(f.key)+n:]
 	}
-	if string(rest) != "}\n" || t.Seg > t.MaxSeg || t.Off > maxSegmentBytes {
+	if string(rest) != "}\n" || t.Seg > t.MaxSeg || t.MaxSeg > maxSegmentID || t.Off > maxSegmentBytes {
 		return tail{}, false
 	}
 	return t, true
@@ -148,6 +152,9 @@ func decodeTailSlow(data []byte) (tail, error) {
 	out := tail{Seq: *t.Seq, Seg: *t.Seg, Off: *t.Off, MaxSeg: *t.MaxSeg}
 	if out.Seg > out.MaxSeg {
 		return tail{}, fmt.Errorf("%w: %s: seg %d above maxseg %d", errBadState, tailName, out.Seg, out.MaxSeg)
+	}
+	if out.MaxSeg > maxSegmentID {
+		return tail{}, fmt.Errorf("%w: %s: maxseg %d above the largest segment id, %d", errBadState, tailName, out.MaxSeg, uint64(maxSegmentID))
 	}
 	if out.Off > maxSegmentBytes {
 		return tail{}, fmt.Errorf("%w: %s: off %d above the largest segment, %d bytes", errBadState, tailName, out.Off, maxSegmentBytes)

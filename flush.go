@@ -144,6 +144,10 @@ func (l *Log) publishLocked() error {
 // rotateLocked seals the active segment: create the next one, fsync the directory, retire
 // the old descriptor (decision 43). The caller publishes the marker naming the new segment.
 func (l *Log) rotateLocked() error {
+	if l.maxSeg >= maxSegmentID {
+		// The next name would be eleven digits, which no scan recognises (or would wrap).
+		return fmt.Errorf("quill: segment ids exhausted: %d is the largest the ten-digit names hold", uint64(maxSegmentID))
+	}
 	id := l.maxSeg + 1
 	path := l.path(segmentName(id))
 	f, err := l.fs.OpenFile(path, fsx.O_RDWR|fsx.O_CREATE|fsx.O_EXCL, l.cfg.Perm)
