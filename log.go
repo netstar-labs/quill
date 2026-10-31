@@ -276,6 +276,11 @@ type Log struct {
 	flushErr error  // the last flush's error, while flushes are failing; nil once one succeeds
 	loadErr  error  // a sticky load error (a sealed segment that failed), for Err()
 	closed   bool
+
+	// policyErr is the error of the last quill.policy write, while it keeps failing; nil once one
+	// succeeds. A flush and a prune pass retry the write while it is set (decision 29).
+	policyErr error
+
 	// justSealed is set by a rotation until the marker naming the new segment has been
 	// published and fsynced into the directory (decision 65).
 	justSealed bool
@@ -392,9 +397,7 @@ func Open(cfg Config) (*Log, error) {
 	}
 	l.removeStaleTemps()
 	if !cfg.NoMaintenance { // an offline tool never replaces the writer's policy (decision 99)
-		if err := l.writePolicy(); err != nil {
-			l.bgErr = err
-		}
+		l.recordPolicy()
 	}
 	// Protected consumers exist, protected, before any consumer process starts (decision 67);
 	// one already protected, even if its process is running, is left alone.
@@ -651,6 +654,34 @@ func removeTempsBefore(fsys fsx.FS, dir string, cutoff time.Time) {
 			_ = fsys.Remove(p)
 		}
 	}
+}
+
+// recordPolicy writes quill.policy, or retries it after a failure. A failed write removes the
+// file instead of leaving the previous writer's settings there, where check, ls and an offline
+// prune would read them as this writer's promise (decision 29); the error goes to Err() and the
+// first one to the logger. The next flush or prune pass, or Close, tries again. Called with the
+// log's lock held (Open, before the flusher starts, is the one caller that has none to take).
+func (l *Log) recordPolicy() {
+	err := l.writePolicy()
+	if err == nil {
+		if l.policyErr != nil {
+			if errors.Is(l.bgErr, l.policyErr) {
+				l.bgErr = nil
+			}
+			l.policyErr = nil
+			l.logf(slog.LevelInfo, "quill.policy written after an earlier failure")
+		}
+		return
+	}
+	first := l.policyErr == nil
+	if first {
+		l.logf(slog.LevelWarn, "quill.policy could not be written; the previous one is removed and the write is retried at each flush and prune pass", "err", err)
+	}
+	_ = l.fs.Remove(l.path(policyName)) // best effort; a missing file is the point
+	if first || errors.Is(l.bgErr, l.policyErr) {
+		l.bgErr = err // never displaces a different background error already in Err()
+	}
+	l.policyErr = err
 }
 
 // writePolicy records the settings the writer opened with (decision 29).

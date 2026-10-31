@@ -23,6 +23,9 @@ func (l *Log) Flush() error {
 }
 
 func (l *Log) flushLocked() error {
+	if l.policyErr != nil {
+		l.recordPolicy()
+	}
 	if l.failed != nil {
 		return l.failed
 	}
