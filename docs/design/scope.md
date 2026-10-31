@@ -421,7 +421,10 @@ that contract.
 
 v0-forever: tags `v0.y.z`, never `v1`, breaking changes bump the minor with a migration note. The **module
 version** and the **format marker** (`quill/1`) are separate: a binary reads the marker it knows and refuses a
-newer one with `ErrFutureVersion`.
+newer one with `ErrFutureVersion`. The check happens when a handle is opened (and, for a `Reader` or consumer,
+again at `Consumer.Commit` and while waiting), not on every read or append, so a process already running keeps
+going across a marker bump. A migration note therefore has to require stopping or restarting every writer,
+reader and consumer before the new format is written (`docs/format.md`, `quill.format`).
 
 ## Roadmap
 

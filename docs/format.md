@@ -154,7 +154,13 @@ id is 32 lower-case hex digits, 128 random bits chosen when the log is created.
 quill/1 0123456789abcdef0123456789abcdef
 ```
 
-A version above the one a build knows is `ErrFutureVersion`. The file is required: a
+A version above the one a build knows is `ErrFutureVersion`. The marker is checked when a handle is
+opened (a writable `Open`, `OpenReader`, and `Archive`'s destination) and again, for the log id and the version
+alike, by `Consumer.Commit` and by the wait inside `ReadWait` and `Follow`. A running writer never re-reads it,
+and `Read`, `Scan` and `Head` do not, so a process that is already running is not stopped by a later marker bump.
+A migration note for a new version must therefore require stopping or restarting every writer, reader and
+consumer process before the new version's files are written; the marker protects only processes that open the
+log after the change. The file is required: a
 directory with segments and no marker is refused. It is written first when a log is created,
 and `quill.tail` last, so a directory with `quill.format` but no `quill.tail` and no frames is an
 interrupted creation that the next writable open finishes.
