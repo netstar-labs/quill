@@ -786,3 +786,81 @@ optionally warn from an `fstatfs` check), A3-31 (ConsumerTTL staleness is clock-
 re-measure after each unlink; document the cost). Each carries its round-1 reference and the auditor's proposal in
 [threat-model.md](threat-model.md). A3-3, A3-6 and A3-23 were raised again in this pass with reproductions on the current tree,
 so the owner may want to confirm the round-1 decision for them before the release.
+
+## Pass A6: format and version-skew audit
+
+Date 2026-10-31. Pass A6 (record: [format-compatibility.md](format-compatibility.md)) applied seven fixes, each re-attacked
+by a fix-skeptic (7 of 7 FIXED-VERIFIED): A6-1, A6-2, A6-3, A6-5, A6-6, A6-7 and A6-9. It left two ledger items open,
+A6-4 (recorded as held for the owner) and A6-8 (fix written, commit did not land), and one built tool, the skew harness,
+that its reviewer rejected. The recommended answers are the recorder's reading of the auditors' proposals and the
+skeptics' notes, and are recommendations, not decisions.
+
+| id | sev | one line | recommended | status |
+|----|-----|----------|-------------|--------|
+| A6-4 | low | the writer could rotate into segment id 10000000000, which no scan recognises | confirm and close; the fix is already in the tree as A3-8 (bb646c0) | held in the ledger; closed in the tree, owner to confirm |
+| A6-8 | low | `MaxSegmentBytes` (1 GiB) and `maxSegmentBytes` (1.5 GiB) differ only by case | rename the unexported one, one commit | fix did not land; no owner decision needed beyond "do it" |
+
+## A6-4: the segment id has no ceiling (low)
+
+**Claim.** The segment id is written `%010d` and parsed as exactly ten digits, but nothing stopped the writer creating id
+10000000000. That file is invisible to every scan; the newest-segment check then refuses the log (ErrCorrupt), and
+records acknowledged into it are unreachable by a writable open (readers still serve them). Reproduced on macOS by the
+auditor and a skeptic: a log whose segment was renamed 9999999999.log with `quill.tail` seg and maxseg at that value,
+then Open, Append, Roll, Append, Close all succeeded and the next Open failed with "quill.tail names segment
+10000000000, the newest on disk is 9999999999". A forged `maxseg` of 99999999999 in an ordinary log gave the same
+failure after one roll.
+
+**Why held.** The fix makes the writer stop with an error at a documented limit (a changed behaviour at the ceiling, like
+the sequence ceiling) and states a new limit in format.md. The ledger marked it semantic. Reaching the ceiling by
+rotation needs about 10^10 rotations, so no real log is expected to get there; the cost of the decision is low either way.
+
+**Recommended answer.** Confirm and close. The proposed fix, refuse a rotation whose next id would exceed 9999999999 and say
+so in format.md, is already in the tree: the A3 pass fixed the same defect as A3-8 in bb646c0 (an ancestor of the A6
+record commit). Verified by the recorder from `git show bb646c0`: `decodeTail` rejects `maxseg`, and so `seg`, above
+`maxSegmentID` (9,999,999,999) on both the fast and slow paths; `rotateLocked` returns "segment ids exhausted" when
+`l.maxSeg >= maxSegmentID`; docs/format.md and CHANGELOG say so; `TestRotationRefusesAnIDTheSegmentNamesCannotHold` seeds
+the top ids and passed when the recorder ran it. The A3 pass's fix-skeptic verdict, FIXED-VERIFIED, is reported from
+[threat-model.md](threat-model.md). What the owner decides is only whether the A3-8 wording ("the largest id ten digits
+hold", an error at maxseg 9999999999, so the id 9999999999 is the last one usable) is the intended limit.
+
+**Fix written.** bb646c0, landed under A3-8. No separate A6 commit exists, and no A6 fix-skeptic ran on it. The A6-4
+reproduction itself was not re-run against the fixed tree (inferred from the decoder and rotation lines).
+
+## A6-8: two constants differ only by letter case (low)
+
+**Claim.** `MaxSegmentBytes` (1 GiB, the SegmentBytes configuration ceiling, log.go:97 now) and `maxSegmentBytes` (1.5 GiB,
+the segment file limit and the bound on `quill.tail` `off`, load.go:19 now) differ only by the case of the first letter.
+Both are used correctly today and a change to the lowercase value is caught by several tests; the risk is a mistyped
+capital moving an on-disk limit by 0.5 GiB with the compiler silent.
+
+**Why held.** It was not held for a decision. A fix was written (rename the unexported constant to `maxSegmentFileBytes`,
+keep the exported name, no API effect) and its commit did not land: the workflow handed its fix-skeptic the placeholder
+`PENDING` in place of a sha, `git rev-parse --verify PENDING` failed, and nothing was merged or reviewed. The tree still
+has both names (verified by the recorder, grep).
+
+**Recommended answer.** Do the rename in one mechanical commit (five files use the lowercase name: fuzz_test.go,
+load_test.go, load.go, log.go, state.go), gate it, and have a fix-skeptic check that no behaviour moved. Do not rename the
+exported constant, which is public API. Declining is defensible: this is hygiene, and a mutation of the lowercase value is
+already caught by the segment-limit tests.
+
+**Fix written.** A proposal only; no commit.
+
+## Not held, but unresolved
+
+**The skew harness cannot see a cross-version difference in recovery.** A script to rerun the v0.1.0 against HEAD
+experiments (hack/skew.sh in the working copy it was built in) was built in pass A6. It is not in the tree, and its
+reviewer rejected it: with the new version's `recoverSegment` changed to drop the post-marker frames v0.1.0 salvages, the
+run still printed "OK: no divergence between v0.1.0 and HEAD" and exited 0. Its kill phase recovers each killed
+directory with one version only and checks that the survivors are a contiguous, unchanged prefix; it never recovers a
+copy of the same killed bytes with both versions and compares. The frame-width, CRC and policy faults were caught. Recommended
+answer: if the owner wants the harness in the release, copy each killed directory, recover one copy with each version,
+and `diff -r` the two before the append; then repeat the reviewer's deliberate-fault test and require the run to fail.
+If the harness is not wanted, nothing in the format verdict depends on it: the manual kill experiment (180 iterations,
+recovery by each version of identical torn bytes) made exactly that comparison and found no difference, as
+[format-compatibility.md](format-compatibility.md) records.
+
+**A6-6 stays PLAUSIBLE.** No fixture in the tree is a frame written by the reference implementation; docs/format.md now
+says so (ee11f57), and compatibility with the reference rests on the specification. If the owner can supply a short
+reference-written segment (a few records, one with an empty payload and one with a negative timestamp), check it in under
+testdata with its provenance given as "the reference implementation" and decode it in `TestFrameGolden`; that
+would settle decision 3 by bytes.
