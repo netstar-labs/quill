@@ -18,7 +18,10 @@ type Stats struct {
 	Records  uint64 // Head − First + 1, minus the records inside holes
 	Holes    []Hole
 	// Dropped counts segments deleted while some consumer's offset was below them, since
-	// the writer opened the log. Only Log.Stat knows it.
+	// the writer opened the log. A cap that fires at a segment seal judges "below them" by the
+	// consumer offsets of the last prune pass (or of Open, before the first), so a consumer that
+	// moved or was created since can be missed or counted late by up to PruneInterval. Only
+	// Log.Stat knows it.
 	Dropped uint64
 	// StaleConsumers are protected consumers that stopped protecting segments under
 	// ConsumerTTL at the last prune pass. Only Log.Stat knows them.

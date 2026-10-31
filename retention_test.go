@@ -385,6 +385,11 @@ func TestDiskBoundsMaxBytesHoldsUnderAFastWriterAndMinFreeBytesDeletesOnlyThisLo
 		t.Fatal(err)
 	}
 	defer c.Close()
+	// Dropped at a seal uses the offsets of the last prune pass, so the pass is what makes the
+	// new consumer count (decision 12).
+	if err := l.Prune(false); err != nil {
+		t.Fatal(err)
+	}
 	st, _ := l.Stat()
 	dropped := st.Dropped
 	for i := 0; i < 100; i++ {

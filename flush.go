@@ -131,16 +131,10 @@ func (l *Log) publishLocked() error {
 	l.pendingPublish = rotErr != nil
 	if sealed && rotErr == nil {
 		// The caps are enforced at every seal (decision 24); they override protection, so
-		// only the consumers' offsets are needed, for Dropped.
-		var offsets []uint64
-		if list, err := l.consumerStore().list(); err == nil {
-			for _, c := range list {
-				if c.Err == nil {
-					offsets = append(offsets, c.Offset)
-				}
-			}
-		}
-		if err := l.deleteLocked(l.capsLocked(0), offsets); err != nil {
+		// only the consumers' offsets are needed, for Dropped. Those are the ones the last
+		// prune pass read: listing consumers/ here would run under l.mu, and its cost grows
+		// with the number of files in a directory other processes write to (decision 12).
+		if err := l.deleteLocked(l.capsLocked(0), l.offsets); err != nil {
 			return err
 		}
 	}

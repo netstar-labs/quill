@@ -287,6 +287,7 @@ type Log struct {
 	markerAt time.Time // when the marker was last written
 	dropped  uint64    // segments deleted while some consumer's offset was below them
 	stale    []string  // protected consumers found stale at the last prune pass
+	offsets  []uint64  // every readable consumer's offset at the last prune pass (or Open), for Dropped at a seal
 	diskFull bool      // MinFreeBytes cannot be met: appends fail with ENOSPC
 
 	flushReq chan struct{} // signals the flusher
@@ -394,6 +395,7 @@ func Open(cfg Config) (*Log, error) {
 			return nil, fmt.Errorf("protected consumer %q: %w", name, err)
 		}
 	}
+	l.offsets = l.consumers(cfg.clock()).offsets // Dropped at a seal before the first prune pass
 	go l.flusher()
 	return l, nil
 }

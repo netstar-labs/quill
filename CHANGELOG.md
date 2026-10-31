@@ -5,6 +5,12 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: at every segment seal the writer read every file in `consumers/` while holding the log's lock, to count `Dropped`, so a log with many consumer files
+  (they are never expired, and any process that can create one can add more) stalled every `Append`, `Flush`, `Read` and `Sync` at each rotation: about 0.5 s
+  with 20,000 files and 4.7 s with 100,000 (macOS). The seal now counts `Dropped` against the offsets the last prune pass (or `Open`) read and lists nothing,
+  with or without a cap. `Dropped` can therefore lag a consumer that moved or was created since that pass by up to `PruneInterval`; `Prune` refreshes it.
+  Decision 12 is amended.
+
 - Fixed: `Open` accepted a `Config` whose `MaxBatchBytes`, `MaxBufferBytes` or `FlushBytes` was near `math.MaxInt64` (a natural "unlimited"), because the sum that
   `validate` compares to the 1.5 GiB segment file limit wrapped negative. A single `AppendBatch` over 1.5 GiB then wrote an oversize segment that `Sync`
   acknowledged and every reader reported as an unavailable range. Each term is now capped before the sum, so such a `Config` is refused with `ErrConfig`.

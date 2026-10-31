@@ -90,7 +90,7 @@ func (l *Log) Prune(force bool) error {
 }
 
 func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
-	l.stale = cv.stale
+	l.stale, l.offsets = cv.stale, cv.offsets
 	for _, name := range cv.stale {
 		l.logf(slog.LevelWarn, "consumer is stale and no longer protects segments", "consumer", name)
 	}
