@@ -96,10 +96,15 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 	}
 	// Age rotation: a quiet active segment is sealed so retention can reach it.
 	if l.cfg.SegmentMaxAge > 0 && l.active.frames > 0 && now.Unix()-l.active.lastAt >= int64(l.cfg.SegmentMaxAge.Seconds()) {
+		// A failed flush (a full disk, say) skips the rotation but not the pass: deleting expired
+		// segments is how the log finds room, so the sweep and the caps still run. The flush
+		// error stays in Err() and the next flush retries.
 		if err := l.flushLocked(); err != nil {
-			return err
-		}
-		if l.active.frames > 0 && !l.pendingPublish {
+			if l.failed != nil {
+				return l.failed
+			}
+			l.logf(slog.LevelWarn, "age rotation skipped because the flush failed; the sweep and the caps still run", "err", err)
+		} else if l.active.frames > 0 && !l.pendingPublish {
 			if err := l.rotateLocked(); err != nil {
 				l.pendingPublish, l.bgErr = true, err
 			} else if err := l.publishLocked(); err != nil {
