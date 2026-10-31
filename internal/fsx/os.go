@@ -30,6 +30,13 @@ func osFlags(flag int) int {
 	if flag&O_EXCL != 0 {
 		out |= os.O_EXCL
 	}
+	if flag&(O_WRONLY|O_RDWR) == 0 {
+		// A read-only open of a FIFO with no writer blocks in open(2) until one appears, before
+		// the caller can fstat and refuse it. O_NONBLOCK makes that open return at once; it
+		// changes nothing for a regular file, and the caller's file-type check then refuses the
+		// FIFO. A write open of a FIFO fails (O_WRONLY) or never waits (O_RDWR) without it.
+		out |= syscall.O_NONBLOCK
+	}
 	return out | syscall.O_NOFOLLOW
 }
 

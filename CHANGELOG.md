@@ -5,6 +5,11 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a FIFO planted as `quill.tail`, `quill.format`, `quill.policy` or an entry of `consumers/` blocked the read-only `open(2)` that was meant to
+  refuse it, because `readState` checked the file type only after the open returned. `Open`, `OpenReader`, `ReadPolicy` and the command line verbs hung, and
+  a FIFO in `consumers/` froze the writer at the next segment rotation (the consumer listing runs under the log's mutex), so `Append`, `Sync` and `Close`
+  hung with it. Every read-only open now returns at once and the FIFO is reported as damage, as a segment's always was. Decision 74 is amended.
+
 - Fixed: the Go toolchain named in `go.mod` was pinned exactly only by `hack/gate.sh`; `build/quill` used whichever `go` was on `PATH`, and
   under `GOTOOLCHAIN=auto` a `toolchain` line is only a minimum, so the release binaries and the SBOM's `go.version` could come from a newer
   compiler than the gate tested. `build/quill` now exports `GOTOOLCHAIN` derived from `go.mod` exactly as the gate does, and a test fails if it
