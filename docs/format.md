@@ -59,6 +59,13 @@ Recorded frames (hex), from the golden tests:
 | seq 2^40, at 0, empty payload | `08 8080808080 20 00 00 c44de4d0` |
 | seq 2^64−1, at −2, payload `ff ff ff` | `18 ffffffffffffffffff01 feffffffffffffffff01 03 ffffff dfce82f5` |
 
+These bytes were recorded from quill's own encoder and agree with the layout above (the same
+three frames were decoded independently with a separate uvarint and CRC-32 implementation).
+No fixture in this repository is a frame written by the reference implementation: that the
+frame is the reference's, unchanged (decision 3), rests on this specification and not on a
+byte sequence from the reference. If a log written by the reference is ever to be read by
+quill, decode a real one in `TestFrameGolden` first.
+
 ### Limits
 
 | Limit | Value | Rule |

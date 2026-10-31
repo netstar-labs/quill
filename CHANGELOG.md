@@ -5,6 +5,7 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Documented: the frame goldens were recorded from quill's own encoder, and no fixture is a frame written by the reference implementation, so frame compatibility with the reference is by specification, not by fixture (`docs/format.md`).
 - Documented: the format marker is checked when a handle is opened (and again by `Consumer.Commit` and the wait inside `ReadWait` and `Follow`), not by a running writer or by plain reads, so a future migration note must require stopping or restarting every process (`docs/format.md`, `docs/design/scope.md` Versioning, decision 48).
 - Fixed: the CLI's offline write verbs (`append`, `roll`, `recover`, `prune`) opened the log with no `Perm`, so each rewrote `quill.tail` (and `roll` and `append` created the new segment) with mode 0600 in a log created with `Perm` 0660. Because a `Reader`, the CLI's `register` and `Archive` take their mode from `quill.tail`, one routine `roll` or `recover` switched the group arrangement off. The verbs now keep the mode `quill.tail` already has (never below 0600).
 
