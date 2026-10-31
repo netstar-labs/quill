@@ -628,3 +628,161 @@ the gate (the `cmd/quill` tests already need Go 1.24 for `b.Loop`). Otherwise st
 
 **A4-6 (refuted, 2 votes to 0).** `build/quill` skips a missing `LICENSE` silently, which is intended in the private period. At the flip, consider making
 the release form fail without one, in the same change that adds the `LICENSE`.
+
+## Pass A3: security review and threat model
+
+Date 2026-10-31. Pass A3 (record: [threat-model.md](threat-model.md)) applied eleven fixes, each re-attacked by a fix-skeptic
+(11 of 11 FIXED-VERIFIED), and held back four items whose fix would change a documented file mode, a CLI behaviour or a
+documented performance statement: A3-5, A3-14, A3-18 and A3-19. None of the four has a fix written; the recommended answers
+below are the recorder's reading of the auditors' proposals and the skeptics' notes, and are recommendations, not
+decisions. Two further items have a fix that was written and rejected by its fix-skeptic and is not in the tree (A3-10 and
+A3-20); they are listed after the four, as "not held, but unresolved". Items the auditors raised that the project had
+already decided in round 1, or that a vote refuted, are not held; they are listed last with the proposal on file.
+
+| id | sev | one line | recommended | status |
+|----|-----|----------|-------------|--------|
+| A3-5 | medium | a reader-only process can flock `quill.lock` when Perm grants read, blocking writer Open | approve 0600 for the writer lock; settle Archive's probe first | held; no fix written |
+| A3-14 | medium | `quill archive -to` writes into a directory that has no `quill.format` | approve: require an empty directory | held; no fix written |
+| A3-18 | low | a Reader's read cost scales with the log, not the request | reword now; cache sealed refs after the release | held; no fix written |
+| A3-19 | low | the first-frame probe reads and CRC-checks the whole first frame (up to 64 MiB) | correct decision 47's wording; leave the code | held; no fix written |
+
+## A3-5: the writer's lock file is readable by readers, so a reader can hold it (medium)
+
+**Claim.** `quill.lock` is created with Config.Perm minus umask. When Perm grants group or other read, a process that can only
+read can open the lock `O_RDONLY` and take `LOCK_EX` with flock, which makes every writer Open (a restart included) fail with
+ErrLocked until the holder exits. Verified on Linux with two uids (uid 1000 writer, `nobody` holder); with Perm 0600 the
+holder gets "permission denied". Consumer locks (`consumers/<name>.lock`) are created from the log mode too and are subject to
+the same hold.
+
+**Why held.** The fix changes a documented file mode. Decision 51 says a lock file "is created through the process umask",
+deliberately, and the Perm row of scope.md calls a shared mode a supported configuration. The fix would make the writer lock
+owner-only whatever Perm says, and so changes what an operator sees in the directory and what a different-uid tool can do with
+the lock (see the Archive caveat below).
+
+**Recommended answer.** Approve. Create and keep `quill.lock` at 0600 regardless of Config.Perm (only the writer and Archive's
+destination probe touch it); record it in decision 51 and in the user guide's group-arrangement text; leave consumer locks
+group-accessible, because a group consumer must be able to take its own lock, and state in decision 41 that a reader-only
+process with read access can therefore hold a consumer's lock and stall that consumer (not the writer).
+
+Caveat on the auditor's proposal (inferred, not run): the proposal changes Archive's destination probe (archive.go:116) to open
+`O_RDONLY` so a non-owner archiver can still detect a live writer. A 0600 file owned by another uid cannot be opened `O_RDONLY`
+either, so a different-uid archiver would get a permission error on the probe. Decide whether that error is treated as "a writer
+may be live, refuse" (fail closed, recommended) and say so in the Archive doc. Test: a log created by one uid with Perm 0644,
+a probe from another uid, before and after.
+
+**Fix written.** None. The proposed change is in threat-model.md, A3-5.
+
+## A3-14: `archive -to` writes into a directory that is not a log (medium)
+
+**Claim.** `archiveDest` (archive.go:108 now) checks only same-file as the source, a held writer lock and the format id when
+`quill.format` exists; when it is absent it writes one. `copySegment` then renames over `NNNNNNNNNN.log` whenever the existing
+file's size differs (archive.go:178 now). A mistyped `-to` that names an existing directory without `quill.format` therefore
+replaces an unrelated file named like a segment and adds `quill.format`, `quill.tail` and `consumers/`. Writable Open refuses the
+same directory ("holds files but no quill.format", log.go:508 now). Reproduced on macOS with the built binary and through
+`quill.Archive`: a 24-byte text file named `0000000000.log` became a segment copy and the command exited 0.
+
+**Why held.** It makes a previously working invocation fail (archiving into a populated directory that is not yet a log), and it
+changes the error an operator sees (ErrNoLog from Archive), which is an exported error class on that function.
+
+**Recommended answer.** Approve. When `quill.format` is absent in the destination, require the directory to be empty, ignoring
+`.tmp-*` entries and `quill.lock`, as `Log.create()` does, and otherwise return ErrNoLog; add a library test and a CLI test
+that plant an unrelated `0000000000.log` and assert it is untouched; amend decision 85. Archive writes `quill.format` first, so a
+destination left by an interrupted earlier run already has one and is unaffected (inferred from archive.go, not run).
+
+**Fix written.** None.
+
+## A3-18: a Reader's read cost scales with the log, not the request (low)
+
+**Claim.** A `Reader.Read`, `ReadWait`, `Scan` or `Consumer.Read` without an iterator cursor re-walks and CRC-checks the active
+segment from byte 0 to the requested offset (read.go:203 now), and each call rebuilds a per-segment view in O(sealed segments)
+(reader.go:334, a `ReadDir` plus a `segRef` and two closures per segment). Measured on the Linux box with 3,000,000 records in
+one 343 MB active segment: `Reader.Read(2,999,000,1)` 379 ms against 112 us for the writer's `Log.Read`; 100 Reads of 1,000
+records from 2,000,000 took 26.3 s against 0.33 s for 100,000 records through Records. One skeptic's runs at 5,000 to 40,000
+one-record segments grew linearly (5.4 to 51 ms, 2.4 to 16 MB per call). This contradicts scope.md's "Read cost does not grow
+with backlog" for the Reader's active segment.
+
+**Why held.** Either fix changes a documented statement or a design choice. Decision 63 chose "the active segment is never
+cached" on purpose, for correctness after a writer crash, and decision 103 gives the Log, not the Reader, a sealed-ref cache.
+Caching in the Reader changes how fresh its view of a directory is.
+
+**Recommended answer.** Two steps. Now, reword: scope.md's Performance gate and decision 63 should say that a cursorless Reader
+read of the active segment costs O(offset within the segment), bounded by SegmentBytes (a few milliseconds at the default 8
+MiB, an extrapolation both skeptics made, and the 1,000,000-record macOS run is consistent with it), that Records and Follow carry
+a byte cursor and avoid it, and that a polling consumer should use them. After the release, if wanted, cache the sealed refs
+between views the way `Log.sealedRefsLocked` does. A per-Reader anchor for the active segment, or a cursor returned from `Read`,
+is the larger change and only worth it if polling consumers are expected.
+
+**Fix written.** None.
+
+## A3-19: the first-frame probe reads and CRC-checks the whole first frame (low, PLAUSIBLE)
+
+**Claim.** The Reader's probe of each uncached sealed segment (reader.go:249 now, `window.frameAt(0)`) reads, allocates and
+CRC-checks the whole first frame, up to 64 MiB, to learn two integers; decision 47 says "a few bytes". A directory of valid 64
+MiB frames stored as sparse files made `quill stat` take 8.99 s and allocate 6.4 GiB on the Linux box (auditor; not re-run by a
+skeptic). A skeptic's smaller run confirmed one full frame allocated per segment (40 MiB for five 8 MiB first frames).
+
+**Why held.** The auditor's proposed fix is not behaviour-preserving. One skeptic patched the probe to read 64 bytes and skip
+the CRC: two existing tests that assert hole detection failed, because an unchecked first-frame sequence feeds the segment
+ranges. Skipping the CRC only above a size threshold leaves exactly the large first frames unchecked. The verdict is PLAUSIBLE
+because the voters split on the remedy, not on the mechanism.
+
+**Recommended answer.** Correct the wording, leave the code. Change decision 47 from "a few bytes" to "the whole first frame,
+CRC-checked, up to 64 MiB, once per Reader per segment", and state the cost in the user guide. The cost needs write access to a
+directory the operator reads (a restored log, or a subdirectory under `quill ls`), and is bounded at 64 MiB per call and
+collectable. Revisit only if a bounded cheaper integrity check is designed, for example reading a header prefix and deferring
+the CRC to the first scan of that segment, with a test that a damaged first frame is still reported as a hole.
+
+**Fix written.** None.
+
+## Not held, but unresolved
+
+**A3-10: a damaged oldest segment is skipped silently by a default-start read (low).** A fix was written (54b99d0, not in this
+tree): a read from the beginning (`ScanAll`, a scan from offset 0, `quill read` and `cat` without `-from`, `tail -n` reaching the
+oldest record) and a new consumer start at sequence 1 when a damaged oldest segment is a hole from 1, so they return its
+GapError (CLI exit 1); a prefix deleted by retention, `-since` and `OffsetForTime` still start at `First`. Decision 41, scope.md's
+Consumer row, the CLI help, the regenerated docs/reference.md, the user guide and the changelog carry the exception. The
+fix-skeptic found the code sound and rejected it on the no-new-gap lens only: three statements still say a new consumer starts
+at the first retained sequence, the godoc for `Log.Consumer` (consumer.go:330-331), the comment on `consumerStore.open`
+(consumer.go:78-79) and the `Config.ProtectedConsumers` row at scope.md:121. Recommended answer: approve the behaviour (it is
+what decision 38 and scope.md already say: "reported as a gap, never skipped"), update those three statements, and land the
+commit. If the owner prefers expiry-like treatment of a damaged oldest segment, the alternative is to say so in decision 38 and
+change no code.
+
+**A3-20: a Reader serves overlapping segments (low).** A fix was written (e0df757, not in this tree): a Reader refuses overlapping
+segments as ErrCorrupt and Check reports an "overlap" problem; "overlap" is added to the closed `kind` list for `quill check
+-json` in scope.md. The fix-skeptic rejected it because Archive, another path through `Reader.view`, is not covered:
+`copySegment` (archive.go:167-192) never compares the segment's real last sequence with the reference's derived last, so on a
+hand-built overlap Archive copies both segments, writes a destination `quill.tail` with seq 8 and returns GapError{From:11,To:4}
+("records 11 to 4 are unavailable"), the same as before the fix. Recommended answer: add an overlap check in `copySegment` or
+`archive` (reject when `info.last.Seq` is above the reference's bounded last, or run the reference's `ensureIndex`), add an Archive
+test on the layout in threat-model.md A3-20, and land the commit. The new `kind` value is an addition to a documented JSON
+field, so the owner should accept it.
+
+## Not held, but worth a line
+
+**A3-26 (refuted, 1 to 2): unlinking `quill.lock` under a live writer lets a second writer open.** Out of the threat model and a
+stated design rule, so not changed. Two hardening options were written up by the auditor, if the owner wants defence in depth:
+compare the held descriptor's device and inode with `Lstat(quill.lock)` before each marker publish and fail the log with an
+ErrLocked-wrapping error on mismatch (narrows the window to one flush); or also flock the log directory's own descriptor (probed
+as exclusive on macOS and Linux). Cheapest step: one sentence in format.md and the user guide, "never delete `quill.lock`;
+flock releases itself on process death", naming the consequence (two acknowledged writers, one of them silently overwritten,
+`check` HEALTHY).
+
+**A3-7 (refuted, 1 to 2): a symlinked `consumers/` is followed.** Hardening only: open `consumers/` once with
+`O_DIRECTORY|O_NOFOLLOW` (or `Lstat` it in `create()` and every consumer operation) and require a real directory, or say in
+decision 51 that only the last path component is protected.
+
+**A3-24 (refuted, 1 to 2): `-json` passes bidi and format controls raw.** Escape U+200B-U+200F, U+202A-U+202E, U+2060-U+2069,
+U+FEFF and U+061C as `\uXXXX` (still lossless) and print `time` as null outside years 0000-9999. It changes the `-json` output
+shape, so it needs approval if wanted.
+
+**Raised again, decided in round 1 (not re-opened):** A3-3 (file names printed unescaped; quote file-derived strings, skip or
+flag invalid consumer names), A3-4 (a non-consumer file in `consumers/` protects every segment; ignore invalid names, report them
+in `check`), A3-6 (Archive keeps a same-size destination segment without verifying it; verify or compare, and re-copy on
+difference), A3-9 (a Reader takes its file mode from `quill.tail`; clamp it and intersect with the umask), A3-11 (`quill prune`
+trusts `quill.policy`; print the policy and parse it strictly), A3-23 (offline verbs create a log at a mistyped `-dir`; fail with
+ErrNoLog unless `quill.format` exists), A3-29 (name the filesystems where flock is not coherent, correct the bind-mount sentence,
+optionally warn from an `fstatfs` check), A3-31 (ConsumerTTL staleness is clock-derived; document it), A3-32 (MinFreeBytes
+re-measure after each unlink; document the cost). Each carries its round-1 reference and the auditor's proposal in
+[threat-model.md](threat-model.md). A3-3, A3-6 and A3-23 were raised again in this pass with reproductions on the current tree,
+so the owner may want to confirm the round-1 decision for them before the release.
