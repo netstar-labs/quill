@@ -192,8 +192,12 @@ func (c Config) validate() error {
 // MaxBufferBytes) and the one append that overshoots it (at most MaxBatchBytes, or a single
 // record's MaxPayloadBytes plus 34; the accounting of decision 69). The ceiling an append is
 // refused at while rotation keeps failing, and what validate keeps under the file limit.
+// Each flush term is capped at the file limit before the sum, so a size near math.MaxInt64
+// cannot wrap the sum negative past validate; a capped term alone already reaches the limit.
 func (c Config) maxActiveBytes() int64 {
-	return c.SegmentBytes + int64(max(c.FlushBytes, c.MaxBufferBytes)+max(c.MaxBatchBytes, c.MaxPayloadBytes+34))
+	capped := func(n int) int64 { return min(int64(n), maxSegmentBytes) }
+	return c.SegmentBytes + capped(max(c.FlushBytes, c.MaxBufferBytes)) +
+		max(capped(c.MaxBatchBytes), capped(c.MaxPayloadBytes)+34)
 }
 
 // dirPerm is the directory mode for a file mode: execute wherever read is granted.

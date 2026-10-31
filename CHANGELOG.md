@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: `Open` accepted a `Config` whose `MaxBatchBytes`, `MaxBufferBytes` or `FlushBytes` was near `math.MaxInt64` (a natural "unlimited"), because the sum that
+  `validate` compares to the 1.5 GiB segment file limit wrapped negative. A single `AppendBatch` over 1.5 GiB then wrote an oversize segment that `Sync`
+  acknowledged and every reader reported as an unavailable range. Each term is now capped before the sum, so such a `Config` is refused with `ErrConfig`.
+
 - Fixed: `quill append` with no arguments read the whole of stdin into memory before `MaxBatchBytes` was checked, so memory was proportional to the input (100 MB of
   newlines took about 4 GB, and a pipe that never ends grew until the process was killed). It now applies the same bound while it reads and refuses the batch,
   with the same `payload too large` error, as soon as the sum of `len(line) + 34` passes the limit, after at most one more scanner buffer. Nothing is appended.

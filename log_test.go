@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -188,20 +189,25 @@ func TestEveryConfigDefaultAndRefusal(t *testing.T) {
 		t.Fatalf("dir perm %v", d.dirPerm())
 	}
 	refused := map[string]Config{
-		"no dir":               {},
-		"segment too large":    {Dir: "x", SegmentBytes: 1<<30 + 1},
-		"payload over ceiling": {Dir: "x", MaxPayloadBytes: 64 << 20},
-		"maxbytes too small":   {Dir: "x", MaxBytes: 16<<20 - 1},
-		"negative flushbytes":  {Dir: "x", FlushBytes: -1},
-		"negative maxbytes":    {Dir: "x", MaxBytes: -1},
-		"negative records":     {Dir: "x", MaxRecords: -1},
-		"negative ttl":         {Dir: "x", ConsumerTTL: -1},
-		"negative readbytes":   {Dir: "x", MaxReadBytes: -1},
-		"prune too short":      {Dir: "x", PruneInterval: time.Millisecond},
-		"perm no owner write":  {Dir: "x", Perm: 0o400},
-		"perm with setuid":     {Dir: "x", Perm: 0o600 | fs.ModeSetuid},
-		"bad protected name":   {Dir: "x", ProtectedConsumers: []string{"Bad"}},
-		"reserved name":        {Dir: "x", ProtectedConsumers: []string{"_archive"}},
+		"no dir":                {},
+		"segment too large":     {Dir: "x", SegmentBytes: 1<<30 + 1},
+		"payload over ceiling":  {Dir: "x", MaxPayloadBytes: 64 << 20},
+		"batch wraps int64":     {Dir: "x", MaxBatchBytes: math.MaxInt64},
+		"batch near wrap":       {Dir: "x", MaxBatchBytes: math.MaxInt64 - 1000},
+		"buffer near wrap":      {Dir: "x", MaxBufferBytes: math.MaxInt64 - 100000},
+		"flush wraps int64":     {Dir: "x", FlushBytes: math.MaxInt64},
+		"batch over file limit": {Dir: "x", MaxBatchBytes: 2 << 30},
+		"maxbytes too small":    {Dir: "x", MaxBytes: 16<<20 - 1},
+		"negative flushbytes":   {Dir: "x", FlushBytes: -1},
+		"negative maxbytes":     {Dir: "x", MaxBytes: -1},
+		"negative records":      {Dir: "x", MaxRecords: -1},
+		"negative ttl":          {Dir: "x", ConsumerTTL: -1},
+		"negative readbytes":    {Dir: "x", MaxReadBytes: -1},
+		"prune too short":       {Dir: "x", PruneInterval: time.Millisecond},
+		"perm no owner write":   {Dir: "x", Perm: 0o400},
+		"perm with setuid":      {Dir: "x", Perm: 0o600 | fs.ModeSetuid},
+		"bad protected name":    {Dir: "x", ProtectedConsumers: []string{"Bad"}},
+		"reserved name":         {Dir: "x", ProtectedConsumers: []string{"_archive"}},
 	}
 	for name, cfg := range refused {
 		if err := cfg.withDefaults().validate(); !errors.Is(err, ErrConfig) {
