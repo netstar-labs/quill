@@ -5,6 +5,10 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+- Fixed: a segment whose frames climbed to sequence 2^64-1 and carried on at 0, 1, 2 passed a writable `Open`, because the contiguity test (previous + 1) wrapped to 0. `Open` then
+  reported a `First` above `Head` and the next append was numbered 3. Nothing is now accepted after a frame numbered 2^64-1, so such a log is `ErrCorrupt`. No log quill writes
+  contains one: the writer stops at `ErrSeqExhausted` before 2^64-1.
+
 - Fixed: a frame whose varints were not minimal (a length prefix padded as `0x8c 0x00`, say) passed `Check` and a writable `Open`, but a read that ended a batch after it
   resumed one byte inside the frame and reported `ErrCorrupt` ("torn frame") or, in a sealed segment, a `GapError`. The decoder now refuses a non-minimal varint, as
   `docs/format.md` always specified, so `Check`, `Open` and every read agree that such a frame is corruption. No log quill writes contains one.
