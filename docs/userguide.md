@@ -160,7 +160,7 @@ arrives during creation retries).
 | `MaxReadBytes` | 16 MiB | A `Read` stops once at least this many payload bytes are returned (so it can exceed it by up to one record), and returns at least one record |
 | `ProtectedConsumers` | none | Created, protected, at open; an already protected file is left alone, so a running consumer does not block a restart |
 | `ConsumerTTL` | off | See §4 |
-| `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures, and for the warning `Open` gives when it cuts the newest segment past the marker (`segment`, `offset`, `bytes`, and `kind`: `torn` for an incomplete final frame, the routine crash tail, or `damaged` for a complete-length frame that failed its checks, which may have been an acknowledged record). Its handler, `Enabled` included, runs with the log's lock held, so it must neither call the `Log` (that deadlocks it) nor block (that stalls `Append`, `Read`, `Sync` and the flusher): hand the record to another goroutine and return |
+| `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures, for the `Warn` a prune pass gives when it deletes a damaged sealed segment ("deleted damaged segment", with `segment`, `last` and `damage`), and for the warning `Open` gives when it cuts the newest segment past the marker (`segment`, `offset`, `bytes`, and `kind`: `torn` for an incomplete final frame, the routine crash tail, or `damaged` for a complete-length frame that failed its checks, which may have been an acknowledged record). Its handler, `Enabled` included, runs with the log's lock held, so it must neither call the `Log` (that deadlocks it) nor block (that stalls `Append`, `Read`, `Sync` and the flusher): hand the record to another goroutine and return |
 | `Perm` | 0600 (dirs 0700) | File mode. A `Reader`, the CLI and `Archive` create their files (consumer offsets, an archive's files) with the mode of the log's `quill.tail`, so a consumer in the log's group is readable by the writer. State files are exactly that mode; the writer's segments, lock files and every directory go through the process umask, so for a group arrangement run the writer with umask 002 (`Perm` 0660 under umask 022 gives `0640` segments and `0750` directories, and a group consumer cannot create its files in `consumers/`). The CLI's offline write verbs (`append`, `roll`, `recover`, `prune`) open with no `Perm` of their own and keep the mode `quill.tail` already has |
 | `NoMaintenance` | off | For offline tools: no background prune or age rotation, and `quill.policy` is not written |
 
@@ -293,7 +293,11 @@ repeated on the next open, so keep the line if you need to know.
 when the marker names a sequence above the last valid frame, when two segments overlap, or
 when `quill.tail` or `quill.format` is malformed. Damage in any sealed segment, the newest's
 predecessor included, does not fail `Open`: the segment becomes a hole, `Err()` names it,
-`quill check` reports it, and reads stop before it with a gap. There is no `repair` verb in
+`quill check` reports it, and reads stop before it with a gap. Retention deletes a damaged sealed
+segment like any other, and with it the file and the hole, the only artifacts of the damage, after
+which `Stat().Holes` is empty and `quill check` is healthy; so the pass logs the deletion at `Warn` as
+"deleted damaged segment" (`segment`, `last`, `damage`) on `Config.Logger`, and an offline `quill
+prune` prints the same record on standard error. Keep that line if you need to know. There is no `repair` verb in
 v0.1.0 (decision 64). The procedure:
 
 1. Stop every process that holds the log.

@@ -32,7 +32,7 @@ func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 			cfg.Perm = info.Mode().Perm() | 0o600
 		}
 	}
-	cfg.Logger = slog.New(cutOnly{slog.NewTextHandler(c.err, &slog.HandlerOptions{
+	cfg.Logger = slog.New(lossOnly{slog.NewTextHandler(c.err, &slog.HandlerOptions{
 		Level: slog.LevelWarn,
 		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey {
@@ -63,20 +63,22 @@ func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 	return l, exitOK
 }
 
-// cutOnly passes to its handler only the record Open writes when it cuts the newest segment past
-// the marker: that is a loss the operator must be told about, whichever verb opened the log,
-// while the retention lines the other verbs would provoke are not output these verbs ever had.
-type cutOnly struct{ slog.Handler }
+// lossOnly passes to its handler only the records that say data was lost to damage: the one Open
+// writes when it cuts the newest segment past the marker, and the one a prune pass writes when it
+// deletes a damaged sealed segment (which erases the file and the hole, the only artifacts of the
+// damage). The operator must be told about those, whichever verb opened the log, while the
+// retention lines the other verbs would provoke are not output these verbs ever had.
+type lossOnly struct{ slog.Handler }
 
-func (h cutOnly) Handle(ctx context.Context, r slog.Record) error {
-	if !strings.HasPrefix(r.Message, "cut the newest segment") {
+func (h lossOnly) Handle(ctx context.Context, r slog.Record) error {
+	if !strings.HasPrefix(r.Message, "cut the newest segment") && !strings.HasPrefix(r.Message, "deleted damaged segment") {
 		return nil
 	}
 	return h.Handler.Handle(ctx, r)
 }
 
-func (h cutOnly) WithAttrs(a []slog.Attr) slog.Handler { return cutOnly{h.Handler.WithAttrs(a)} }
-func (h cutOnly) WithGroup(n string) slog.Handler      { return cutOnly{h.Handler.WithGroup(n)} }
+func (h lossOnly) WithAttrs(a []slog.Attr) slog.Handler { return lossOnly{h.Handler.WithAttrs(a)} }
+func (h lossOnly) WithGroup(n string) slog.Handler      { return lossOnly{h.Handler.WithGroup(n)} }
 
 // withWriter opens the log writable, runs fn, and closes the log, discarding Close's
 // error; cmdAppend and cmdRecover report it and so use openWriter directly.

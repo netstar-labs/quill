@@ -285,7 +285,14 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 				break
 			}
 		}
-		l.logf(slog.LevelInfo, "deleted segment", "segment", s.path, "last", last)
+		if s.bad != nil {
+			// The file and its hole were the only artifacts of the damage (decision 98), and the
+			// deletion removes both: this line is the one record that records were lost to damage
+			// and not to age or a cap.
+			l.logf(slog.LevelWarn, "deleted damaged segment", "segment", s.path, "last", last, "damage", s.bad)
+		} else {
+			l.logf(slog.LevelInfo, "deleted segment", "segment", s.path, "last", last)
+		}
 	}
 	l.sealed = l.sealed[n:]
 	l.refsValid = false
