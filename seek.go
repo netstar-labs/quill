@@ -55,7 +55,7 @@ func offsetForTime(src source, t time.Time) (uint64, error) {
 	index := s.index
 	if index == nil && s.ensureIndex != nil {
 		if index, _, err = s.ensureIndex(); err != nil {
-			return 0, &GapError{From: s.first, To: s.last}
+			return 0, scanFailure(err, s.first, s.last)
 		}
 	}
 	// The last anchor strictly before the target, then a scan from it.

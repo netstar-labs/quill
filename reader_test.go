@@ -601,19 +601,20 @@ func TestATransientScanErrorIsNotCachedByTheReader(t *testing.T) {
 	seg0 := "/log/" + segmentName(0)
 	opens := 0
 	armed := true
+	errOpen := errors.New("too many open files")
 	s.Inject = func(op fsx.Op, name string) error {
 		if armed && op == fsx.OpOpen && name == seg0 {
 			opens++
 			if opens == 2 { // the first open is the first-frame probe, the second is the scan
-				return errors.New("too many open files")
+				return errOpen
 			}
 		}
 		return nil
 	}
 	_, err := r.Read(1, 5)
 	var ge *GapError
-	if !errors.As(err, &ge) {
-		t.Fatalf("first read: want a GapError, got %v", err)
+	if !errors.Is(err, errOpen) || errors.As(err, &ge) { // the error itself, not a gap a resume would skip (decision 79)
+		t.Fatalf("first read: want the open error, got %v", err)
 	}
 	if opens != 2 {
 		t.Fatalf("the injected error did not hit the scan: %d opens", opens)

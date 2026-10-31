@@ -211,14 +211,16 @@ func (r *Reader) wait(ctx context.Context, offset uint64) error {
 // segment returns the cached entry for a sealed segment, reading its first frame on the
 // first call. A cached entry costs no file operation; it is dropped when a read finds the
 // file gone or changed in size or a view no longer lists it, and rebuilt on the next view (decision 63). A segment that
-// is damaged (not a regular file, oversize, a bad first frame) is cached as bad; one that
-// could not be opened for an I/O reason is not, so the next view re-examines it (decision 94).
-func (r *Reader) segment(id uint64) *readerSegment {
+// is damaged (not a regular file, oversize, a bad first frame) is cached as bad. One that could
+// not be opened for an I/O reason is not cached either: this view sees a hole and the next view
+// looks again (decision 94). An I/O error reading the first frame is a read, not an open: it is
+// returned, uncached, and fails the view, so it never becomes a gap (decisions 79 and 94).
+func (r *Reader) segment(id uint64) (*readerSegment, error) {
 	r.mu.Lock()
 	s, ok := r.segs[id]
 	r.mu.Unlock()
 	if ok {
-		return s
+		return s, nil
 	}
 	path := r.path(segmentName(id))
 	s = &readerSegment{id: id, path: path}
@@ -228,7 +230,7 @@ func (r *Reader) segment(id uint64) *readerSegment {
 		// An I/O error (EMFILE, EACCES, a transient ENOENT) says nothing lasting about the
 		// file: this view sees a hole, the entry is not cached, and the next view looks again.
 		s.bad = err
-		return s
+		return s, nil
 	}
 	if err != nil {
 		s.bad = err
@@ -239,12 +241,15 @@ func (r *Reader) segment(id uint64) *readerSegment {
 		if ferr == nil && rec.Seq == 0 {
 			ferr = errBadFrame // a segment's first frame is at least 1 (decision 71)
 		}
-		if ferr != nil {
+		_ = f.Close()
+		switch {
+		case ferr != nil && !isFrameError(ferr):
+			return nil, ferr // I/O: a fact about the moment, not the bytes (decision 79); not cached
+		case ferr != nil:
 			s.bad = &SegmentError{Path: path, Reason: "first frame: " + reason(ferr)}
-		} else {
+		default:
 			s.first, s.at = rec.Seq, rec.At
 		}
-		_ = f.Close()
 	}
 	r.mu.Lock()
 	if cached, ok := r.segs[id]; ok {
@@ -253,7 +258,7 @@ func (r *Reader) segment(id uint64) *readerSegment {
 		r.segs[id] = s
 	}
 	r.mu.Unlock()
-	return s
+	return s, nil
 }
 
 // forget drops a cached segment whose file changed or disappeared.
@@ -333,7 +338,11 @@ func (r *Reader) view() (*segView, func(), error) {
 	sealed := make([]*readerSegment, 0, len(names))
 	for _, n := range names {
 		if id, ok := parseSegmentName(n); ok && id < tl.Seg {
-			sealed = append(sealed, r.segment(id))
+			s, err := r.segment(id)
+			if err != nil {
+				return nil, nil, err
+			}
+			sealed = append(sealed, s)
 		}
 	}
 	r.prune(sealed)
@@ -357,6 +366,10 @@ func (r *Reader) view() (*segView, func(), error) {
 		rec, _, ferr := w.frameAt(0)
 		*bufp = w.buf[:0]
 		r.bufPool.Put(bufp)
+		if ferr != nil && !isFrameError(ferr) {
+			_ = f.Close()
+			return nil, nil, ferr // I/O: not corruption (decision 79)
+		}
 		if ferr != nil || rec.Seq == 0 || rec.Seq > tl.Seq {
 			_ = f.Close()
 			return nil, nil, fmt.Errorf("%w: the active segment's first frame does not decode below the marker", ErrCorrupt)

@@ -75,7 +75,9 @@ a `*quill.GapError{From, To}`: `From` is the offset asked for, `To` the last mis
 Two causes: retention deleted them (the offset is below `Stat().First`), or a hole in the
 middle (a damaged or deleted segment, including one a retention sweep deleted while a reader was
 opening it). Nothing is skipped silently; resume from `To + 1`
-deliberately. An iterator yields an error once and ends; a gap is resumed by iterating again
+deliberately. An I/O error while reading (`EIO`, for example) is not a gap and not `ErrCorrupt`: the read returns that
+error, matchable with `errors.Is`, and reading again retries it; `Open` fails with it if it meets one verifying a
+sealed segment. A sealed segment that cannot be opened at all (too many open files, permission denied) is a hole. An iterator yields an error once and ends; a gap is resumed by iterating again
 from `To + 1`.
 
 ## 4. Consumers

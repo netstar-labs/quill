@@ -45,9 +45,10 @@ var (
 )
 
 // GapError reports that the records at the requested position are unavailable: deleted by
-// retention (an offset below the first retained sequence) or missing or unreadable in the
-// middle (a hole). From is the requested offset; To is the last missing sequence, so a consumer
-// resumes with Commit(To + 1). Reads never skip a gap silently (decision 38).
+// retention (an offset below the first retained sequence) or missing or damaged in the
+// middle (a hole). An I/O error met while reading is not a gap: it is returned as that error.
+// From is the requested offset; To is the last missing sequence, so a consumer resumes with
+// Commit(To + 1). Reads never skip a gap silently (decision 38).
 type GapError struct {
 	From, To uint64
 }

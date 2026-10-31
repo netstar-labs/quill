@@ -89,7 +89,7 @@ for rec, err := range log.Follow(ctx, offset) {      // or reader.Follow, consum
 
 `Records` stops at the current end; `Follow` waits for more until its context is cancelled (an in-process `Log`
 wakes on each flush, a `Reader` polls). The consumer forms start at the consumer's committed offset. An error is
-yielded once and ends the iteration; a `*GapError` is resumed by iterating again from `To + 1`. Breaking out of
+yielded once and ends the iteration; a `*GapError` is resumed by iterating again from `To + 1`, and an I/O error is retried from the same offset. Breaking out of
 the loop releases every buffer and descriptor. Payloads are copies, valid after the loop moves on; `Scan` is the
 zero-copy path. The API needs Go 1.23 or later.
 
@@ -380,6 +380,9 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
     the log refuse writes until reopened (decision 37).
 14. **Reads never skip a gap.** Data removed by retention below the requested offset, and a hole in the middle,
     both surface as a `GapError`; the consumer advances only by an explicit commit (decision 38).
+    An I/O error met while reading a segment (including its first frame, and while `Open` verifies the sealed segments)
+    is not a gap: it is returned as that error and the read can be retried (decision 79). A sealed segment that
+    cannot even be opened is a hole (decisions 94 and 98).
 
 ### Performance gate
 

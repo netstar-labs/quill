@@ -72,6 +72,16 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
   `register`, `unregister` and `commit` now accept exactly the name `_archive`; every other leading-underscore name, and
   `Config.ProtectedConsumers`, still refuse it. Decisions 16, 41 and 67 are amended.
 
+- Fixed: an I/O error while reading a segment (`EIO`, for example) was reported as `ErrCorrupt` (the active segment) or as a
+  `*GapError` (a sealed one), so a transient fault looked like loss and a consumer that resumed from `To + 1` skipped the
+  records. `Read`, `Scan`, `ScanAll`, `Records`, `Follow`, `OffsetForTime` and consumer reads, on a `Log` and on a `Reader`,
+  now return the I/O error itself (`errors.Is(err, syscall.EIO)`), and so does a `Reader`'s read of a segment's first frame.
+  `Open` now fails with the error when it meets one verifying a sealed segment, as it did for the newest segment, instead of
+  recording a hole that lasted until the next `Open`. `ErrCorrupt` and `*GapError` stay for a bad or torn frame, a damaged
+  file or a file retention deleted, and a sealed segment that cannot be opened at all (too many open files, permission
+  denied) is still a hole for that one view of a `Reader`. Nothing is remembered: the next call reads again.
+  Decisions 38, 39, 79, 94 and 98 are amended.
+
 - Fixed: while creating the next segment kept failing, the writer kept appending to the active segment with no bound, so it could
   pass the 1.5 GiB limit that `Open` and readers enforce and the log could then not be opened although every record had been
   acknowledged durable. Now, while a rotation that is due keeps failing, an `Append` or `AppendBatch` that would take the segment

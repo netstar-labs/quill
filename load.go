@@ -309,6 +309,7 @@ func (l *Log) load() error {
 
 	// Sealed segments are verified whole, in parallel.
 	sealed := make([]*segment, len(ids)-1)
+	readErrs := make([]error, len(ids)-1)
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
 	for i, id := range ids[:len(ids)-1] {
@@ -317,10 +318,17 @@ func (l *Log) load() error {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			sealed[i] = l.loadSealed(id)
+			sealed[i], readErrs[i] = l.loadSealed(id)
 		}()
 	}
 	wg.Wait()
+	// An I/O error while verifying a segment says nothing about its bytes: it fails the open, as
+	// it does for the newest segment, and never becomes a hole that a resume would skip (decision 79).
+	for _, err := range readErrs {
+		if err != nil {
+			return err
+		}
+	}
 
 	// The newest segment is recovered by parsing forward from the marker.
 	a := &activeSegment{id: newest, path: l.path(segmentName(newest))}
@@ -433,11 +441,12 @@ func listSegments(fsys fsx.FS, dir string) ([]uint64, error) {
 	return ids, nil
 }
 
-// loadSealed verifies one sealed segment; a failure makes it a bad segment whose range is a
-// hole, and the file is never modified. A bad segment still occupies its bytes, so its size
-// is recorded whenever it can be learned (decision 98): from the open, or from an Lstat when
-// the open fails.
-func (l *Log) loadSealed(id uint64) *segment {
+// loadSealed verifies one sealed segment; damage, or a file that cannot be opened, makes it a bad
+// segment whose range is a hole, and the file is never modified. A bad segment still occupies
+// its bytes, so its size is recorded whenever it can be learned (decision 98): from the open, or
+// from an Lstat when the open fails. An I/O error while reading the segment is returned as the
+// second result and not recorded: the caller fails the open with it (decision 79).
+func (l *Log) loadSealed(id uint64) (*segment, error) {
 	s := &segment{id: id, path: l.path(segmentName(id))}
 	f, size, err := openSegment(l.fs, s.path)
 	if err != nil {
@@ -445,17 +454,21 @@ func (l *Log) loadSealed(id uint64) *segment {
 		if info, lerr := l.fs.Lstat(s.path); lerr == nil {
 			s.size = info.Size()
 		}
-		return s
+		return s, nil
 	}
 	defer f.Close()
 	s.size = size
 	info, err := verifySegment(f, size, s.path)
 	if err != nil {
+		var se *SegmentError
+		if !errors.As(err, &se) {
+			return nil, err
+		}
 		s.bad = err
-		return s
+		return s, nil
 	}
 	s.first, s.last, s.index, s.at, s.lastAt = info.first.Seq, info.last.Seq, info.index, info.first.At, info.last.At
-	return s
+	return s, nil
 }
 
 // openActive opens the newest segment read-write with the checks of openSegment.

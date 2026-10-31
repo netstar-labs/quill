@@ -180,7 +180,7 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		if index == nil && s.ensureIndex != nil {
 			var last uint64
 			if index, last, err = s.ensureIndex(); err != nil {
-				return fail(&GapError{From: cur, To: s.last})
+				return fail(scanFailure(err, cur, s.last))
 			}
 			if last < s.last {
 				// The segment ends before the next one starts: a hole the first frames
@@ -248,8 +248,11 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		*bufp = w.buf[:0]
 		closer()
 		if err != nil {
+			if !isFrameError(err) {
+				return fail(err) // I/O: a fact about the moment, not the bytes (decision 79)
+			}
 			if s.active {
-				return fail(fmt.Errorf("%w: the active segment below the durable offset: %v", ErrCorrupt, err))
+				return fail(fmt.Errorf("%w: the active segment below the durable offset: %s", ErrCorrupt, reason(err)))
 			}
 			return fail(&GapError{From: cur, To: s.last})
 		}
@@ -264,6 +267,18 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		}
 	}
 	return next, nil
+}
+
+// scanFailure classifies the error of a sealed segment's full scan: damage to the file, or the
+// file gone (retention), is a gap over from..to; anything else is an I/O error and is returned
+// as it is, so a resume from a gap's To + 1 never skips a segment over a transient fault
+// (decisions 38, 79 and 94).
+func scanFailure(err error, from, to uint64) error {
+	var se *SegmentError
+	if errors.As(err, &se) || errors.Is(err, fs.ErrNotExist) {
+		return &GapError{From: from, To: to}
+	}
+	return err
 }
 
 // The Log as a source.
