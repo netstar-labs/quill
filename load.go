@@ -427,7 +427,9 @@ func (l *Log) load() error {
 	l.nextSeq = head + 1
 	l.maxSeg = max(tl.MaxSeg, newest)
 	// Republish the marker from what was really on disk, and make it durable.
-	l.marker = tail{} // force a write
+	// Force a write. Setting l.marker = tail{} did not for an empty log, whose marker is that
+	// zero value, and left markerAt unset (MarkerAge read 0).
+	l.pendingPublish = true
 	// From here l.active owns the descriptor (publishLocked may even have rotated it): a
 	// failure is returned with it open, and Open closes whatever l.active holds.
 	if err := l.publishLocked(); err != nil {
