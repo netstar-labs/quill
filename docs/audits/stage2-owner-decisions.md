@@ -15,9 +15,9 @@ recommendations when written. Ranked by severity, then reach.
 **Update 2026-10-30.** The owner approved the recommended answer for 17 of the items below (every A1 item in the table
 except A1-67 and A1-80, plus A4-1) on 2026-10-30. Each section keeps its recommendation text as first written (its
 "Fix written" paragraph is the state on 2026-10-29) and now carries an **Owner approval** and a **Disposition**
-paragraph, which are current. Result: 15 fixed, each in its own commit, each FIXED-VERIFIED by a fix-skeptic (102 lens
-verdicts, all pass); 2 fix-failed, with the fix written and rejected and the item still held for the owner (A1-82 and
-A4-1, each with its recommended next step). A1-67, A1-80, A1-62 and A1-59 are not in the ledger this update was written
+paragraph, which are current. Result: 16 fixed, each in its own commit, each FIXED-VERIFIED by a fix-skeptic (109 lens
+verdicts, all pass; A1-82 is the 16th, fixed in bb608d3 on its third attempt, 7 of 7 lenses); 1 fix-failed, with the
+fix written and rejected and the item still held for the owner (A4-1, with its recommended next step). A1-67, A1-80, A1-62 and A1-59 are not in the ledger this update was written
 from: commits for them exist in the tree (ba7c650, b5ad955, 2978378 and 7ef431c, verified from `git log`), but their
 sections and table rows are unchanged here. The per-item argument, reproduction and fix-skeptic outcome are in
 [a1-round2-findings.md](a1-round2-findings.md), section "Pass A1h".
@@ -30,7 +30,7 @@ sections and table rows are unchanged here. The per-item argument, reproduction 
 | A1-32 | medium | the reserved `_archive` consumer cannot be removed or rewound | approve | approved; fixed a3955cd (FIXED-VERIFIED, 7 of 7) |
 | A1-47 | medium | extra positional arguments are silently ignored | approve (exit 2) | approved; fixed 2c4e4f4 (FIXED-VERIFIED, 7 of 7) |
 | A1-48 | medium | `-from`, `-limit`, `-n` parse base 0 (`010` is octal) | approve | approved; fixed b4fe935 (FIXED-VERIFIED, 7 of 7) |
-| A1-82 | medium | a read I/O error becomes ErrCorrupt or a skippable gap | approve | approved; fix-failed (a5707a8 rejected by the fix-skeptic; held) |
+| A1-82 | medium | a read I/O error becomes ErrCorrupt or a skippable gap | approve | approved; fixed bb608d3 (FIXED-VERIFIED, 7 of 7) |
 | A1-85 | medium | Reader-created consumer files ignore the log's Perm | approve | approved; fixed 279d7ce (FIXED-VERIFIED, 7 of 7) |
 | A1-13 | medium | Archive returns ErrCorrupt, not ErrFutureVersion, for a newer destination | approve | approved; fixed b529db5 (FIXED-VERIFIED, 7 of 7) |
 | A1-69 | medium | MaxBatchBytes is checked against a 34-byte-per-record estimate | document only | approved; fixed 5b30e7f, documentation only (FIXED-VERIFIED, 6 of 6) |
@@ -201,17 +201,64 @@ decision 38, but the active-segment half contradicts decision 79 outright.
 
 **Owner approval.** Approved on 2026-10-30, as recommended.
 
-**Disposition.** Fix written (a5707a8, branch `stage2/A1-82-a2`) and rejected by the fix-skeptic; not integrated; held
-for the owner. The fix returns an I/O error as itself from `scanSource`, `ensureIndex`, `OffsetForTime` and the
-Reader's active-segment probe, and amends decisions 38, 79 and 94, scope.md, the user guide and CHANGELOG. It leaves
-one path: a Reader's sealed first-frame probe (reader.go view()) still reports one EIO as a `*GapError` over the whole
-segment. Reproduced by the fix-skeptic (verified): with EIO injected on reads of sealed segment 2, `Reader.Read(21,
-1)` returns `*quill.GapError: records 21 to 32 are unavailable`; segment 1 gives "records 1 to 20". That is the harm
-in the claim (the resume idiom skips the segment). The new test discards that error, and the new text saying an I/O
-error is never a gap is false for this path. **Recommended next step** (inferred from the objection): return the
-probe's I/O error from `view()` or from any read that needs that segment, because reading a first frame is a read, not
-an open (decision 94 is for EMFILE and EACCES at open), assert the class in the test, and re-run the fix-skeptic. If
-the owner would rather accept the residual, qualify every document that now says "not a gap".
+**Disposition.** Fixed in bb608d3 (on main; verified from the commit log), the third attempt; fix-skeptic FIXED-VERIFIED
+(7 of 7 lenses, all pass). The two earlier attempts were rejected: f6fcf26 (branch `failed/r2-A1-82-a1`) and a5707a8
+(branch `failed/r2-A1-82-a2`). a5707a8 had fixed `scanSource`, `ensureIndex`, `OffsetForTime` and the Reader's
+active-segment probe, and was rejected for one path: the Reader's sealed first-frame probe still turned one EIO into a
+`*GapError` over the whole segment (reproduced by that fix-skeptic against the changed tree: with EIO injected on reads
+of sealed segment 2, `Reader.Read(21, 1)` returned `*quill.GapError: records 21 to 32 are unavailable`, and segment 1
+gave "records 1 to 20"), and its test discarded the error. bb608d3 started from a5707a8 and closed both defects.
+
+What the fix does (verified by reading the tree). An I/O error met while reading, in any segment and at any point,
+including a sealed segment's first frame, is returned as itself (wrapped with `%w`, so `errors.Is(err, syscall.EIO)`
+works), uncached, so the next call reads again. `Reader.segment` now returns `(*readerSegment, error)`: a non-frame
+error from the first-frame probe is returned before the segment is cached (reader.go:246-247) and surfaces from
+`view()`. Open failures (EMFILE, EACCES, not a regular file) stay a hole for one view (decision 94), and real frame
+damage stays a `*GapError` or ErrCorrupt (`isFrameError`; `scanFailure`, read.go:276). `Open` is the second half:
+`loadSealed` (load.go:449) now returns a read I/O error from `verifySegment` as a second result instead of recording
+it in the segment's `bad` field, and `load()` fails `Open` with the first such error in segment order (load.go:321-330),
+as it already did for the newest segment; damage and open failures stay holes (decision 98). Amended in place with the
+note "Stage 2 audit, owner-approved 2026-10-30": decisions 38, 39, 79, 94 and 98; scope.md guarantee 14; user guide
+section 3; the `GapError` doc comment (a run-on line wrapped); CHANGELOG Unreleased (Fixed). No exported symbol, flag
+or file was added, and golden bytes are unchanged (verified by the fix-skeptic with `git diff --stat` over testdata).
+
+Regression test (verified). `TestAReaderFirstFrameProbeIOErrorOfASealedSegmentIsReturnedAsThatError`
+(read_ioerror_test.go:158) injects EIO on the reads of a sealed segment through the simulator, for segment 1 and for a
+middle segment, and asserts through `wantReadEIO` (:48) that the read that hits the fault gives `errors.Is(EIO)` true,
+`errors.As(*GapError)` false and `errors.Is(ErrCorrupt)` false, and that the same read succeeds once the fault clears.
+The fix-skeptic reverted only errors.go, load.go, read.go, reader.go and seek.go to the parent versions and kept the
+new tests: 9 tests failed, each for the claimed reason (the sealed-probe test with "records 1 to 20 are unavailable" for
+the first segment and "records 21 to 32" for the middle one; the active-probe test with ErrCorrupt; the `Open` test with
+"Open succeeded ... Read gave ... gap true"). The same tests pass on the fixed tree. The existing
+`TestATransientScanErrorIsNotCachedByTheReader` was edited by design (reader_test.go:617): a scan-time open error is
+now returned as itself, not as a gap.
+
+Sites checked for a sibling that turns an I/O error into a gap or ErrCorrupt (verified by reading, by the fixer and again
+by the fix-skeptic): reader.go `segment()` open path, `segment()` first-frame probe (fixed), `view()` active first-frame
+probe (already raw), `view()` open of the active file (raw), `readerSegment.scan` (raw, not cached), the `ref.open`
+closures in `view()` and `sealedRefsLocked` (ErrNotExist is a gap for retention, other errors raw); read.go `scanSource`
+and `scanFailure`; seek.go `offsetForTime`; load.go `verifySegment`, `recoverSegment`, `loadSealed` (fixed) and the
+newest-segment recovery in `load()`; log.go's Open creation path; iter.go (through `scanSource`); archive.go
+`copySegment` and Archive's own `GapError`s (arithmetic on listed ranges, not I/O); stat.go `verifyBounded` (an I/O error
+is reported by `Check` as a fatal segment problem carrying the error text, neither a gap nor ErrCorrupt); retention.go's
+resume read (reads `g.To+1` after a real gap only). The two remaining gap-on-I/O cases are the ones the owner's answer
+keeps: an open failure in `segment()` and ErrNotExist for retention.
+
+Gate (verified by the fix-skeptic in an archive copy): gofmt clean, `go vet` and `go build` pass, `go test -race -count=1
+./...` ok in every package, staticcheck v0.8.2 and deadcode v0.52.0 exit 0; the relevant tests also pass under `-race` on
+the Linux x86-64 box. Not run by the fix-skeptic: the fuzz targets and `go mod tidy`. The fixer's own gate run is not in
+the ledger, and this recorder re-ran nothing (docs only).
+
+Residual objections, none against the claim (reported by the fix-skeptic; the first was reproduced): (1) Availability
+trade-off. One EIO on a sealed segment's first frame now fails every call on that Reader that builds a view, not only the
+read that needs the segment: a head read, `Reader.Stat` and `OffsetForTime` all fail while the fault lasts. A persistent
+EIO on any sealed segment now makes `Open` fail where it used to record a hole, so retention cannot age that segment out
+until the fault is fixed. This follows from decision 79 and from how the newest segment already behaved; the amended
+decisions 94 and 98 and the CHANGELOG say that `Open` fails, but decision 94's "returned by the read that needs it"
+understates the view-wide failure. (2) Decision 94 still carries the phrase "in an intermediate form, made a hole for one
+view" (docs/design/decisions.md:102, verified by grep), which refers to an attempt that never shipped; it should be
+deleted. This commit changes docs/audits only, so the phrase is left for the owner or the next fix. (3) A real EIO on an
+`os.File` was not exercised, only the simulator's injection (inferred to behave the same).
 
 ## A1-85: Reader-created consumer files ignore the log's Perm (medium)
 
@@ -470,7 +517,7 @@ contradicts guarantee 14. See [a1-round2-correctness.md](a1-round2-correctness.m
 ## Pass A4: dependency, supply-chain and release hygiene
 
 The A4 pass (record: [supply-chain.md](supply-chain.md)) held back four items. Three of them are decisions or actions that only the
-owner can take before a public release; one is a written fix that did not reach main. The recommended answers are the recorder's reading of
+owner can take before a public release; one is a written fix that did not reach main (A4-1: its fix-skeptic rejected it on a stale audit record). The recommended answers are the recorder's reading of
 the auditor's proposed fix and the skeptics' notes, not decisions. Ranked by what the public flip needs.
 
 | id | sev | one line | recommended | status 2026-10-30 |
@@ -478,7 +525,7 @@ the auditor's proposed fix and the skeptics' notes, not decisions. Ranked by wha
 | A4-5 | low | the release archives ship the Go runtime and standard library with no copy of its licence | add the Go licence text at the flip; reword decisions 22 and 15 | not in the A1h ledger; unchanged |
 | A4-4 | medium | a workspace path is still in the v0.1.0 tag and in earlier history (the tip is fixed) | decide squash or filter, or accept, before pushing | not in the A1h ledger; unchanged |
 | A4-3 | medium | the private reporting channel named in `SECURITY.md` exists only if the setting is enabled | enable private vulnerability reporting | not in the A1h ledger; unchanged |
-| A4-1 | medium | the Go toolchain pin is enforced by the gate only; the fix is written and not on main | land the fix, rebased, with a fix-skeptic | approved; fix-failed (532f39d rejected by the fix-skeptic; held) |
+| A4-1 | medium | the Go toolchain pin is enforced by the release script and CI only through the gate; the `build/quill` fix is written (0b06a86) and not on main; the CI half is refuted | land the `build/quill`-only fix after correcting supply-chain.md:163-172, then re-run the fix-skeptic | approved; fix-failed (0b06a86 rejected by the fix-skeptic on one stale record line; held) |
 
 ## A4-5: the archives ship the Go runtime with no copy of its licence (low)
 
@@ -538,6 +585,8 @@ The "latest release only" support policy was introduced by f2516d7 and appears i
 **Claim.** The `toolchain go1.27.3` line in `go.mod` is a pin only in `hack/gate.sh`, which exports `GOTOOLCHAIN` from it. CI installs the newest 1.27.x
 (setup-go ignores the toolchain line) and `build/quill` uses whatever `go` is on PATH, although README.md:83-86 and CONTRIBUTING.md:40-42 call the go.mod
 toolchain the one supported version. The comment at `ci.yml:65-66` ("the Go patch level comes from go.mod's toolchain line") is false now.
+(Correction, 2026-10-30: the CI half of this claim is REFUTED for the setup-go version now pinned; see the Disposition.
+The `build/quill` half stands.)
 
 **Why held.** The fix is written but did not reach main: the fix workflow's merge check failed on a stray `go.mod` change (an audit probe, since restored by
 c202882), and the commit is based on da2d638, before the A4-7 and A4-9 changes to `build/quill` and `ci.yml`. It has had no fix-skeptic. It changes what
@@ -554,20 +603,38 @@ and go.mod drift apart (5 files, 159 insertions, 3 deletions).
 **Owner approval.** Approved on 2026-10-30, as recommended (with its stated alternative of keeping only the
 `build/quill` half).
 
-**Disposition.** Fix written and rejected by the fix-skeptic; not integrated; held for the owner. The recommended fix
-f800bb7 was superseded: 532f39d (branch `stage2/A4-1-a2`) makes `build/quill` derive and export `GOTOOLCHAIN` from
-go.mod's toolchain line, as `hack/gate.sh` does, so the release binaries and the SBOM come from the pinned compiler.
-The CI half (a workflow-level `GOTOOLCHAIN` literal and its test) was dropped because the workflow now pins setup-go
-v7.0.0, which the fix-skeptic reports reads the toolchain line before the go line unless `GOTOOLCHAIN=local`
-(reported; the tree's ci.yml does carry v7.0.0 at lines 24, 44, 54, 74 and 86). The fix-skeptic found the code change
-correct (the test fails without it, gate steps clean, API and golden files unchanged) and rejected it on one lens,
-no-new-gap: the commit leaves the audit record stale and self-contradicting. **Recommended next step:** rewrite the
-A4-1 item heading and Disposition, the ranked action 4 and the setup-go wording in [supply-chain.md](supply-chain.md),
-and this table row and the intro to this table, so that they state the landed `build/quill`-only fix and mark the CI
-claim refuted; then re-run the fix-skeptic (it expects FIXED-VERIFIED after that). The false comment at ci.yml:65-66
-is true again under setup-go v7.0.0 (inferred from the report above). In this tree the fix is not landed, so the
-statements in supply-chain.md and in the rows above remain accurate; supply-chain.md was outside this update's file
-list and is unchanged.
+**Disposition.** Fix written (0b06a86, branch `stage2/A4-1-a2`, based on bb608d3) and **rejected by the fix-skeptic**; not on
+main (verified: `main` is at bb608d3 and 0b06a86 is not an ancestor); held for the owner. The recommended fix f800bb7 was
+superseded, through the earlier attempts 41c8aa4 (branch `stage2/A4-1-a1`, which added a false CI claim and is not to be
+used), 532f39d and c9e8aa9, by 0b06a86. It changes 10 files: `build/quill` derives and exports `GOTOOLCHAIN` from go.mod's
+toolchain line as `hack/gate.sh` does (6 lines), so the release binaries and the SBOM come from the pinned compiler;
+`TestBuildScriptPinsToolchain` (build_script_test.go) fails without it; decision 88, the CHANGELOG, README.md,
+CONTRIBUTING.md and the `ci.yml` comment are corrected; and supply-chain.md, this file and a1-round2-findings.md are
+rewritten to state the `build/quill`-only fix (the diff stat is verified from the branch). No code beyond `build/quill`
+changed.
+
+The CI half is **REFUTED** (reported by the fix-skeptic, who read the action's `src/installer.ts` at b7ad1dad,
+lines 645-666; not run on a runner). At the setup-go version `ci.yml` pins now (v7.0.0, from the A4-9 change; the pin is
+on main at lines 24, 44, 54, 74 and 86, verified, and at 24, 44, 54, 75 and 87 on the branch, which adds one comment
+line) the action reads go.mod's `toolchain` directive before the `go` line unless `GOTOOLCHAIN=local`, so CI already
+installs the pinned patch release and the `ci.yml` comment ("the Go patch level comes from go.mod's toolchain line") is
+true. The audit's statement that setup-go ignores the toolchain line was true of the v5.6.0 pin it read, not of the pin on
+main. The owner's approval, which allowed dropping the CI half, covers this.
+
+The fix-skeptic found the code and the test correct (the test fails without the fix, the gate steps were clean, the API
+and golden bytes are unchanged) and could find nothing wrong with the CI refutation; the rejection is one residual
+defect in the record. supply-chain.md in 0b06a86, A4-1 item: the Warrant (lines 163-164, verified from the branch) still
+reads "CI and the release script do not [pin], so the gate, CI and a release can each run a different Go", which is the
+refuted CI half stated as fact with no REFUTED mark, and the Rebuttal (lines 171-172) still argues that floating the patch
+in CI is arguably desirable. The item contradicts its own Correction at lines 149-153.
+
+**Recommended next step.** Land 0b06a86 (cherry-pick onto main) with one more edit to supply-chain.md: reword the
+Warrant to say that only the release script, not CI, failed to pin (CI already installs the pinned patch release), and
+mark or drop the CI sentence of the Rebuttal; then re-run the fix-skeptic (it expects FIXED-VERIFIED). Note that 0b06a86
+edits this file and a1-round2-findings.md, as this commit does, so the cherry-pick will conflict in both; resolve in
+favour of this file's wording on the unchanged parts and of 0b06a86's on A4-1. Until it lands, supply-chain.md on main
+still says the fix is written and not on main, and still says setup-go ignores the toolchain line (true of v5.6.0 only);
+that file was outside this record's file list and is unchanged here.
 
 ## Not held, but worth a line at the flip
 

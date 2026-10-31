@@ -25,8 +25,10 @@ nothing under audit was edited by an auditor or skeptic.
 
 Pass A1h is a continuation of pass A1 (and of A4-1 from pass A4). On 2026-10-30 the owner approved the
 recommended answer for each of the 17 items below, all of which wave 1 had held for the owner; a fix was
-then written for each, one commit per item, and each fix was re-attacked by a fix-skeptic. Two of the 17
-(A1-82 and A4-1) are not finished: a fix exists, the fix-skeptic rejected it, and it is not in this tree.
+then written for each, one commit per item, and each fix was re-attacked by a fix-skeptic. One of the 17
+(A4-1) is not finished: a fix exists (0b06a86, branch `stage2/A4-1-a2`), the fix-skeptic rejected it on one stale
+line of the audit record, and it is not in this tree. A1-82, which the first version of this record carried as
+rejected (a5707a8), was fixed on a third attempt (bb608d3) and passed.
 This pass raised no new candidate items and cast no new item votes; the verdicts and votes below are
 wave 1's.
 
@@ -36,23 +38,28 @@ wave 1's.
 
 | disposition | items | ids |
 |-------------|-------|-----|
-| fixed, fix-skeptic FIXED-VERIFIED | 15 | A1-25, A1-32, A1-85, A1-47, A1-48, A1-13, A1-69, A1-2, A1-29, A1-35, A1-50, A1-52, A1-57, A1-87, A1-91 |
-| fix-failed (fix written and rejected, not in this tree; held for the owner with a recommended next step) | 2 | A1-82, A4-1 |
+| fixed, fix-skeptic FIXED-VERIFIED | 16 | A1-25, A1-32, A1-82, A1-85, A1-47, A1-48, A1-13, A1-69, A1-2, A1-29, A1-35, A1-50, A1-52, A1-57, A1-87, A1-91 |
+| fix-failed (fix written and rejected, not in this tree; held for the owner with a recommended next step) | 1 | A4-1 |
 | held with no fix / deliberately not changed | 0 | |
 
-- Fix commits: 15, all ancestors of the tree this record is written on (verified: each appears in `git log` of
-  HEAD 5c603fc). The two rejected fixes are a5707a8 (branch `stage2/A1-82-a2`) and 532f39d (branch
-  `stage2/A4-1-a2`); neither is an ancestor of HEAD (verified with `git branch --contains`).
-- Fix-skeptic verdicts: 15 FIXED-VERIFIED and 2 rejections. The 15 accepted fixes were each attacked through six
-  or seven lenses (12 through seven, three through six: A1-69, A1-52 and A1-87, which are documentation fixes
-  and had no independent-route lens), 102 lens verdicts in all, and every one is "pass" (derived by counting the
-  ledger). The two rejections come with a stated objection but no per-lens table in the ledger.
+- Fix commits: 16, all ancestors of the tree this record is written on (verified: bb608d3, the A1-82 fix, is the
+  tip of that tree, and the other 15 appear in the commit log below it, down to 5c603fc). The one rejected fix is 0b06a86 (A4-1,
+  branch `stage2/A4-1-a2`, based on bb608d3); it is not an ancestor of HEAD (verified with `git branch --contains`).
+  Rejected and superseded attempts, none on main: f6fcf26 and a5707a8 (A1-82, replaced by bb608d3), and f800bb7, 41c8aa4,
+  532f39d and c9e8aa9 (A4-1, replaced by 0b06a86).
+- Fix-skeptic verdicts: 16 FIXED-VERIFIED and 1 rejection (A4-1). The 16 accepted fixes were each attacked through six
+  or seven lenses (13 through seven, three through six: A1-69, A1-52 and A1-87, which are documentation fixes
+  and had no independent-route lens), 109 lens verdicts in all, and every one is "pass" (derived by counting the
+  ledger: 102 for the first 15, 7 for A1-82). A1-82 was passed on its third attempt; the two attempts before it
+  were rejected by their own fix-skeptics (a5707a8 for the sealed first-frame probe, see the item). The A4-1
+  rejection comes with a stated objection but no per-lens table in the ledger.
 - Item skeptic votes cast in this pass: 0. Wave 1 had judged the 16 A1 items with 33 votes (31 CONFIRMED, 1
   PLAUSIBLE, 1 REFUTED; derived from the index below: A1-91 had three votes, P, R and C, and the other 15 items two
   CONFIRMED each), and A4-1 with two CONFIRMED votes (supply-chain record), 35 votes for the 17 items.
 - Reproduced by execution: 14 of the 16 A1 items were reproduced by a wave-1 skeptic (all but A1-35 and A1-87;
   A1-35 was then reproduced by the fix-skeptic's own test of the warning, and A1-87 is a wording item with a
-  mutant check instead). A4-1: 0 reproduced in wave 1 (the auditor's experiment was not re-run).
+  mutant check instead). A1-82 was reproduced by wave 1 and again by the fix-skeptic of the second attempt;
+  the accepted fix's skeptic showed 9 tests failing against the reverted code (see the item). A4-1: 0 reproduced in wave 1 (the auditor's experiment was not re-run).
   Every accepted code fix was also shown red before and green after by the fix-skeptic. For the three
   documentation-only fixes (A1-69, A1-52, A1-87) behaviour does not change, so the fix-skeptic used a mutant instead.
 - Verdict note for A1-91: wave 1 recorded it PLAUSIBLE (votes P, R, C; the REFUTED voter held that code and spec
@@ -67,8 +74,8 @@ prior-deliberate 7.
 
 | disposition | items | what it means |
 |-------------|-------|---------------|
-| fixed | 57 | 42 from 2026-10-29 plus the 15 above; each passed the fix-skeptic |
-| fix-failed | 2 | A1-62 (rejected on 2026-10-29) and A1-82 (rejected in A1h); not integrated |
+| fixed | 58 | 42 from 2026-10-29 plus the 16 above; each passed the fix-skeptic |
+| fix-failed | 1 | A1-62 (rejected on 2026-10-29); not integrated. A4-1 (pass A4, rejected in A1h) is not one of the 73 |
 | held for the owner | 2 | A1-67 and A1-80, which this ledger does not carry |
 | refuted | 5 | not changed, because the claim does not hold |
 | round-1-decided | 7 | deliberately not changed in round 1 |
@@ -82,9 +89,9 @@ disposition. Whoever records those commits should move them.
 |-----------|-------|-------|------------|------|---------|-----------------|
 | simplify | 9 | 6 | 0 | 0 | 1 | 2 |
 | dedup | 12 | 11 | 0 | 0 | 1 | 0 |
-| correctness | 37 | 26 | 2 | 1 | 3 | 5 |
+| correctness | 37 | 27 | 1 | 1 | 3 | 5 |
 | docs | 15 | 14 | 0 | 1 | 0 | 0 |
-| total | 73 | 57 | 2 | 2 | 5 | 7 |
+| total | 73 | 58 | 1 | 2 | 5 | 7 |
 
 ### Coverage (pass A1h)
 
@@ -101,19 +108,21 @@ public path or the built binary.
 
 Not covered, or covered only in part (verified from the fix-skeptic reports unless marked):
 
-- staticcheck v0.8.2 and deadcode v0.52.0 were run, clean, for A1-32, A1-85, A1-47 and A1-91; for A1-48 through
+- staticcheck v0.8.2 and deadcode v0.52.0 were run, clean, for A1-32, A1-85, A1-47, A1-82 and A1-91; for A1-48 through
   `hack/gate.sh` with FUZZTIME=0, which passed every step but `go mod tidy` (an artifact of the git-archive copy, which
   has no repository); staticcheck only for A1-35. They were not run, or not reported, for A1-25, A1-13, A1-69, A1-2,
   A1-29, A1-50, A1-52, A1-57 and A1-87. The fixers' own gate runs are reported only in some summaries (A1-13 states
   gofmt, vet, race, staticcheck and deadcode clean); this recorder re-ran none of it (docs only, nothing heavy).
-- The fuzz step of the gate was not run by any fix-skeptic (A1-32 and A1-48 say so; none of the changes touches a
+- The fuzz step of the gate was not run by any fix-skeptic (A1-32, A1-48 and A1-82 say so, and A1-82's also did not
+  re-run `go mod tidy`; none of the changes touches a
   parser or the format, except A1-2's key-folding in `internal/strictjson`, whose differential test over all 2,994
   runes with a fold orbit replaced it).
-- Linux x86-64 box runs: A1-25 (simulator tests only; the chmod reproduction cannot run as root), A1-32, A1-85 (tests;
+- Linux x86-64 box runs: A1-25 (simulator tests only; the chmod reproduction cannot run as root), A1-82 (the relevant tests
+  under `-race`), A1-32, A1-85 (tests;
   the cross-user `setpriv` case could not be run because creating a user on the shared box was refused), A1-48, A1-13,
   A1-2, A1-29, A1-50, A1-91. Not run on Linux: A1-47, A1-69, A1-35, A1-52, A1-57, A1-87 (platform-independent code
   paths, inferred).
-- Not run by anyone: a real second account for A1-85, a terminal that honours 8-bit C1 for A1-50, and the no-fault
+- Not run by anyone: a real EIO on an `os.File` for A1-82 (only the simulator's injected EIO, so inferred to match), a real second account for A1-85, a terminal that honours 8-bit C1 for A1-50, and the no-fault
   variant of A1-25 on a real filesystem (it is covered by a configuration-validation test).
 - Auditors that failed to return: none. Auditors that returned nothing: none.
 
@@ -148,7 +157,7 @@ verdict, the reproduction, and what was done. "Fix-skeptic" outcomes are FIXED-V
   is: docs/design/build-prompt.md still describes the historical keep-appending behaviour (a build record, not a
   spec); `quill check` still prints "damaged at byte 0" for a segment that is not a regular file.
 
-#### A1-82: a read I/O error is reported as ErrCorrupt or a skippable gap (medium, correctness report item 12; CONFIRMED, 2 votes; fix-failed, a5707a8 not integrated)
+#### A1-82: a read I/O error is reported as ErrCorrupt or a skippable gap (medium, correctness report item 12; CONFIRMED, 2 votes; fixed bb608d3)
 
 - **Claim.** In `scanSource`, any error from `walk` becomes ErrCorrupt (active segment, cause flattened) or a
   `*GapError` over the whole sealed segment, so a consumer following the resume idiom ("iterate again from To + 1")
@@ -162,21 +171,33 @@ verdict, the reproduction, and what was done. "Fix-skeptic" outcomes are FIXED-V
 - **Reproduction (verified, macOS, simulator returning EIO on reads).** Sealed segment: a `*GapError` over its range, no
   ErrCorrupt and no EIO match. Active segment: `corrupt log: the active segment below the durable offset: input/output
   error`, `Is(ErrCorrupt)` true, `Is(EIO)` false.
-- **Disposition.** Owner approved on 2026-10-30. Fix written (a5707a8, branch `stage2/A1-82-a2`, on top of the A1-25
-  commit) and **rejected by the fix-skeptic**; held for the owner. The fix makes `scanSource`, `ensureIndex`,
-  `OffsetForTime` and the Reader's active-segment probe return an I/O error as itself. The rejection: the Reader's
-  sealed first-frame probe (reader.go view(), around :241-244) still turns one EIO into a `*GapError` over the whole
-  segment. Reproduced by the fix-skeptic against the changed tree: with EIO injected on reads of sealed segment 2,
-  `Reader.Read(21, 1)` returns `*quill.GapError: records 21 to 32 are unavailable`, and for segment 1 `Read(1, 1)`
-  gives "records 1 to 20". The new test discards that error (`_, _ = r.Read(mid, 1)`) and asserts only that the next
-  read recovers, and the new text in scope.md guarantee 14, the user guide and decision 38 says an I/O error is never a
-  gap, which is false for this path while the CHANGELOG and the docs disagree. The rest of the change (scanSource,
-  ensureIndex, OffsetForTime, the active probe) was judged correct and the race tests pass.
-  **Recommended next step (inferred from the fix-skeptic's objection):** return the probe's I/O error from `view()` (or
-  from any read that needs that segment) instead of treating it as a hole, because reading a first frame is a read, not
-  an open, and decision 94 was written for EMFILE and EACCES at open; assert the error class in the test; then re-run
-  the fix-skeptic. Alternative: the owner accepts the residual in writing and every document that now says "not a gap"
-  is qualified.
+- **Disposition.** Owner approved on 2026-10-30. **Fixed in bb608d3**, the third attempt, fix-skeptic FIXED-VERIFIED (7 of 7
+  lenses: test-fails-without-fix, root-cause, behaviour-preserved, no-new-gap, reachable, ladder, independent-route).
+  Attempt 1 (f6fcf26) and attempt 2 (a5707a8, which fixed `scanSource`, `ensureIndex`, `OffsetForTime` and the Reader's
+  active-segment probe) were rejected; a5707a8's fix-skeptic reproduced the remaining defect: with EIO injected on reads of
+  sealed segment 2, `Reader.Read(21, 1)` returned `*quill.GapError: records 21 to 32 are unavailable` (and `Read(1, 1)`
+  "records 1 to 20" for segment 1), because the Reader's sealed first-frame probe set the segment bad and `view()`
+  turned it into a hole; its test discarded the error (`_, _ = r.Read(mid, 1)`) and the new text saying an I/O error is
+  never a gap was false for that path. bb608d3 started from a5707a8 and: (1) `Reader.segment` returns
+  `(*readerSegment, error)`, and a non-frame error from the first-frame probe is returned from `view()` uncached
+  (reader.go:246-247), while open failures (EMFILE, EACCES) stay a one-view hole (decision 94); (2) `loadSealed`
+  (load.go:449) returns a read I/O error from `verifySegment` instead of recording a hole and `load()` fails `Open` with
+  it (load.go:321-330), as it did for the newest segment, with damage and open failures still holes (decision 98). Docs
+  amended in place with the note "Stage 2 audit, owner-approved 2026-10-30": decisions 38, 39, 79, 94, 98; scope.md
+  guarantee 14; user guide section 3; the `GapError` comment; CHANGELOG Unreleased. No exported symbol, flag or file.
+  Regression test: `TestAReaderFirstFrameProbeIOErrorOfASealedSegmentIsReturnedAsThatError` (read_ioerror_test.go:158)
+  asserts for segment 1 and a middle segment that the read that hits the fault is `errors.Is(EIO)`, not a `*GapError`,
+  not ErrCorrupt, and that the same read succeeds once the fault clears. With only the five production files
+  (errors.go, load.go, read.go, reader.go, seek.go) reverted, 9 tests fail, each for the claimed reason (verified by the
+  fix-skeptic). The fix-skeptic also probed with its own programs: a fresh Reader with EIO on a segment gave the EIO from
+  `Records`, `Follow` and `OffsetForTime`; a first frame damaged with real bytes is still a `*GapError`; `Open` with
+  persistent EIO on the oldest sealed segment fails with the EIO. Sites checked (verified by reading, every site in
+  reader.go, read.go, seek.go, load.go, stat.go, archive.go, retention.go and iter.go that classifies a read error) are
+  listed in stage2-owner-decisions.md, section A1-82. **Objections that stand, none against the claim:** a first-frame
+  EIO now fails every call on that Reader that builds a view while the fault lasts (reproduced), and a persistent EIO on
+  any sealed segment now makes `Open` fail; decision 94 still carries the phrase "in an intermediate form, made a hole
+  for one view" (decisions.md:102), a state that never shipped, which should be deleted (left alone here: this record
+  changes docs/audits only); real EIO on an `os.File` was not exercised.
 
 #### A1-32: the reserved `_archive` consumer cannot be removed or rewound (medium, correctness report item 9; CONFIRMED, 2 votes; fixed a3955cd)
 
@@ -399,28 +420,35 @@ verdict, the reproduction, and what was done. "Fix-skeptic" outcomes are FIXED-V
   recommendation: `ls` shows `?` (the existing unreadable-policy convention), not "unknown". Weakest point: a policy with
   `retention` present and every cap missing (for example a skewed `{"retention":"1h"}`) still parses as caps of zero.
 
-#### A4-1: the Go toolchain pin is enforced only by the gate (medium, supply-chain report; CONFIRMED, 2 votes, 0 reproduced; fix-failed, 532f39d not integrated)
+#### A4-1: the Go toolchain pin is enforced only by the gate (medium, supply-chain report; CONFIRMED for the `build/quill` half, 2 votes, 0 reproduced; CI half REFUTED; fix-failed, 0b06a86 not integrated)
 
 - **Claim.** The `toolchain go1.27.3` line in go.mod is a pin only in `hack/gate.sh`; `build/quill` uses whatever `go` is on
-  PATH, and (at the audited tree) CI installed the newest 1.27.x.
+  PATH, and CI installed the newest 1.27.x. **The CI half is REFUTED** (reported by the fix-skeptic from the action's
+  `src/installer.ts` at b7ad1dad, lines 645-666; not run on a runner): at the setup-go version `ci.yml` pins now (v7.0.0)
+  the action reads go.mod's `toolchain` directive before the `go` line unless `GOTOOLCHAIN=local`, so CI already installs
+  the pinned patch release. The claim was true of the v5.6.0 pin the auditor read, not of the pin on main.
 - **Grounds.** `hack/gate.sh` exports `GOTOOLCHAIN` from go.mod; `build/quill` did not. Under `GOTOOLCHAIN=auto` the toolchain
   line is a minimum. The CI half rested on setup-go v5.6.0 not reading the toolchain line (reported by the auditor from
-  its source; not reproduced). **Warrant.** README.md and CONTRIBUTING.md call the go.mod toolchain the one supported
+  its source; not reproduced; **REFUTED** for v7.0.0, see the Claim). **Warrant.** README.md and CONTRIBUTING.md call the go.mod toolchain the one supported
   version, and the release binary's bytes depend on the compiler. **Backing.** Decisions 70 and 88.
 - **Rebuttal.** All places resolved to go1.27.3 at the time; the SBOM discloses the Go used.
 - **Disposition.** Owner approved landing the pin on 2026-10-30 (the recommended answer, with its stated alternative of
-  dropping the CI half). A fix was written (532f39d, branch `stage2/A4-1-a2`): `build/quill` derives and exports
-  `GOTOOLCHAIN` from go.mod's toolchain line as the gate does; the CI literal and its test were dropped, because the
-  workflow now pins setup-go v7.0.0, which the fix-skeptic reports reads the toolchain line before the go line unless
-  `GOTOOLCHAIN=local` (reported, not re-verified here; the tree's ci.yml does carry v7.0.0 at lines 24, 44, 54, 74 and 86).
-  **Rejected by the fix-skeptic** on the no-new-gap lens only: the code change is correct, the test fails without it, the
-  gate steps are clean, the API is unchanged and golden files are untouched, but the commit leaves the audit record
-  stale and self-contradicting (supply-chain.md still says "fix written, not on main", describes the workflow-level
-  literal, says setup-go ignores the toolchain line, and its ranked list says "Land the A4-1 fix"; the owner-decisions
-  table row and intro said the same). **Held for the owner; recommended next step:** rewrite those places so they state
-  the landed `build/quill`-only fix, mark the CI claim as refuted where it appears, then re-run the fix-skeptic (the
-  objection expects FIXED-VERIFIED after that). The record files above state the truth for this tree, in which the fix
-  is not landed; supply-chain.md was outside this pass's file list and is unchanged.
+  dropping the CI half). A fix was written (0b06a86, branch `stage2/A4-1-a2`, based on bb608d3, after the attempts f800bb7,
+  41c8aa4, 532f39d and c9e8aa9): `build/quill` derives and exports `GOTOOLCHAIN` from go.mod's toolchain line as the gate
+  does; `TestBuildScriptPinsToolchain` fails without it; decision 88, the CHANGELOG, README.md, CONTRIBUTING.md and the
+  `ci.yml` comment are corrected; the CI literal and its test were dropped, because the CI half is refuted. The setup-go
+  pin is on main at `ci.yml` lines 24, 44, 54, 74 and 86 (verified), and at 24, 44, 54, 75 and 87 on the branch.
+  **Rejected by the fix-skeptic** on the no-new-gap lens only: the code and the test are correct (the test fails without
+  the fix, the gate steps are clean, the API and golden bytes are unchanged), and the fix-skeptic's own read of the
+  action's source confirms the CI refutation. The defect is one stale item in supply-chain.md on the branch: the
+  Warrant (lines 163-164) still says "CI and the release script do not [pin], so the gate, CI and a release can each
+  run a different Go", which is the refuted CI half stated as fact, and the Rebuttal (lines 171-172) still argues for
+  floating the patch in CI; both contradict the item's own Correction (verified from the branch). **Held for the owner;
+  recommended next step:** cherry-pick 0b06a86 onto main, reword the Warrant to say that only the release script, not
+  CI, failed to pin, mark or drop the CI sentence of the Rebuttal, and re-run the fix-skeptic (it expects
+  FIXED-VERIFIED). Because 0b06a86 also edits this file and stage2-owner-decisions.md, the cherry-pick will conflict
+  in both. On main, supply-chain.md is unchanged by this record and still says the fix is written and not on main and that
+  setup-go ignores the toolchain line (true of v5.6.0 only).
 
 ## Top line at first writing (2026-10-29)
 
@@ -463,9 +491,9 @@ cannot work) and A1-80 (a live protected consumer stops the writer from restarti
 **What matters most for release (as written 2026-10-29; updated by pass A1h above).** Held, not fixed: A1-80 and A1-67 (above), A1-25 (after a failed
 rotation the active segment can outgrow the 1.5 GiB limit, and the log then cannot be reopened),
 A1-82 (a transient read error is reported as ErrCorrupt, or as a gap that the documented resume
-idiom skips) and A1-32 (the reserved archiver consumer cannot be removed or rewound). Since then A1-25 and
-A1-32 are fixed (c18a27a, a3955cd) and A1-82 has a rejected fix (a5707a8): the Reader's sealed
-first-frame probe still reports one EIO as a whole-segment gap. Fixed, and
+idiom skips) and A1-32 (the reserved archiver consumer cannot be removed or rewound). Since then A1-25,
+A1-32 and A1-82 are fixed (c18a27a, a3955cd, bb608d3; A1-82 on its third attempt, after a5707a8 was rejected for the Reader's
+sealed first-frame probe, which reported one EIO as a whole-segment gap). Fixed, and
 worth the owner's eye because they change an error class, an exit code or the fsync count: A1-26
 (the last sequence number is no longer assignable), A1-46 (a failed write to stdout now exits 1),
 A1-64 (Archive refuses its own source as a destination) and A1-31 (a directory fsync before each
@@ -661,8 +689,8 @@ A1-70 raced only ./examples/...). Only some fix-skeptics ran staticcheck and dea
 reports a failure. Their objections that stand, none of which blocks a fix, are in the dimension
 reports under each item. All 42 commits are ancestors of the tree this record is written on
 (verified with git). The one fix that did not pass is A1-62 (commit fdcd880, which is not in this
-tree). Pass A1h added 15 more fixes (all FIXED-VERIFIED, see its top line) and one more rejected fix, A1-82
-(a5707a8, not in this tree).
+tree). Pass A1h added 16 more fixes (all FIXED-VERIFIED, see its top line; A1-82 on its third attempt) and no further rejected
+fix among the 73 items (A4-1's, 0b06a86, belongs to pass A4 and is not in this tree).
 
 ## Index
 
@@ -684,7 +712,7 @@ reproduced it by execution; the commit is shown by its first 7 characters.
 | A1-32 | consumer.go:73-79, 267-269 | medium | CONFIRMED | CC | Y | fixed a3955cd |
 | A1-47 | cmd/quill/verbs.go:159-169 | medium | CONFIRMED | CC | Y | fixed 2c4e4f4 |
 | A1-48 | cmd/quill/verbs.go:71, 124-125 | medium | CONFIRMED | CC | Y | fixed b4fe935 |
-| A1-82 | read.go:249-257 | medium | CONFIRMED | CC | Y | fix-failed (a5707a8, not integrated; held) |
+| A1-82 | read.go:249-257 | medium | CONFIRMED | CC | Y | fixed bb608d3 |
 | A1-85 | consumer.go:313, archive.go:25 | medium | CONFIRMED | CC | Y | fixed 279d7ce |
 | A1-34 | consumer.go:245-260, retention.go:38-41 | medium | REFUTED | RCR | Y | refuted |
 | A1-49 | cmd/quill/write.go:19-41 | medium | REFUTED | CRR | Y | refuted |
