@@ -33,7 +33,6 @@ func (l *Log) flushLocked() error {
 		return l.failed
 	}
 	if l.lockLostLocked() {
-		l.broadcastLocked()
 		return l.failed
 	}
 	if l.bufCount == 0 {
@@ -50,7 +49,6 @@ func (l *Log) flushLocked() error {
 		// (a) Truncate back so no partial frame remains; keep the records buffered.
 		if terr := a.f.Truncate(off); terr != nil {
 			l.fail(terr)
-			l.broadcastLocked()
 			return l.failed
 		}
 		l.flushErr = err
@@ -61,7 +59,6 @@ func (l *Log) flushLocked() error {
 	if err := a.f.Sync(); err != nil {
 		// (b) Fatal and sticky: a retried fsync can report success for lost data.
 		l.fail(err)
-		l.broadcastLocked()
 		return l.failed
 	}
 	l.fsyncs++
@@ -103,9 +100,13 @@ func (l *Log) lockLostLocked() bool {
 	return true
 }
 
-// fail puts the log in the failed state.
+// fail puts the log in the failed state and wakes every waiter, so a ReadWait or Follow parked
+// above the head returns the failure instead of waiting for a record that can no longer come
+// (the wake is here, not at each call site: Roll and a retention pass fail the log without a
+// flush to broadcast after it). The caller holds l.mu.
 func (l *Log) fail(err error) {
 	l.failed = fmt.Errorf("%w: %w", ErrFailed, err)
+	l.broadcastLocked()
 }
 
 // indexBuffer adds the buffer's frames, now durable at off, to the active segment's index.

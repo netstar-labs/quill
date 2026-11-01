@@ -57,9 +57,9 @@ It is not a message broker: no network protocol, no replication, no consumer gro
 | `Append(payload)` / `AppendBatch(payloads)` | Buffer records; durable after the next flush. A batch is one lock acquisition and lands in one segment |
 | `Flush()` | Write buffered records, fsync, then publish `quill.tail` |
 | `Read(offset, limit)` | Flushed records with `seq >= offset`, ascending, payloads copied: at most `limit` records; it stops once at least `MaxReadBytes` of payload have been returned (so the total can exceed it by up to one record), but always returns at least one if available. Returns a `*GapError` where records are unavailable (decision 38) |
-| `ReadWait(ctx, offset, limit)` | As `Read`, blocking until more is flushed when caught up |
+| `ReadWait(ctx, offset, limit)` | As `Read`, blocking until more is flushed when caught up; on a failed log it returns `ErrFailed` at the head instead of waiting (records that exist stay readable) |
 | `Scan` / `ScanAll` | Zero-copy variants, globally ordered |
-| `Records(ctx, offset)` / `Follow(ctx, offset)` | Go iterators (`iter.Seq2[Record, error]`): `Records` reads to the current end and stops, `Follow` then waits for more until the context ends. Payloads are copies (decision 58) |
+| `Records(ctx, offset)` / `Follow(ctx, offset)` | Go iterators (`iter.Seq2[Record, error]`): `Records` reads to the current end and stops, `Follow` then waits for more until the context ends, or yields `ErrFailed` once the log has failed and the records that exist are delivered. Payloads are copies (decision 58) |
 | `OffsetForTime(t)` | `(uint64, error)`: the smallest sequence whose `At` is at or after `t`, always a valid `Commit` argument; the error covers I/O failure and a damaged segment (decision 59) |
 | `Archive(srcDir, dstDir)` | Copy sealed segments to a destination that opens as a log; the library function behind `quill archive` (decisions 28, 67) |
 | `Head()` / `Stat()` / `Err()` | Last flushed sequence; `Stat`: first retained sequence, segment, byte and record counts, holes, `Dropped`, stale consumers, the marker's age, `DiskFull` and `FreeBytesAtLastPass`; `Err()`: the failed state or the sticky load error of a damaged sealed segment, joined with every background error still failing (each clears when the operation that set it succeeds, the load error when retention deletes its segment) |
@@ -242,7 +242,7 @@ buffered, for throughput and so a caller that does not need durability does not 
 **When a write fails** (decisions 37, 60). A flush writes at the durable offset; on any write error it truncates back
 to that offset and keeps the records buffered, and space exhaustion recovers by itself when space returns. An
 **fsync** error is fatal: the log refuses every later `Append`, `Flush` and `Sync` with `ErrFailed` until it is
-closed and reopened, because a retried fsync can report success for data that never reached the disk. An error
+closed and reopened, and a `ReadWait` or `Follow` at the head returns it rather than waiting, because a retried fsync can report success for data that never reached the disk. An error
 from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still become durable, so a
 producer that retries must tolerate duplicates. Failures after the data is durable (creating the next segment,
 writing the marker) are retried at the next flush and never rewrite the data, and while the next segment keeps failing
@@ -391,7 +391,7 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
 12. **A stale consumer cannot pin the disk.** With `ConsumerTTL` set, a protected consumer that is behind and silent for
     the TTL stops protecting segments, its offset is preserved, and `Stat` reports it.
 13. **A failed write never corrupts.** A short write or `ENOSPC` leaves the log as it was; an fsync error makes
-    the log refuse writes until reopened (decision 37).
+    the log refuse writes until reopened, and fail a read that would wait (decision 37).
 14. **Reads never skip a gap.** Data removed by retention below the requested offset, and a hole in the middle,
     both surface as a `GapError`; the consumer advances only by an explicit commit (decision 38).
     An I/O error met while reading a segment (including its first frame, and while `Open` verifies the sealed segments)

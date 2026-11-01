@@ -244,6 +244,9 @@ func (c *Consumer) Lag() (uint64, error) {
 func (c *Consumer) Read(limit int) ([]Record, error) { return readFrom(c.src, c.Offset(), limit) }
 
 // ReadWait is Read, blocking until a record is available, ctx is done or the handle closes.
+// On a consumer taken from a Log that has failed (ErrFailed) it still returns the records that
+// exist, but at the head it returns the failure instead of waiting. A consumer taken from a
+// Reader cannot see the writer's failure and keeps waiting.
 func (c *Consumer) ReadWait(ctx context.Context, limit int) ([]Record, error) {
 	return readWait(ctx, c.src, c.Offset(), limit)
 }

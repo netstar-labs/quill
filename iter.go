@@ -17,7 +17,9 @@ func (l *Log) Records(ctx context.Context, offset uint64) iter.Seq2[Record, erro
 }
 
 // Follow yields the records with seq >= offset and then waits for more, waking on each
-// flush, until the context ends.
+// flush, until the context ends. When the log has failed (ErrFailed) it yields the records that
+// exist and then the failure, which ends the sequence, instead of waiting for records that
+// cannot come.
 func (l *Log) Follow(ctx context.Context, offset uint64) iter.Seq2[Record, error] {
 	return records(ctx, l, offset, true)
 }
@@ -40,7 +42,9 @@ func (c *Consumer) Records(ctx context.Context) iter.Seq2[Record, error] {
 }
 
 // Follow yields the records from the consumer's committed offset and then waits for more
-// until the context ends. It never commits.
+// until the context ends. It never commits. For a consumer taken from a Log that has failed
+// (ErrFailed) it yields the failure at the head, as Log.Follow does; a consumer taken from a
+// Reader cannot see the writer's failure.
 func (c *Consumer) Follow(ctx context.Context) iter.Seq2[Record, error] {
 	return records(ctx, c.src, c.Offset(), true)
 }

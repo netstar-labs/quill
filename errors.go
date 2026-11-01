@@ -31,7 +31,8 @@ var (
 	ErrNoLog = errors.New("quill: not a log")
 	// ErrFailed reports a log that hit an fsync error, or whose quill.lock was removed or
 	// replaced under the writer: every later Append, Flush and Sync fails until the log is
-	// closed and reopened (decisions 37, 62).
+	// closed and reopened (decisions 37, 62). A ReadWait or Follow at the head of a failed log
+	// returns it too, instead of waiting (records that exist stay readable).
 	ErrFailed = errors.New("quill: log failed; close and reopen")
 	// ErrWrongLog reports a consumer file whose log id is another log's.
 	ErrWrongLog = errors.New("quill: consumer belongs to another log")

@@ -48,7 +48,7 @@ about 20 ms on macOS (`F_FULLFSYNC`). Batch when you can.
 to the durable offset and keeps the records buffered; the next flush retries from the same
 offset, and space exhaustion recovers by itself. An **fsync** error is fatal: every later
 `Append`, `Flush` and `Sync` returns an error wrapping `ErrFailed` until the log is closed and
-reopened, because a retried fsync can report success for data that never reached the disk. An
+reopened, and a `ReadWait` or `Follow` at the head returns it too (a goroutine already waiting is woken to return it; records that exist stay readable), because a retried fsync can report success for data that never reached the disk. An
 error from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still
 become durable, so a producer that retries must tolerate duplicates. A failure to publish the
 marker or create the next segment after the data fsync is retried at the next flush, reported
@@ -67,7 +67,7 @@ damaged; when more than one thing is wrong it is their `errors.Join`, and `error
 
 ```go
 recs, err := l.Read(offset, limit)            // copies; at most limit records, stops once MaxReadBytes are reached
-recs, err := l.ReadWait(ctx, offset, limit)   // blocks at the head until a flush
+recs, err := l.ReadWait(ctx, offset, limit)   // blocks at the head until a flush (ErrFailed if the log failed)
 err = l.Scan(offset, limit, func(r quill.Record) bool { ... })   // zero-copy, payload valid in the callback
 for rec, err := range l.Records(ctx, offset) { ... }             // to the current end
 for rec, err := range l.Follow(ctx, offset) { ... }              // and then wait for more

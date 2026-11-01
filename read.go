@@ -19,7 +19,10 @@ func (l *Log) Read(offset uint64, limit int) ([]Record, error) {
 	return readFrom(l, offset, limit)
 }
 
-// ReadWait is Read, blocking until records are flushed when offset is at the head.
+// ReadWait is Read, blocking until records are flushed when offset is at the head. On a failed
+// log (ErrFailed) it still returns the records that exist, but at the head it returns the
+// failure instead of waiting, and a call already waiting is woken to return it: a failed log
+// produces no more records.
 func (l *Log) ReadWait(ctx context.Context, offset uint64, limit int) ([]Record, error) {
 	return readWait(ctx, l, offset, limit)
 }
@@ -361,6 +364,13 @@ func (l *Log) wait(ctx context.Context, offset uint64) error {
 	if l.head >= offset {
 		l.mu.Unlock()
 		return nil
+	}
+	if l.failed != nil {
+		// Records that exist stay readable (the caller reads before it waits), but a failed
+		// log produces no more: say so rather than block until the context ends.
+		err := l.failed
+		l.mu.Unlock()
+		return err
 	}
 	ch := l.waitChanLocked()
 	l.mu.Unlock()
