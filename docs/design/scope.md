@@ -62,7 +62,7 @@ It is not a message broker: no network protocol, no replication, no consumer gro
 | `Records(ctx, offset)` / `Follow(ctx, offset)` | Go iterators (`iter.Seq2[Record, error]`): `Records` reads to the current end and stops, `Follow` then waits for more until the context ends. Payloads are copies (decision 58) |
 | `OffsetForTime(t)` | `(uint64, error)`: the smallest sequence whose `At` is at or after `t`, always a valid `Commit` argument; the error covers I/O failure and a damaged segment (decision 59) |
 | `Archive(srcDir, dstDir)` | Copy sealed segments to a destination that opens as a log; the library function behind `quill archive` (decisions 28, 67) |
-| `Head()` / `Stat()` / `Err()` | Last flushed sequence; `Stat`: first retained sequence, segment, byte and record counts, holes, `Dropped`, stale consumers, the marker's age; `Err()`: the failed state or the sticky load error of a damaged sealed segment, joined with every background error still failing (each clears when the operation that set it succeeds, the load error when retention deletes its segment) |
+| `Head()` / `Stat()` / `Err()` | Last flushed sequence; `Stat`: first retained sequence, segment, byte and record counts, holes, `Dropped`, stale consumers, the marker's age, `DiskFull` and `FreeBytesAtLastPass`; `Err()`: the failed state or the sticky load error of a damaged sealed segment, joined with every background error still failing (each clears when the operation that set it succeeds, the load error when retention deletes its segment) |
 | `Roll()` | Seal the active segment now, so it can be archived or reached by retention |
 | `Sync(ctx, seq)` | Signal the flusher and block until `seq` is durable, sharing one fsync with every other waiter (group commit). An error means unknown, not lost (decision 42). `Append` then `Sync` is a durable write for one record; `AppendBatch` then `Sync(last)` for a batch |
 | `(*Log).Consumer(name, ConsumerOptions)` | Take a consumer handle, creating its offset file at the first retained sequence if absent (`Protect`: `ProtectAsStored` by default, `ProtectOn` or `ProtectOff`; a protected consumer's unread segments are kept by retention): `Offset()`, `Commit(next)`, `SeekToTime(t)`, `Records(ctx)`, `Follow(ctx)`, `Lag()`, `Close()`. Holds the consumer's lock |
@@ -114,7 +114,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | `SegmentBytes` | 8 MiB | Rotation size; at most 1 GiB |
 | `SegmentMaxAge` | `Retention` | Rotates a quiet active segment so retention can delete it; the default follows `Retention`, so it is never when `Retention` is negative, but an explicit positive value rotates whatever `Retention` is, and a negative one is never; a no-op on an empty segment |
 | `MaxBytes` | 0 (off) | Cap on this log's segment bytes, enforced at every segment seal and every prune pass: oldest sealed segments go first, the active segment is never deleted, and it overrides consumer protection. `Open` refuses a value below twice `SegmentBytes` |
-| `MinFreeBytes` | 0 (off) | Free-space floor on the log's filesystem, measured with `statfs`: below it, the log deletes its own oldest sealed segments, and appends fail with an error wrapping `ENOSPC` if nothing is left to delete |
+| `MinFreeBytes` | 0 (off) | Free-space floor on the log's filesystem, measured with `statfs`: below it, the log deletes its own oldest sealed segments, and appends fail with an error wrapping `ENOSPC` if nothing is left to delete; that state, and a failing `statfs`, are reported by `Err()` and `Stat().DiskFull` |
 | `MaxPayloadBytes` | 64 MiB − 32 B (the ceiling) | Largest accepted record; lower it to bound a single record. An empty buffer accepts any single record up to this, whatever `MaxBufferBytes` says |
 | `MaxBatchBytes` | 16 MiB | Bound on an `AppendBatch` of more than one record, checked as the sum of `len(payload) + 34` per record (an upper bound of the encoded size, so about 479,000 one-byte records at the default); a larger one is refused (decision 46). A single record is bounded by `MaxPayloadBytes` alone, so it may exceed this |
 | `MaxReadBytes` | 16 MiB | A `Read` stops once at least this many payload bytes are returned (so it can exceed it by up to one record), and returns at least one record |
@@ -375,7 +375,8 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
     writer reopens or `quill recover` runs; readers do not guess.
 11. **Bounded disk.** With `MaxBytes` set, a log's segment bytes stay within `MaxBytes + SegmentBytes + MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes + 34)`; with `MinFreeBytes` set, a log deletes its own oldest sealed segments before it lets the filesystem
     fall below the floor. A full disk never corrupts a log: appends fail with an error, and flushed records
-    stay intact.
+    stay intact. The floor is only as good as its input: when `statfs` fails the floor is not enforced for that pass,
+    and `Err()` says so until a pass can read the free space.
 12. **A stale consumer cannot pin the disk.** With `ConsumerTTL` set, a protected consumer that is behind and silent for
     the TTL stops protecting segments, its offset is preserved, and `Stat` reports it.
 13. **A failed write never corrupts.** A short write or `ENOSPC` leaves the log as it was; an fsync error makes

@@ -47,7 +47,11 @@ type Config struct {
 	SegmentMaxAge time.Duration
 	// MaxBytes caps this log's segment bytes (0: off). Below twice SegmentBytes is refused.
 	MaxBytes int64
-	// MinFreeBytes is a free-space floor on the log's filesystem (0: off).
+	// MinFreeBytes is a free-space floor on the log's filesystem (0: off). It is checked at each
+	// seal and prune pass. With nothing left to delete, appends fail with an error wrapping
+	// ENOSPC, and Err() and Stat().DiskFull report it until a pass finds room. When statfs fails,
+	// Err() reports that until a later pass can read the free space, and the floor is not enforced
+	// meanwhile.
 	MinFreeBytes int64
 	// MaxPayloadBytes is the largest accepted record (64 MiB − 32, the ceiling).
 	MaxPayloadBytes int
@@ -293,11 +297,12 @@ type Log struct {
 	flushed  chan struct{}
 	flushGen uint64
 
-	markerAt time.Time // when the marker was last written
-	dropped  uint64    // segments deleted while some consumer's offset was below them
-	stale    []string  // protected consumers found stale at the last prune pass
-	offsets  []uint64  // every readable consumer's offset at the last prune pass (or Open), for Dropped at a seal
-	diskFull bool      // MinFreeBytes cannot be met: appends fail with ENOSPC
+	markerAt   time.Time // when the marker was last written
+	dropped    uint64    // segments deleted while some consumer's offset was below them
+	stale      []string  // protected consumers found stale at the last prune pass
+	offsets    []uint64  // every readable consumer's offset at the last prune pass (or Open), for Dropped at a seal
+	diskFull   bool      // MinFreeBytes cannot be met: appends fail with ENOSPC
+	freeAtPass uint64    // free bytes statfs reported at the last pass that could read it
 
 	flushReq chan struct{} // signals the flusher
 	stop     chan struct{}
@@ -619,7 +624,8 @@ func (l *Log) Head() uint64 {
 // is still live (errors.Join; errors.Is matches each). A background error is dropped when the
 // operation that set it succeeds, so it is nil when nothing is failing and the log holds no
 // damaged segment, and it does not disappear because an older error is also set. The load error
-// goes when retention deletes the segment it names.
+// goes when retention deletes the segment it names. With MinFreeBytes set, a free-space floor that
+// cannot be met (ENOSPC) or checked (statfs failed) is one of the background errors, until a pass reads room.
 func (l *Log) Err() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -652,6 +658,7 @@ const (
 	bgRotate                // creating the next segment
 	bgPrune                 // unlinking a deleted segment
 	bgPolicy                // writing quill.policy; a flush and a prune pass retry it while it is set (decision 29)
+	bgDisk                  // MinFreeBytes: statfs failed at the last pass, or diskFull is set (decision 25)
 	numBg
 )
 

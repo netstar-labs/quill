@@ -28,6 +28,14 @@ type Stats struct {
 	StaleConsumers []string
 	// MarkerAge is how long ago quill.tail was last written.
 	MarkerAge time.Duration
+	// DiskFull is true while MinFreeBytes cannot be met and nothing is left to delete: every
+	// append fails with an error wrapping ENOSPC until a later pass finds room. Err() reports
+	// the same state. Only Log.Stat knows it.
+	DiskFull bool
+	// FreeBytesAtLastPass is the free space statfs reported at the last pass that could read
+	// it, before that pass counted the segments it deleted; 0 when MinFreeBytes is off or no
+	// pass has read it yet. Only Log.Stat knows it.
+	FreeBytesAtLastPass uint64
 }
 
 func (s *Stats) count(v *segView) {
@@ -58,6 +66,7 @@ func (l *Log) Stat() (Stats, error) {
 	s.Bytes += l.active.durable
 	s.Dropped = l.dropped
 	s.StaleConsumers = append([]string(nil), l.stale...)
+	s.DiskFull, s.FreeBytesAtLastPass = l.diskFull, l.freeAtPass
 	if !l.markerAt.IsZero() {
 		s.MarkerAge = l.cfg.clock().Sub(l.markerAt)
 	}

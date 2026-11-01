@@ -164,7 +164,7 @@ stat` or `quill ls`.
 | `SegmentBytes` | 8 MiB (≤ 1 GiB) | Rotation size; a segment passes it by the flush that seals it. `Open` refuses a value whose sum with the largest flush (`max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes, MaxPayloadBytes + 34)`) reaches the 1.5 GiB file limit |
 | `SegmentMaxAge` | `Retention` | Rotates a quiet active segment so retention can reach it. The default is never when `Retention` is negative; an explicit positive value rotates whatever `Retention` is |
 | `MaxBytes` | off | Cap on segment bytes, checked at every seal and pass; ≥ 2 × `SegmentBytes` |
-| `MinFreeBytes` | off | Free-space floor (`statfs`); below it the log deletes its own oldest segments, then refuses appends with `ENOSPC` |
+| `MinFreeBytes` | off | Free-space floor (`statfs`); below it the log deletes its own oldest segments, then refuses appends with `ENOSPC` (`Err()` and `Stat().DiskFull` say so) |
 | `MaxRecords` | off | Keep roughly the newest N records |
 | `MaxPayloadBytes` | 64 MiB − 32 (the ceiling) | Largest record |
 | `MaxBatchBytes` | 16 MiB | Bound on a batch of more than one record, checked as the sum of `len(payload) + 34` per record, an upper bound of its encoded size (the sequence is not known at the check): about 479,000 one-byte records fit at the default, though they encode to about 7 MB. A single record is bounded by `MaxPayloadBytes` alone |
@@ -182,6 +182,14 @@ append, and a single record is bounded by `MaxPayloadBytes` alone, so with the d
 `quill ls` mark it UNBOUNDED. For planning, `bytes ≈ records × (average payload + about 16)`.
 Several logs on one disk share no budget: size them so the sum of every log's
 `MaxBytes + SegmentBytes` leaves headroom, and use `MinFreeBytes` as the backstop.
+
+**When the floor cannot be met or checked** (decision 25). The floor is checked at each seal and prune pass. When nothing is
+left to delete and the disk is still below it, the log refuses appends with an error wrapping `ENOSPC`; `Err()` returns the
+same error and `Stat().DiskFull` is true, with `Stat().FreeBytesAtLastPass` the free space the last pass read. The state
+clears at the first pass that finds room, which logs it at `Info`. When `statfs` itself fails, a single failure is enough:
+`Err()` wraps the `statfs` error from that pass until a later pass can read the free space, and the floor is not enforced
+in the meantime (a `DiskFull` already set is kept, and `Err()` reports both). Alert on `Err()` and `Stat().DiskFull`, not on
+the `Warn` lines alone: with no `Logger` there are none.
 
 **A wrong clock.** `At` is the writer's clock. A prune pass deletes at most a quarter of the
 sealed segments by age, rounded up (so at least one; 2 of 5, 4 of 15), and warns through the logger when it would delete more;

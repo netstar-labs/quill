@@ -233,17 +233,33 @@ func (l *Log) capsLocked(n int) int {
 	if l.cfg.MinFreeBytes > 0 {
 		free, err := l.cfg.statfs(l.dir)
 		if err != nil {
+			// One failure is the trigger. The floor cannot be checked, so the last known state
+			// stands (a set diskFull keeps refusing appends) and Err() says so until a pass reads.
 			l.logf(slog.LevelWarn, "cannot read free space", "err", err)
+			statErr := fmt.Errorf("quill: cannot read free space for MinFreeBytes: %w", err)
+			if l.diskFull {
+				statErr = errors.Join(errDiskFull, statErr)
+			}
+			l.setBg(bgDisk, statErr)
 		} else {
+			l.freeAtPass = free
 			for free < uint64(l.cfg.MinFreeBytes) && n < len(l.sealed) {
 				free += uint64(l.sealed[n].size)
 				n++
 			}
 			full := free < uint64(l.cfg.MinFreeBytes)
-			if full && !l.diskFull {
+			switch {
+			case full && !l.diskFull:
 				l.logf(slog.LevelWarn, "free space below MinFreeBytes with nothing left to delete; appends will fail", "free", free)
+			case !full && l.diskFull:
+				l.logf(slog.LevelInfo, "free space is back above MinFreeBytes; appends are accepted again", "free", free)
 			}
 			l.diskFull = full
+			if full {
+				l.setBg(bgDisk, errDiskFull)
+			} else {
+				l.clearBg(bgDisk)
+			}
 		}
 	}
 	if l.cfg.MaxRecords > 0 {
