@@ -140,6 +140,14 @@ one poll interval of its flush. It needs read access to the directory; a consume
 write access to `consumers/`. `ErrNoLog` means the directory is not a log yet (a reader that
 arrives during creation retries).
 
+Two costs to know. A `Read`, `ReadWait`, `Scan` or `Consumer.Read` without an iterator re-walks and checks the active
+segment from its start up to the offset you ask for, and rebuilds the view of the sealed segments, on every call: cheap
+at the default 8 MiB `SegmentBytes`, but proportional to the segment, so a consumer that polls should use `Records` or
+`Follow`, which keep a byte cursor. And the first time a `Reader` looks at a sealed segment it reads and CRC-checks that
+segment's whole first frame, up to 64 MiB, once per `Reader` per segment; a directory with very large first frames
+(a restored log, or a directory under `quill ls` that others can write to) costs that much per segment on a first `quill
+stat` or `quill ls`.
+
 ## 6. Configuration
 
 | Field | Default | Notes |
