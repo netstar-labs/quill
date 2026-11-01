@@ -1,6 +1,6 @@
 # Pass A5: silent-degradation audit
 
-Date 2026-10-31. Pass A5 of the stage 2 audit, run with fresh eyes before a public release, against the tree at 988f1e5
+Date 2026-10-31; updated 2026-10-31 (pass A5h) with the owner's approvals of the eleven held items and what became of each. Pass A5 of the stage 2 audit, run with fresh eyes before a public release, against the tree at 988f1e5
 (the parent of the first A3 fix). The specification is docs/design/scope.md, docs/design/decisions.md and docs/format.md;
 the code was the thing under audit, so a passing test and a doc were both treated as claims, not evidence. The question of
 the pass: for every guarantee, what does the library or the `quill` command do when that guarantee stops holding, and can an
@@ -11,7 +11,7 @@ what this pass held back for the owner is in [stage2-owner-decisions.md](stage2-
 Labels: **verified** means an auditor, skeptic or the recorder ran it or read the exact lines; **reported** names the
 document or role that says it; **inferred** says from what. In the ledger, `[run]` is verified by execution, `[read]` is
 verified by reading the exact lines, and `[inf]` is inferred. Anchors (file:line) are to the tree this record is committed
-with (d451fac plus this commit) unless marked "audited tree"; the seven A5 fixes and the A3 and A6 fixes moved some lines.
+with (d451fac plus this commit) unless marked "audited tree"; the seven A5 fixes and the A3 and A6 fixes moved some lines. The A5h update's anchors are to the tree it is committed with (16cb0c8 plus this commit), or to the fix commit where marked; the held-item records keep, in the text written before the fixes, their audited-tree anchors.
 Reproduction programs lived in throwaway copies of the repository made with `git archive`, in a scratch area outside the
 tree, on macOS (Darwin 25.6, arm64) and, for some skeptic runs, on a Linux x86-64 box (Debian 13, ext4). They are named
 below by what they do and are not committed. The recorder of this file did not re-run any reproduction; it read the
@@ -24,6 +24,31 @@ no high or critical item. 23 are degradations (a signal is missing, latched, mis
 (A5-21, A5-23). No item is a loss of acknowledged data by itself, with one exception: A5-16 (a second writer after
 `quill.lock` is removed) lets two writers overwrite each other, and it was fixed as hardening.
 
+**A5h update, 2026-10-31.** The eleven items held for the owner were approved as recommended on 2026-10-31 (A5-22
+without the optional "N consecutive failures" rule; A5-29 reverses a round-1 ruling). The tables below carry the whole pass;
+this block carries what the update changed.
+
+- Verdicts: all 11 were CONFIRMED when first recorded, and none is refuted. They carried 22 skeptic votes, 21 CONFIRMED and
+  1 PLAUSIBLE (A5-29's), already counted in the first-pass vote figures below.
+- Dispositions: 10 fixed, each FIXED-VERIFIED by a fix-skeptic (A5-10, A5-22, A5-18, A5-36, A5-9, A5-3, A5-23, A5-44,
+  A5-29, A5-32); 1 fix-failed (A5-1). Fix-skeptic lens verdicts: 60 (6 lenses on each of the 10 fixes: test-fails-without-fix,
+  root-cause, behaviour-preserved, no-new-gap, reachable, ladder), every one "pass" (reported by the skeptics).
+- Reproduced: every one of the 11 items was reproduced by at least one voter when first recorded (18 of the 22 votes carried a
+  run). For the fixes, all 10 skeptics ran the new tests red against the tree with the production change reverted (reported);
+  six also ran the built CLI or a public-API program end to end (A5-36, A5-18, A5-22, A5-29, A5-32, A5-44). A5-10, A5-3,
+  A5-9 and A5-23 rest on tests and probe tests; A5-9 has no end-to-end run because the shipped binary has no fault hook.
+- The recorder of this update ran nothing. It wrote from the fix and fix-skeptic results and checked the anchors it cites and the
+  commit ancestry by grep and the commit log in the tree.
+- Coverage for the update: no auditor took part (it records fixes of already-confirmed items), none failed to return, and no list
+  of clean checks was supplied for it. Not covered: A5-1 has no accepted fix, so the states it names keep their audit marks and
+  the user-visible documents still describe the audited behaviour. The skeptics for A5-3, A5-9, A5-23, A5-29 and A5-44 did not
+  run staticcheck or deadcode on their own commits (A5-3's could not, a toolchain mismatch; A5-9's ran staticcheck only), but the
+  A5-32 skeptic ran both pinned versions and the full `-race` suite on 16cb0c8, which contains all ten commits, with no findings
+  (reported), so those steps are covered for the chain as a whole. The fuzz step: the A5-10, A5-29 and A5-44 skeptics say they
+  did not run it, and the other reports do not mention it. No fix-skeptic provoked a real full disk, a real fsync error or a
+  real statfs failure; the fault paths ran on injected faults, `chmod`, `chflags` and `chattr +i`.
+- The ledger tally after A5h is in the ledger section.
+
 | verdict | items | ids |
 |---------|-------|-----|
 | CONFIRMED | 19 | A5-1, A5-2, A5-3, A5-9, A5-10, A5-16, A5-18, A5-21, A5-22, A5-23, A5-29, A5-31, A5-32, A5-33, A5-36, A5-39, A5-40, A5-42, A5-44 |
@@ -34,25 +59,26 @@ no high or critical item. 23 are degradations (a signal is missing, latched, mis
 
 | disposition | items | ids |
 |-------------|-------|-----|
-| fixed, fix-skeptic FIXED-VERIFIED | 7 | A5-2 (38d2644), A5-21 (dd460a7), A5-39 (1b68eee), A5-42 (66081fe), A5-16 (6acc23e), A5-40 (906d49c), A5-31 (d451fac) |
+| fixed in the first A5 pass, fix-skeptic FIXED-VERIFIED | 7 | A5-2 (38d2644), A5-21 (dd460a7), A5-39 (1b68eee), A5-42 (66081fe), A5-16 (6acc23e), A5-40 (906d49c), A5-31 (d451fac) |
+| fixed after the owner's approval of 2026-10-31 (pass A5h), fix-skeptic FIXED-VERIFIED | 10 | A5-10 (91c2fce), A5-22 (1dda449), A5-18 (7b87e64), A5-36 (2cbfdf2), A5-9 (46f30db), A5-3 (1e0a8ed), A5-23 (4d0e8c9), A5-44 (29e7db1), A5-29 (caad4c5), A5-32 (16cb0c8) |
+| approved, fix written and rejected by its fix-skeptic, not in the tree (fix-failed) | 1 | A5-1 (bab952f, branch `stage2/A5-1-a2`) |
 | resolved by an earlier commit, no A5 commit | 1 | A5-33 (1f896c7, pass A3, documentation) |
-| held for the owner (every one changes observable behaviour, so semantic) | 11 | A5-1, A5-3, A5-9, A5-10, A5-18, A5-22, A5-23, A5-29, A5-32, A5-36, A5-44 |
 | refuted | 3 | A5-5, A5-6, A5-34 |
 | deliberately not changed (decided earlier) | 3 | A5-7, A5-15, A5-17 |
 
 - Skeptic votes: 47 item votes on the 22 items that were voted (two each on 19 items, three each on A5-5, A5-6 and
   A5-34 after a split). 39 CONFIRMED, 2 PLAUSIBLE (A5-2 and A5-29, one voter each) and 6 REFUTED (two on each of the
   three refuted items). The three prior-* items were not voted; the A1 record is their ruling.
-- Reproduced: 34 of the 47 votes carried a reproduction by execution. Every one of the 22 voted items was reproduced
+- Reproduced (first pass; the A5h figures are in the update above): 34 of the 47 votes carried a reproduction by execution. Every one of the 22 voted items was reproduced
   by at least one voter. Each item below names the program and the output. Two reproductions are weaker than the
   rest and are marked: A5-9 was reproduced only by injecting a directory-fsync error into a patched copy, because the CLI
   has no fault hook; A5-22 and A5-1 used injected faults on the in-memory file system, with a second run on real files for A5-1.
-- Fix commits: 7, all ancestors of this commit (verified from `git log`). Fix-skeptic verdicts: 7 of 7 FIXED-VERIFIED,
+- Fix commits: 7 in the first A5 pass and 10 more in pass A5h (A5-1 has none in the tree), all ancestors of this commit (verified from `git log`). The rest of this bullet describes the first seven. Fix-skeptic verdicts: 7 of 7 FIXED-VERIFIED,
   through 43 lens verdicts (6 or 7 per fix: test-fails-without-fix, root-cause, behaviour-preserved, no-new-gap,
   reachable, ladder, and independent-route for A5-21), every one "pass". Three fixes were rejected at least once
   before the recorded attempt (A5-2, A5-39, A5-42; reported by their fix summaries). The Linux box was used for the
   fix verification of A5-2, A5-16 and A5-40 (reported by the skeptics).
-- Ledger: 123 rows, one per degraded state: at audit 49 OK, 30 LOG-ONLY, 44 NONE. After the A5 commits 11 rows carry an entry in the Now column: 4 moved to OK, 1 to OK with a stated window (A5-16), 1 to OK on the CLI and LOG-ONLY in the library (A5-2), 2 to LOG-ONLY (A5-31, A5-42), 1 (the nil-Logger row) to LOG-ONLY for the two loss records, and 2 stay NONE with a note (A5-5, A5-33).
+- Ledger: 123 rows, one per degraded state: at audit 49 OK, 30 LOG-ONLY, 44 NONE. After the first seven A5 commits 11 rows carried an entry in the Now column (the A5h update added 26 more, see the ledger section): 4 moved to OK, 1 to OK with a stated window (A5-16), 1 to OK on the CLI and LOG-ONLY in the library (A5-2), 2 to LOG-ONLY (A5-31, A5-42), 1 (the nil-Logger row) to LOG-ONLY for the two loss records, and 2 stay NONE with a note (A5-5, A5-33).
 - Not green: nothing failed. What is not covered is under Coverage.
 
 ## Coverage
@@ -112,7 +138,7 @@ Not covered (stated by the auditors, unchanged):
   and `hack/gate.sh` was not run by any auditor.
 - `Reader.Follow`, `Records` and `Archive` were examined only as far as they share `scanSource`; `quill tail -follow` across a
   replaced directory is inferred.
-- The ledger below marks the state at the audited tree, with a "Now" column for the seven fixes. The three A3 fixes that
+- The ledger below marks the state at the audited tree, with a "Now" column for the seven fixes and, from the A5h update, for the ten later ones. The A5h marks are the recorder's reading of the fix-skeptic reports and the tree; the recorder did not re-run any row's scenario (inferred). The three A3 fixes that
   touch these states (495e457, 2bf7412, 120c8ac) landed between the audited tree and this record and are noted at
   A5-5, A5-18 and A5-23; the recorder read their diffs, did not re-run the reproductions against them.
 
@@ -124,6 +150,8 @@ NONE means it is indistinguishable from health. Where a state has both a loud an
 the quieter one and the signal column says so. **Now** is the mark after the A5 commits, left as "-" where nothing changed
 for that state. **Item** points to the record below; "excl." points to "Deliberate exclusions". Rows from different
 auditors that covered one state were merged.
+
+**Tally after A5h (the recorder's count of the Now column, falling back to Mark where Now is "-", first word only):** 75 OK, 20 LOG-ONLY, 28 NONE, of 123 rows; 37 rows carry a Now entry. Rows that cite A5-10 or A5-1 and keep "-" (a segment deleted from the middle, the `Sync` nil-after-publish-failure row, the inline flush discarding its error, the acknowledged-but-undurable window, the silent Logger, the periodic last-success row) are unchanged because the signal they lack is the one A5-1 would add, or the fix does not touch their state (inferred from the fix summaries).
 
 | G | Degraded state | Signal | Mark | Now | Item |
 |---|----------------|--------|------|-----|------|
@@ -139,47 +167,47 @@ auditors that covered one state were merged.
 | G2, G18 | sealed segment that cannot be opened at Open (EACCES, EMFILE) is a hole for the writer's life although the file is healthy | `Err()` (raw open error), `Stat().Holes`, check; not self-healing until restart [read] | OK | - | excl. |
 | G16 | sealed-segment damage that appears after Open, under a live writer | writer `Stat` and `Err()` unaware; reads return `SegmentError`; check finds it [read] | LOG-ONLY | - | excl. |
 | G16 | second and later bad sealed segments | `Stat().Holes` and check list all; `Err()` names the first only [read] | OK | - | excl. |
-| G3 | background flush failing (ENOSPC, EIO): appends are acknowledged and held in memory, invisible to readers | `Err()` only; no buffered count; Logger silent [run: 580 appends acknowledged, durable head 1] | LOG-ONLY | - | A5-1 |
+| G3 | background flush failing (ENOSPC, EIO): appends are acknowledged and held in memory, invisible to readers | `Err()` only; no buffered count; Logger silent [run: 580 appends acknowledged, durable head 1] | LOG-ONLY | LOG-ONLY (`Err()` now clears; no log line or count, A5-1 not landed) | A5-1 |
 | G3 | unflushed record visible to a reader | not reachable: the head advances only after the fsync (`flush.go`) [read] | OK | - | - |
-| G3, G11 | `ReadWait`, `Consumer.ReadWait`, `Follow` on a failed log block until the context ends | `Err()`, `Append`, `Close` return the failure elsewhere [run] | LOG-ONLY | - | A5-3 |
+| G3, G11 | `ReadWait`, `Consumer.ReadWait`, `Follow` on a failed log block until the context ends | `Err()`, `Append`, `Close` return the failure elsewhere [run] | LOG-ONLY | OK | A5-3 |
 | G4 | other-process Reader reads past the marker | refused or clamped by construction [read] | OK | - | - |
 | G4 | writer dead, wedged or idle: a Reader sees a frozen head | `Stat().MarkerAge`, which grows the same for an idle healthy writer; by decision 47 [run] | LOG-ONLY | - | A5-6 |
 | G4 | `Log.Stat().MarkerAge` reads 0 on an empty log when no marker has been published since Open | none: "never published" shows as "just published" [run] | NONE | OK | A5-40 |
 | G4 | `Reader.Stat().MarkerAge` stays 0 if the `Lstat` fails | none; reachable only by a race with the marker being replaced [read] | NONE | - | excl. |
-| G5, G12 | marker publish failing while data writes succeed: data durable, readers frozen at the old marker, retention and caps suspended | `Err()` (latched), `Flush` return; readers see `MarkerAge` grow [run: 50 of 50 appends nil, head 1 for the reader] | LOG-ONLY | - | A5-1, A5-10 |
-| G5, G12 | next-segment create failing: the active segment grows past `SegmentBytes`, `MaxBytes` not applied meanwhile | `Err()`; append refused at the ceiling [run: 1 segment, 6720 bytes against `MaxBytes` 2048] | LOG-ONLY | - | A5-10 |
+| G5, G12 | marker publish failing while data writes succeed: data durable, readers frozen at the old marker, retention and caps suspended | `Err()` (latched), `Flush` return; readers see `MarkerAge` grow [run: 50 of 50 appends nil, head 1 for the reader] | LOG-ONLY | LOG-ONLY (`Err()` now clears; A5-1 not landed) | A5-1, A5-10 |
+| G5, G12 | next-segment create failing: the active segment grows past `SegmentBytes`, `MaxBytes` not applied meanwhile | `Err()`; append refused at the ceiling [run: 1 segment, 6720 bytes against `MaxBytes` 2048] | LOG-ONLY | OK | A5-10 |
 | G5, G11 | directory fsync error at rotation, before an unlink, at Close | `ErrFailed` from every call, `Err()` [read] | OK | - | - |
-| G5, G39, G47 | `quill prune` and `quill roll` discard `Close`'s error (the final directory fsync, lock release) | none, exit 0 [read; reproduced with an injected fsync error] | NONE | - | A5-9 |
+| G5, G39, G47 | `quill prune` and `quill roll` discard `Close`'s error (the final directory fsync, lock release) | none, exit 0 [read; reproduced with an injected fsync error] | NONE | OK | A5-9 |
 | G6 | stale marker after an OS crash or rollback hides durable records until reopen or `quill recover` | none: `quill stat` shows the older head, Check HEALTHY, `MarkerAge` is the marker's own (rolled-back) mtime [run] | NONE | - | A5-6 |
 | G7 | writable Open or `quill recover` cuts the newest segment past the marker, including a durable acknowledged frame under a stale marker | none at audit: no log, no field, `recovered: head N` only [run: head 19 against 20 acknowledged, segment 641 to 599 bytes] | NONE | OK (CLI), LOG-ONLY (library) | A5-2 |
 | G7 | torn tail below the durable offset | `Open` `ErrCorrupt`, files untouched [read] | OK | - | - |
 | G8, G21 | two writers after `quill.lock` is removed under a live one | none: both acknowledge, records overwritten, Check HEALTHY [run] | NONE | OK (window) | A5-16 |
 | G9 | `Sync` or `SyncAppends` returns nil although the marker publish failed or the log failed on the directory fsync (decision 78) | `Err()`, `Flush` [run] | LOG-ONLY | - | A5-1 |
 | G9 | `Sync` error means unknown not lost; `ErrBadSeq`; waiters at Close get `ErrClosed` unless durable; `SyncAppends` error wraps the flush error | returned errors [read] | OK | - | - |
-| G10 | write error truncates back and keeps records buffered, retried every `FlushInterval`, recovers by itself | recovery works [run: head 1 to 581 after the fault cleared]; `Err()` never clears | LOG-ONLY | - | A5-1, A5-10 |
+| G10 | write error truncates back and keeps records buffered, retried every `FlushInterval`, recovers by itself | recovery works [run: head 1 to 581 after the fault cleared]; `Err()` never clears | LOG-ONLY | LOG-ONLY (`Err()` now clears; A5-1 not landed) | A5-1, A5-10 |
 | G10 | inline flush in append and the flusher discard the flush error | `Err()` (documented, decision 60) [read] | LOG-ONLY | - | A5-1 |
 | G10, G13 | `MaxBufferBytes` reached while flushes fail | append refused with the wrapped flush error [run] | OK | - | - |
 | G10, G13 | window between an acknowledged append and its durability while flushes fail | no counter, timestamp or flag in `Stats` [read] | NONE | - | A5-1 |
-| G11 | `Err()` hides a live background failure behind a load error, and keeps a load error after its hole is gone | `Err()` only [run] | NONE | - | A5-10 |
+| G11 | `Err()` hides a live background failure behind a load error, and keeps a load error after its hole is gone | `Err()` only [run] | NONE | OK | A5-10 |
 | G11 | no flush, publish, rotate or fsync failure is written to `Config.Logger`, though the field documents "warnings and failures" | none [read: `logf` calls; run: empty Logger buffer in three fault runs] | NONE | - | A5-1 |
 | G11 | data fsync error | sticky `ErrFailed` on four calls and `Err()` [run] | OK | - | - |
-| G12 | rotation failing: marker still published, appends continue to the ceiling | append error at the ceiling [run: 29 accepted, then refused at 5608 bytes]; `Err()` while unmasked | LOG-ONLY | - | A5-10 |
-| G12 | rotation failing with nobody appending | flusher retries every `FlushInterval`; `Err()` set [run: recovered within 600 ms] | OK | - | A5-10 |
-| G12, G27 | age rotation of a quiet segment failing: old data outlives `Retention` | `Err()` only, zero log lines [run] | LOG-ONLY | - | A5-10 |
+| G12 | rotation failing: marker still published, appends continue to the ceiling | append error at the ceiling [run: 29 accepted, then refused at 5608 bytes]; `Err()` while unmasked | LOG-ONLY | OK | A5-10 |
+| G12 | rotation failing with nobody appending | flusher retries every `FlushInterval`; `Err()` set [run: recovered within 600 ms] | OK | OK | A5-10 |
+| G12, G27 | age rotation of a quiet segment failing: old data outlives `Retention` | `Err()` only, zero log lines [run] | LOG-ONLY | OK (window: `Err()` clears at the next rotation of either kind) | A5-10 |
 | G12, G27, G31 | prune pass aborted at the age-rotation flush while flushes fail: sweep and caps skipped, which is the only self-recovery on a full disk | `Err()` shows the flush error, nothing shows the pass stopped [run] | LOG-ONLY | OK | A5-21 |
 | G13 | `MaxBufferBytes` gives up while looking drained | not found: `flushErr` is cleared only after a successful flush [read] | OK | - | - |
 | G14, G15 | `AppendBatch` refusals; frame, segment, state-file and payload bounds | typed errors before any allocation or sequence [read] | OK | - | - |
 | G15 | sealed segment over 1.5 GiB | refused unread, becomes a hole; `Err()`, `Stat().Holes`, check [read] | OK | - | - |
 | G15, G29 | consumer state file over 1 MiB, or any unparseable file in `consumers/`, halts the age sweep | writer: none; check exit 3 and `quill consumers` by pull [run] | NONE | - | A5-17 |
 | G17 | retention or a hole below a requested offset | `GapError` to the reading consumer [read] | OK | - | - |
-| G17, G23, G34 | consumer fell below `First` and is not reading | `Lag` counts deleted records; `quill consumers` NOTE empty; check HEALTHY; `protected` still true [run] | NONE | - | A5-18 |
-| G17, G30 | `Dropped` counts every segment deleted past an abandoned consumer file, names no consumer, resets at writer restart | `Log.Stat().Dropped` only; the CLI never prints it [run: 8 then 0 after restart] | LOG-ONLY | - | A5-18 |
+| G17, G23, G34 | consumer fell below `First` and is not reading | `Lag` counts deleted records; `quill consumers` NOTE empty; check HEALTHY; `protected` still true [run] | NONE | OK | A5-18 |
+| G17, G30 | `Dropped` counts every segment deleted past an abandoned consumer file, names no consumer, resets at writer restart | `Log.Stat().Dropped` only; the CLI never prints it [run: 8 then 0 after restart] | LOG-ONLY | LOG-ONLY (the Warn names the consumer and `quill prune` prints `dropped`; the count still resets at restart) | A5-18 |
 | G17, G23 | `Consumer.Lag` returns 0 for a consumer ahead of the head | `quill consumers` NOTE "ahead of the head", Check warning, `ErrAhead` at open; the library `Lag()` is a reassuring 0 [read] | OK | - | excl. |
 | G19 | segment deleted between view and open | `GapError` [read] | OK | - | - |
-| G19, G37 | source with a gap: `quill archive` prints one stderr line and exits 0; later runs are silent while the destination stays holed | one-shot stderr line; `quill check -dir dst` exit 3 [run] | LOG-ONLY | - | A5-29 |
-| G19, G35, G37 | `_archive` consumer removed or recreated, then records lost: the destination gets a hole with no message | none; check on the destination exit 3 [run] | NONE | - | A5-29 |
+| G19, G37 | source with a gap: `quill archive` prints one stderr line and exits 0; later runs are silent while the destination stays holed | one-shot stderr line; `quill check -dir dst` exit 3 [run] | LOG-ONLY | OK (window: reported by the run that finds it, exit 3) | A5-29 |
+| G19, G35, G37 | `_archive` consumer removed or recreated, then records lost: the destination gets a hole with no message | none; check on the destination exit 3 [run] | NONE | OK | A5-29 |
 | G19, G37 | archiver stalled (cron died) pins every segment from its offset | `quill consumers` lag, Check UNBOUNDED line; `ConsumerTTL` is off by default [read] | LOG-ONLY | - | excl. |
-| G37 | rerun leaves a same-size damaged destination segment in place | exit 0; check on the destination exit 3 [run] | LOG-ONLY | - | A5-32 |
+| G37 | rerun leaves a same-size damaged destination segment in place | exit 0; check on the destination exit 3 [run] | LOG-ONLY | OK | A5-32 |
 | G37 | corrupt source segment or copy error | error return, exit 1, progress kept to the last good segment [read] | OK | - | - |
 | G20, G51 | policy write failing at Open: the previous run's quill.policy stays on disk and Check, ls and offline prune read it as current | `Err()` only, which a load error can mask [run] | NONE | OK | A5-39 |
 | G20 | stale `.tmp-*` files: removed only at writer Open; leaked ones not counted or reported | none [read] | NONE | - | excl. |
@@ -200,23 +228,23 @@ auditors that covered one state were merged.
 | G25 | iterators and consumer reads commit; error mid-iteration | no Commit call exists; the error is yielded once [read] | OK | - | - |
 | G25 | `Scan` payload aliases a pooled buffer | documented contract [read] | OK | - | - |
 | G26 | segment id reuse; retention touching the active segment | not found [read] | OK | - | - |
-| G26 | unlink fails (EPERM, immutable file): retention stalls; `Prune` returns nil | Warn "cannot delete segment" and latched `Err()`; the CLI sets no Logger at audit and exits 0 [run] | LOG-ONLY | - | A5-36 |
+| G26 | unlink fails (EPERM, immutable file): retention stalls; `Prune` returns nil | Warn "cannot delete segment" and latched `Err()`; the CLI sets no Logger at audit and exits 0 [run] | LOG-ONLY | OK | A5-36 |
 | G26 | segment already removed by hand | Warn "segment was already gone" [read] | LOG-ONLY | - | excl. |
-| G27, G28 | quill prune did less than asked: unlink failure, corrupt consumer file, clock guard | exit 0, counts line only, nothing on stderr [run: `6 -> 6`, `10 -> 7`] | NONE | - | A5-36 |
+| G27, G28 | quill prune did less than asked: unlink failure, corrupt consumer file, clock guard | exit 0, counts line only, nothing on stderr [run: `6 -> 6`, `10 -> 7`] | NONE | OK | A5-36 |
 | G27 | `Retention` negative and no caps | Check prints UNBOUNDED as text, exit 0 [read] | LOG-ONLY | - | excl. |
 | G27, G28 | active segment stamped in the future; quiet log never seals when `SegmentMaxAge` or `Retention` is negative | none until it seals / by configuration [inf] | NONE | - | excl. |
-| G28 | age sweep limited by the clock guard | Warn on the Logger only [run] | LOG-ONLY | - | A5-36 |
-| G28, G45 | a segment stamped more than a day ahead holds back all newer ones, even with `-force` | Warn on the Logger; Check warns, HEALTHY, exit 0 [run] | LOG-ONLY | - | A5-36 |
+| G28 | age sweep limited by the clock guard | Warn on the Logger only [run] | LOG-ONLY | OK (stderr on the CLI, exit 0 by design) | A5-36 |
+| G28, G45 | a segment stamped more than a day ahead holds back all newer ones, even with `-force` | Warn on the Logger; Check warns, HEALTHY, exit 0 [run] | LOG-ONLY | LOG-ONLY (offline prune now prints the Warn) | A5-36 |
 | G28 | check prints one Problem per record for a clock anomaly | 17 lines for 17 records; large logs not measured [run] | LOG-ONLY | - | excl. |
-| G29, G34 | stale protected consumer stops protecting (`ConsumerTTL`) | `Stats.StaleConsumers` (frozen between passes, empty before the first and with `NoMaintenance`, 0 after restart) and a Warn per pass; the CLI shows `protected` true [run] | LOG-ONLY | - | A5-18 |
+| G29, G34 | stale protected consumer stops protecting (`ConsumerTTL`) | `Stats.StaleConsumers` (frozen between passes, empty before the first and with `NoMaintenance`, 0 after restart) and a Warn per pass; the CLI shows `protected` true [run] | LOG-ONLY | OK (CLI note derived from the policy and the file), LOG-ONLY (library) | A5-18 |
 | G29 | `unregister` of a protected consumer, or a listed consumer made unprotected while the writer runs | none until the next writer Open re-applies `ProtectedConsumers`; explicit operator action [inf] | NONE | - | excl. |
-| G30 | a cap deletes under a protected consumer's unread data | `Dropped` and an Info line without the consumer's name; offline prune never prints `Dropped` [run] | LOG-ONLY | - | A5-18 |
+| G30 | a cap deletes under a protected consumer's unread data | `Dropped` and an Info line without the consumer's name; offline prune never prints `Dropped` [run] | LOG-ONLY | OK (CLI note), LOG-ONLY (library: the Warn names the consumer) | A5-18 |
 | G30 | consumer file unreadable at pass time is not counted in `Dropped` | none [inf] | NONE | - | excl. |
-| G31 | `MaxBufferBytes` smaller than `FlushBytes`: the published disk bound is exceeded | none, `Open` accepts the Config [run: peak 4,200,444 against 3,949,577 published] | NONE | - | A5-23 |
+| G31 | `MaxBufferBytes` smaller than `FlushBytes`: the published disk bound is exceeded | none, `Open` accepts the Config [run: peak 4,200,444 against 3,949,577 published] | NONE | OK | A5-23 |
 | G31 | `MaxBytes` unmet because unlink fails | Warn, `Err()`, `Stat().Bytes` against the policy [run] | OK | - | A5-36 |
 | G31 | `MaxBytes` below twice `SegmentBytes` | `Open` refuses [read] | OK | - | - |
-| G32 | `MinFreeBytes` with a failing statfs: the floor is not enforced, or a frozen `diskFull` keeps refusing | one Warn per pass if a Logger is set; `Err()` nil; no `Stats` field [run] | LOG-ONLY | - | A5-22 |
-| G32 | `diskFull` set: every append fails with ENOSPC while `Err()` is nil; recovery is not logged | loud at the appender; nothing in `Err()` or `Stat` [run] | LOG-ONLY | - | A5-22 |
+| G32 | `MinFreeBytes` with a failing statfs: the floor is not enforced, or a frozen `diskFull` keeps refusing | one Warn per pass if a Logger is set; `Err()` nil; no `Stats` field [run] | LOG-ONLY | OK | A5-22 |
+| G32 | `diskFull` set: every append fails with ENOSPC while `Err()` is nil; recovery is not logged | loud at the appender; nothing in `Err()` or `Stat` [run] | LOG-ONLY | OK | A5-22 |
 | G32 | floor crossed between passes; unlink frees nothing while a reader or archiver holds the segment | none; evaluated at seals and passes only [read; the second is inferred] | NONE | - | excl. |
 | G33 | `MaxRecords` with the active segment alone above N; worst-case disk of `MaxRecords` times the record size | `Stat().Records` is pollable; documented non-guarantee [read] | OK | - | excl. |
 | G34 | `ConsumerTTL` probe errors (mtime `Lstat`, or a non-gap read error): the consumer silently stays live | none at audit [run: `StaleConsumers` empty, `Err()` nil, 5 segments pinned] | NONE | LOG-ONLY | A5-31 |
@@ -225,7 +253,7 @@ auditors that covered one state were merged.
 | G35 | writer cannot create a `ProtectedConsumers` entry at Open | `Open` returns the error [read] | OK | - | - |
 | G36 | `Log.Stat().Bytes` after an out-of-band delete or truncation of a segment | none; sums sizes from memory [inf] | NONE | - | excl. |
 | G36 | `MaxBytes` and `MinFreeBytes` both 0 (the defaults) | Check UNBOUNDED, `ls` marks it, `CheckResult.Unbounded` [run] | OK | - | - |
-| G36, G38, G54 | `Err()` after a damaged segment was loaded: later background errors masked, the load error stays after recovery | `Err()` returns the load error forever [run] | NONE | - | A5-10 |
+| G36, G38, G54 | `Err()` after a damaged segment was loaded: later background errors masked, the load error stays after recovery | `Err()` returns the load error forever [run] | NONE | OK | A5-10 |
 | G36 | `Reader.Stat` zero `Dropped` and nil `StaleConsumers` read as "none" though the Reader cannot know | none; the CLI never prints them [run] | LOG-ONLY | - | A5-15 |
 | G38 | flusher goroutine dying | cannot, except by panic [read] | OK | - | - |
 | G39, G40 | use after Close; invalid Config | `ErrClosed`; `ErrConfig` before any file is touched [read] | OK | - | - |
@@ -241,7 +269,7 @@ auditors that covered one state were merged.
 | G46 | marker names data the copy lacks (naive restore) | check UNHEALTHY exit 3; stat and read exit 1 [run] | OK | - | - |
 | G46 | policy stale after a failed write | Check reported the old caps as current [run] | NONE | OK | A5-39 |
 | G46 | live writer's unflushed tail | not scanned by design [read] | OK | - | - |
-| G47 | `quill ls` omits a log whose reader cannot open | exit 0, row absent [run] | NONE | - | A5-44 |
+| G47 | `quill ls` omits a log whose reader cannot open | exit 0, row absent [run] | NONE | OK | A5-44 |
 | G47 | offline verbs beside a live writer | `ErrLocked`, exit 1 [read] | OK | - | - |
 | G48, G49 | stdout unwritable; append Close failure; JSON bidi controls pass raw | exit 1; exit 1 and the sequence printed; the guarantee covers C0, C1 only [read, run for bidi] | OK | - | excl. |
 | G50 | other platform build; macOS `fsync` falling back to plain `fsync` on ENOTSUP | build fails on purpose; no probe, on filesystems decision 51 already declares unsupported [run, read] | OK | - | excl. |
@@ -260,9 +288,11 @@ votes and the reproduction, and Disposition. Anchors are to the current tree; th
 later commit moved it and the citation matters. "Votes" lists each voter in order: C confirmed, P plausible, R refuted;
 "reproduced" says which voters ran something.
 
-### Held for the owner
+### Held for the owner, decided 2026-10-31 (pass A5h)
 
-#### A5-10: `Err()` is a single latched slot, masked and frozen (medium, held)
+Each item below was held when first recorded; its original Disposition is kept as first written, and the owner's approval and the outcome follow it.
+
+#### A5-10: `Err()` is a single latched slot, masked and frozen (medium, fixed 91c2fce)
 
 **Claim.** `Err()`, the signal the user guide names for rotation and flush failure, cannot tell current from past. A
 sealed-segment load error permanently shadows every background error, and a background error is never cleared when the
@@ -295,13 +325,23 @@ window before the ceiling (about 73 MiB of appends past `SegmentBytes` at defaul
 **Verdict.** CONFIRMED (C, C). Reproduced by one voter (program above, macOS); the other read the assignments and found no
 nil store. Whether a different `Err()` contract is wanted is the owner's call.
 
-**Disposition.** Held for the owner (semantic). Recommended: keep the sticky load error but stop it shadowing (return the
+**Disposition as first written.** Held for the owner (semantic). Recommended: keep the sticky load error but stop it shadowing (return the
 join of the failed or load error and `bgErr`, or add `Stats.BackgroundErr` and `BackgroundErrAt`); clear `bgErr`, or stamp
 a recovery time, when the operation that set it succeeds (a flush clears the flush error, a rotation the rotation error, a
 clean prune pass the prune error); drop `loadErr` once the segment it names has been deleted and its hole pruned. The
 policy case already works this way (A5-39). Decide this one together with A5-1 and A5-22, which need the same field.
 
-#### A5-1: background failures reach only a latched `Err()`, never the Logger (medium, held)
+**Owner approval.** Approved on 2026-10-31, as recommended: the join (not the `Stats.BackgroundErr` alternative), clear on recovery, drop the load error with its hole.
+
+**Disposition.** Fixed in 91c2fce (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic). `Err()` (log.go:634) no longer masks or latches. Background errors are held one slot per operation in `Log.bg` (flush write, marker publish, rotation, prune unlink and policy write; A5-22 later added a disk slot), each set by `setBg` and cleared by `clearBg` when its operation succeeds (log.go:671-674). `Err()` returns the failed state, or the sticky load error when the log is not failed, joined by `errors.Join` with every live slot, so `errors.Is` matches each; a single error comes back unwrapped. The load error is recomputed to the first remaining damaged sealed segment, or nil, when retention deletes segments. The separate `policyErr` field and the displacement logic in `recordPolicy` are folded into the policy slot (reported, fix summary).
+
+Red before (reported, fix-skeptic): on the parent of 91c2fce with only the new `err_clear_test.go` added, all 7 new tests fail for the claimed reason. After recovery `Err()` still returns the old ENOSPC or EIO (rotation, `Roll`, flush write, marker publish, prune unlink); with a damaged sealed segment `Err()` is only the `SegmentError` and hides the live rotation failure; after retention deletes the damaged segment `Err()` still names it. The same 7 pass on macOS and on the Linux box (`-race`). The first two are the two reproductions of the record, now as tests.
+
+Decisions 60, 78 and 98 carry a dated note ("Stage 2 audit, owner-approved 2026-10-31, A5-10"; verified by grep of docs/design/decisions.md). The user guide, scope.md (the `Err()` row and guarantee 6), format.md (policy write), doc.go, errors.go, the `Err` doc comment and CHANGELOG (Changed, under Unreleased) describe the new rule (reported by the skeptic).
+
+Residuals, reported by the skeptic and not fixed. (1) `Roll` (flush.go:230) and the age rotation in the prune pass (retention.go:152) call `setBg(bgRotate, err)` without the `l.failed` guard that `publishLocked` has (flush.go:143), so when the rotation fails fatally on the directory fsync `Err()` holds the failed error twice and returns `errors.Join(failed, failed)`: the same line twice. `errors.Is` and the nil or non-nil contract are unaffected, and before the fix the error came back once. I read the three sites in the tree as it is now and the guard is still absent from the two (verified). A one-line `if l.failed == nil` in each, or a dedupe in `Err()`, removes it; cosmetic, recommended, not applied. (2) A failed age rotation stays in `Err()` after its blocker is gone until the next rotation of either kind, which is arguably accurate because none has succeeded since. Not run by the skeptic: the fuzz step and `go mod tidy`.
+
+#### A5-1: background failures reach only a latched `Err()`, never the Logger (medium, approved, fix-failed)
 
 **Claim.** Every retryable background failure (data write, marker publish, next-segment create, prune sweep) is reported
 through `bgErr` and `Err()` only. It carries no time or count, nothing is logged, and no `Stats` field says how much
@@ -333,12 +373,22 @@ segment delete is logged at Warn (retention.go:297), and `Stat().MarkerAge` is a
 
 **Verdict.** CONFIRMED (C, C). Both voters reproduced.
 
-**Disposition.** Held for the owner (semantic). Recommended minimum, no API change: log once on each transition into and
+**Disposition as first written.** Held for the owner (semantic). Recommended minimum, no API change: log once on each transition into and
 out of a failing state (flush write, publish, rotate, prune) through the existing Logger at Warn and Info. Fuller, additive:
 `Stats.LastFlushOK`, `Stats.BufferedRecords` and `BufferedBytes`, `Stats.FlushFailing`. A5-10's `Err()` change is the
 precondition; do both in one pass.
 
-#### A5-36: `quill prune` exits 0 when it did less than asked (medium, held)
+**Owner approval.** Approved on 2026-10-31, as recommended: log each transition (Warn on entering, Info on leaving, never per retry) and add the four `Stats` fields, building on A5-10.
+
+**Disposition.** Not fixed in the tree: the fix was written, rejected by its fix-skeptic (outcome fix-failed) and is not in the tree. It is bab952f on branch `stage2/A5-1-a2` (verified: `git merge-base --is-ancestor bab952f HEAD` fails and `git branch -a --contains bab952f` lists only that branch). An earlier attempt, 574b078, is on `stage2/A5-1-a1`; the ledger this record was written from carries no outcome for it. bab952f does what the owner approved: each retried background failure (flush write, marker publish, rotation, prune unlink) logs one Warn on entry and one Info on recovery through `Config.Logger`, never per retry, using A5-10's clear points as the transition points; `Log.Stat` gains `BufferedRecords`, `BufferedBytes`, `FlushFailing` and `LastFlushOK`. The fixer reports its new tests red on HEAD and green after, and the gate steps it ran green (reported, fix summary); the skeptic found the logging half sound (the log tests go red when it is reverted and the gate is green).
+
+The rejection is one documentation defect (reported by the skeptic, reproduced by it in a scratch copy). `Stats.LastFlushOK`'s doc comment and docs/userguide.md say that `time.Since(LastFlushOK)` with `BufferedRecords` above zero is how long the oldest acknowledged record has been waiting. `LastFlushOK` changes only when a flush actually writes, so a healthy log that has been idle for an hour and then takes one `Append` reports `BufferedRecords` 1, `FlushFailing` false and `time.Since(LastFlushOK)` 1h0m0s. The documented alert recipe would false-alarm on every quiet log. Secondary, inferred by the skeptic from reading and not run: a prune pass whose pre-delete `publishLocked` fails (retention.go:280 on the branch) can log a false "recovered" Info for the prune operation.
+
+Nothing in the tree describes A5-1: no decision note, no CHANGELOG line and no user guide text for the new fields has landed, so every document still describes the behaviour at the audited tree. They are owed with the re-fix.
+
+Recommended next step (the recorder's reading of the skeptic's objection): document `LastFlushOK` as the time of the last successful write and tell embedders to alert on `FlushFailing`, or on `BufferedRecords` above zero together with `FlushFailing`; or instead track the acknowledge time of the oldest buffered record. Then rebase the branch. It starts at 5a7f4f8, and A5-22 and A5-18 have since changed `stat.go`, `log.go` and `retention.go`, so a conflict is likely (inferred from those commits' skeptic reports; not tried). Then amend the affected decisions and add the CHANGELOG line the owner's approval requires, and send it to a fix-skeptic again. The ledger rows that name A5-1 keep their audit marks.
+
+#### A5-36: `quill prune` exits 0 when it did less than asked (medium, fixed 2cbfdf2)
 
 **Claim.** `quill prune` prints a counts line and exits 0 with nothing on stderr when the pass did less than asked: an
 unlink failure, a corrupt consumer file, or the clock guard. Merged ids: A5-11, A5-19, A5-28.
@@ -363,14 +413,24 @@ an operator time to notice", which the CLI could not carry.
 
 **Verdict.** CONFIRMED (C, C). Both reproduced two of the three causes with the built binary.
 
-**Disposition.** Held for the owner (semantic: a stderr line and an exit code). State of the tree now: A5-2 and A5-42 gave
+**Disposition as first written.** Held for the owner (semantic: a stderr line and an exit code). State of the tree now: A5-2 and A5-42 gave
 the offline write verbs a stderr Logger (cmd/quill/write.go, `lossOnly`), but it passes only two messages, "cut the newest
 segment" and "deleted damaged segment", so none of the three prune causes is shown (verified, write.go:74). Recommended:
 widen that filter to the three prune messages ("cannot delete segment", "age sweep limited by the clock guard", "age sweep
 stopped at a segment stamped in the future"), add a broken-consumer Warn (see A5-17), make `cmdPrune` exit 1 when `Err()` is
 non-nil after the pass, and have the library's `Prune` return the unlink error instead of nil.
 
-#### A5-18: a consumer that fell out of retention reads healthy on every offline surface (medium, held)
+**Owner approval.** Approved on 2026-10-31, as recommended: three messages through the offline filter, the broken-consumer Warn, exit 1 on an unlink failure, library `Prune` returns the error, the clock guard stays a warning with exit 0.
+
+**Disposition.** Fixed in 2cbfdf2 (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic, who ran the built CLI on macOS and on the Linux box). `quill prune` now says why it did less than asked and exits 1 when an unlink failed. The offline stderr filter (`lossOrShortfall`, cmd/quill/write.go:87) passes "cannot delete segment", the clock-guard message and the future-stamp message. A new Warn, "consumer file could not be read", names each unreadable consumer file (or an unlistable `consumers/` directory) on every pass (retention.go:133, `brokenWhy`). Library `Prune` returns the unlink error instead of nil, and `cmdPrune` exits 1 when `Prune` errs. The clock guard stays a warning with exit 0.
+
+Red before (reported, fix-skeptic): with only the parent's retention.go and cmd/quill/write.go restored and every test kept, the new and changed tests fail for the claimed reason: `Prune` with a failing unlink returns nil; no Warn for an unreadable consumer file; stderr empty after the clock guard and after a broken consumer file; the filter drops all four messages; the darwin CLI test gets exit 0 where 1 is wanted. Reproduction with the built CLI on the Linux box (ext4, uid 1000, `chattr +i` on the oldest of 10 segments): before, exit 0, `segments 10 -> 10`, empty stderr; after, exit 1, the counts line on stdout, and the Warn and the `operation not permitted` error on stderr. A corrupt consumer file prints the Warn naming it (exit 0, as approved) and the clock guard prints its message (exit 0, as approved). On macOS an unlistable `consumers/` directory printed "cannot list consumers" and a partial failure (`chflags uchg` on the third segment) printed `4 -> 2` with the Warn and exit 1.
+
+Decisions 44, 53, 65 and 67 carry a dated note (A5-36); scope.md, the user guide, architecture.md, the `Prune` doc comment and CHANGELOG (Fixed, under Unreleased) are updated (reported by the skeptic).
+
+Residuals, reported by the skeptic. (1) The skeptic read the new `Prune` doc ("the same error is in `Err()`") as untrue when a sealed-segment load error is latched, because `Err()` then returned the load error first. That was the A5-10 masking; A5-10 (91c2fce) is an ancestor of this commit and `Err()` now joins the load error with the unlink error (verified by reading log.go:634), so the objection no longer holds on this tree. (2) The unlink-failure CLI test is darwin-only; Linux coverage is the library test with an injected fault plus the skeptic's manual `chattr +i` run, which is not committed. (3) The consumer Warn fires on every pass, flusher passes included: approved, but noisy for a library user whose consumer file stays broken. (4) The other writable verbs (`roll`, `append`, `recover`) now print the new Warns on stderr when their open path hits an unlink failure, and still exit 0; outside the approved scope.
+
+#### A5-18: a consumer that fell out of retention reads healthy on every offline surface (medium, fixed 7b87e64)
 
 **Claim.** A consumer below the first retained sequence (unprotected, protected and overridden by a cap, or protected and
 stale under `ConsumerTTL`) is reported healthy: `quill consumers` prints a lag that counts records that no longer exist,
@@ -402,13 +462,23 @@ consumer's name at every pass (retention.go); the missing named line is the dele
 **Verdict.** CONFIRMED (C, C). Both reproduced. Since the audited tree, 2bf7412 (A3-27) made seals count `Dropped` from the
 last prune pass's offsets; it does not change this item.
 
-**Disposition.** Held for the owner (semantic: CLI output and `ConsumerInfo`). Recommended: derive, do not persist. `quill
+**Disposition as first written.** Held for the owner (semantic: CLI output and `ConsumerInfo`). Recommended: derive, do not persist. `quill
 consumers` NOTE and a JSON field when `offset < first` ("behind the first retained sequence: records offset to first-1 are
 gone"), with lag counting only retained records or the note saying otherwise; for protected consumers compute staleness
 from the policy's `ConsumerTTL` and the file mtime; log Warn, with the consumer's name, when a deletion passes a consumer's
 offset; print `dropped` in `quill prune`.
 
-#### A5-22: `MinFreeBytes` stops being enforced when statfs fails, and `diskFull` is invisible (medium, held)
+**Owner approval.** Approved on 2026-10-31, as recommended: derive, do not persist (decisions 12 and 66 stand).
+
+**Disposition.** Fixed in 7b87e64 (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic, who ran the built CLI against real logs on macOS and the new tests on the Linux box). Nothing is persisted. `quill consumers` adds a NOTE ("behind the first retained sequence N: records a to b are gone") and `-json` `behind_first` and `stale`, each present only when true, so existing parsers see no change. Staleness for a protected consumer is derived from the policy's `ConsumerTTL` and the consumer file's mtime (the CLI repeats decision 45's rule in a helper of about 15 lines, because the library exports no way to evaluate it and no new exported symbol was allowed). `quill check` warns of a consumer behind the first retained sequence and stays HEALTHY, which goes beyond the literal approved answer and follows decision 36's "ahead of the head" note. A deletion past a consumer's offset logs a Warn naming the consumer (keys `consumer`, `offset`, `segment`, `last`), the offline verbs print that line, and `quill prune` prints `, dropped N`. The only library change is internal: `Log.offsets` and `consumerView.offsets` carry `{name, offset}` instead of a bare offset.
+
+Red before (reported, fix-skeptic): with the parent's retention.go, log.go, stat.go, cmd/quill/consumers.go and cmd/quill/write.go restored and the new tests kept, all four new tests fail. `consumers` has no `behind_first`, an empty NOTE, and `check` prints plain HEALTHY with no consumer warning; the stale case gets `stale false, want true`; `prune` prints `first 1 -> 101` with no dropped count and stderr does not name the consumer; the library test finds no Warn naming the consumer. All four pass on the fixed tree on macOS and Linux. Reproduction with the built CLI on a log written by a scratch program: a cap deletion under a protected and an unprotected consumer printed the NOTE on both rows ("records 1 to 200 are gone"), `-json` gained `behind_first` only on those rows, and `check` printed HEALTHY, exit 0, with one consumer warning per consumer; with `ConsumerTTL` 1s and aged files the stale note showed while `protected` stayed true.
+
+Decisions 12, 36, 45 and 66 carry a dated note (A5-18); scope.md, the user guide (protection, the Logger row, `check`, `prune`), architecture.md, the doc comments on `Config.Logger` and `Stats.Dropped`, and CHANGELOG (Changed) are updated (reported by the skeptic).
+
+Residuals, reported by the skeptic. (1) The deletion Warn inherits the A3-27 lag that decision 12 documents: seal-time caps judge consumers by the offsets of the last prune pass, so a consumer created after the writer started and before the first pass gets no Warn and no `Dropped` count for earlier cap deletions (the CLI still flags it from the files). (2) The CLI repeats decision 45's staleness rule and no test cross-checks it against the library, so the two can drift. (3) An abandoned consumer below `First` gets a Warn for every later deletion: noisy, but what the owner approved. (4) Inferred, not run: `check` derives the first retained sequence from the first good segment and `consumers` from `Stat().First`, so they could word a damaged-oldest-segment case differently; that log is already UNHEALTHY.
+
+#### A5-22: `MinFreeBytes` stops being enforced when statfs fails, and `diskFull` is invisible (medium, fixed 1dda449)
 
 **Claim.** When statfs fails the floor is not enforced (appends keep succeeding below it) or, if `diskFull` was already set,
 frozen (every append keeps failing with ENOSPC even after space returns). `Err()` stays nil in all three states and no
@@ -434,11 +504,21 @@ nothing while a reader or archiver holds the segment open) was inferred and not 
 **Verdict.** CONFIRMED (C, C). One voter reproduced on the seam; the other traced the code and did not run. Voters rated it
 low to medium because the trigger is rare.
 
-**Disposition.** Held for the owner (semantic: `Stats` additions). Recommended: set `bgErr` when statfs fails or `diskFull`
+**Disposition as first written.** Held for the owner (semantic: `Stats` additions). Recommended: set `bgErr` when statfs fails or `diskFull`
 is set, log when `diskFull` clears, add `Stats.DiskFull` and `Stats.FreeBytesAtLastPass`; consider treating the floor as
 unmet only after N consecutive statfs failures. Fold into the `Err()` decision (A5-10).
 
-#### A5-29: `quill archive` reports source loss once, and not at all after `unregister` (medium, held)
+**Owner approval.** Approved on 2026-10-31, as recommended except that the option of waiting for N consecutive statfs failures was declined: one failure is the trigger, and the documents say so.
+
+**Disposition.** Fixed in 1dda449 (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic). A failing statfs, or a set `diskFull`, now sets a background error (the `bgDisk` slot, set in `capsLocked`, retention.go:246), so `Err()` reports it; `Stats` gains `DiskFull` and `FreeBytesAtLastPass` (stat.go:36-40); the clearing of `diskFull` is logged at Info. A later statfs success recomputes the state and clears both `diskFull` and the slot, so a frozen `diskFull` cannot outlive a pass that reads room. An earlier attempt was rejected for a broken table row in decision 25; the recorded attempt amends it inside the Why cell (reported by the fix summary).
+
+Red before (reported, fix-skeptic): reverting all non-test files fails to compile because the `Stats` fields are gone, so the skeptic reverted only retention.go. `TestFailingStatfsIsReportedByErrAndClearsWhenItRecovers` then fails with "Err() with statfs failing: <nil>, want it to wrap the statfs error" and `TestDiskFullIsInErrAndStatAndItsClearingIsLogged` with "Err() with diskFull set: <nil>, want ENOSPC". Removing `clearBg(bgDisk)`, or the Info on clear, in turn fails the tests. End to end with the real statfs on macOS (public API, `MinFreeBytes` 1<<60): `Err()` wrapped ENOSPC, `Stat().DiskFull` true, `FreeBytesAtLastPass` 116560990208 and appends failed wrapping ENOSPC. The new tests pass on the Linux box.
+
+Decision 25 carries a dated note (A5-22); scope.md (the `MinFreeBytes` row and guarantee 11), the user guide (the config row and a new paragraph), the `Config.MinFreeBytes`, `Err` and `bgDisk` comments and CHANGELOG (Changed) are updated (reported by the skeptic).
+
+Accepted limit, stated in the documents: while statfs fails persistently and `diskFull` is set, `diskFull` stays frozen, appends keep failing with ENOSPC, and `Err()` reports both the ENOSPC and the statfs error until a pass can read room. That is the owner's "one failure is the trigger, no N-failure rule". The skeptic did not run an injected statfs failure on the Linux box (the seam is internal); the new tests passed there.
+
+#### A5-29: `quill archive` reports source loss once, and not at all after `unregister` (medium, fixed caad4c5)
 
 **Claim.** Archive reports a source gap exactly once, on stderr, with exit 0; later runs are silent success while the
 destination is UNHEALTHY. Separately, when the `_archive` consumer is absent or recreated, Archive does not reconcile the
@@ -467,12 +547,22 @@ destination hole is detectable by `quill check` (verified, exit 3).
 and the A1 record) and B as new but could not rule out that an explicit operator reset counts as acknowledging the loss.
 The user guide sentence is false for B (verified by both runs).
 
-**Disposition.** Held for the owner (semantic: an exit status and Archive's documented return). Recommended: a distinct
+**Disposition as first written.** Held for the owner (semantic: an exit status and Archive's documented return). Recommended: a distinct
 non-zero exit (the unhealthy code 3) for a gap, and have Archive compare the committed offset with the destination's
 `quill.tail` (`dest.Seq+1` against the first segment it copies) so B returns `*GapError` as A does. Until then correct the
 user guide sentence for the `unregister` case.
 
-#### A5-23: the published disk bound is exceeded when `MaxBufferBytes` is below `FlushBytes` (low, held, bug)
+**Owner approval.** Approved on 2026-10-31, as recommended: exit 3 for a source gap, Archive compares the destination's tail, reversing the round-1 exit-0 ruling (A1-58, decisions 85 and 53).
+
+**Disposition.** Fixed in caad4c5 (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic, who ran the built CLI on macOS and the archive tests on the Linux box). `quill archive` exits 3, the code `check` uses for UNHEALTHY, when the source had lost records the archive never copied (cmd/quill/consumers.go:209 at the fix commit), and `Archive` compares the destination's `quill.tail` with the first segment it copies (archive.go:80-85 and 105-107 at the fix commit), so after `quill unregister -name _archive` it returns the `*GapError` instead of leaving a silent hole. It builds on A3-14's destination check (303b794, an ancestor). The run that reports a gap still commits past it, so a later run with nothing to copy exits 0; `quill check -dir <dest>` keeps reporting the hole.
+
+Red before (reported, fix-skeptic): with the parent's archive.go, cmd/quill/consumers.go and cmd/quill/verbs.go restored and the new tests kept, all three fail. `TestArchiveAfterTheConsumerIsRecreatedReportsTheRecordsTheDestinationLacks` returns nil where the gap 13..16 is wanted; the CLI test gets exit 0 where 3 is wanted; and the unregister test gets exit 0 and no gap message. Reproduction with the built CLI: forward `quill commit -name _archive -offset <first retained>` then archive printed "the source lost records 41 to 72; the archive holds the same hole" and exited 3, a rerun exited 0, and `quill check -dir <dest>` reported "sequences 41 to 72 are missing"; unregister after a loss exited 3 with "lost records 25 to 32"; no-loss controls (archive, unregister, archive; more data; a rerun; a second unregister) all exited 0.
+
+Decisions 53 and 85 are amended in place (A5-29), reversing the round-1 exit-0 ruling; scope.md, the user guide (the false sentence "the verb says so" is replaced), docs/reference.md (generated; `TestExitCodeProseMatchesTheNumbers` passes), the `verbs.go` help text, the `Archive` doc comment and CHANGELOG (Changed) are updated (reported by the skeptic).
+
+Residuals, reported by the skeptic, matching the approved answer. (1) A gap is reported only by the run that finds it, because that run commits past the hole; a later run with nothing to copy exits 0 while `check -dir <dest>` still exits 3. (2) The destination comparison runs only when a sealed segment is copied (archive.go:105 at the fix commit), so after unregister a loss ahead of a still-active first retained segment is reported on the first run after that segment seals; the offset path (archive.go:74) reports at once (inferred from reading, with a probe). (3) After a manual forward `quill commit -name _archive -offset N` the message says "the source lost records" although those segments may still be in the source; the archive does have the hole, so exit 3 is right and only the wording is loose.
+
+#### A5-23: the published disk bound is exceeded when `MaxBufferBytes` is below `FlushBytes` (low, fixed 4d0e8c9, bug)
 
 **Claim.** The bound `MaxBytes + SegmentBytes + MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes+34)` is exceeded when
 `MaxBufferBytes < FlushBytes`, because the real flush term is `max(FlushBytes, MaxBufferBytes)` and `validate` does not
@@ -496,10 +586,20 @@ a reason to set it. The peak is a transient inside one locked seal and `Stat()` 
 
 **Verdict.** CONFIRMED (C, C). Both reproduced.
 
-**Disposition.** Held for the owner (semantic). Recommended: have `validate` refuse `MaxBufferBytes < FlushBytes` with
+**Disposition as first written.** Held for the owner (semantic). Recommended: have `validate` refuse `MaxBufferBytes < FlushBytes` with
 `ErrConfig` (one line, and the published formula becomes exact); the alternative is to reword the formula with the maximum.
 
-#### A5-3: `ReadWait` and `Follow` on a failed log block until the context ends (low, held)
+**Owner approval.** Approved on 2026-10-31, as recommended: `validate` refuses `MaxBufferBytes < FlushBytes` with `ErrConfig`, so the published bound is exact.
+
+**Disposition.** Fixed in 4d0e8c9 (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic). `Config.validate` refuses `MaxBufferBytes < FlushBytes` with `ErrConfig` (log.go:180, verified), placed after the negative-value case so a wrapped default is still reported as negative; equal values are accepted. `max(FlushBytes, MaxBufferBytes)` stays in `maxActiveBytes` and in the ceiling text: it is now always `MaxBufferBytes`, and changing it would touch decision 60, the user guide and CHANGELOG for no behaviour change (the fixer's choice, stated in decision 69's note).
+
+Bug fix, with its reproduction. Red before (reported, fix-skeptic): with the parent's log.go restored, `TestEveryConfigDefaultAndRefusal` fails with "buffer below default: <nil>" and "buffer below flush: <nil>", and `TestOpenRefusesMaxBufferBytesBelowFlushBytesAndAcceptsEqual` with "below: <nil>": `Open` accepted the smaller value. The skeptic also re-ran the record's reproduction (`SegmentBytes` 1 MiB, `FlushBytes` 700000, `MaxBytes` 2.9M, a statfs seam summing `.log` sizes) and got the same peak, 4,200,444 bytes; for the values the fix still admits (`MaxBufferBytes` 700000, 1,000,000 and 11,200,000) the peak is under the bound (4,649,576, 4,949,576 and 15,149,576). The new tests pass on the Linux box.
+
+Decision 69 carries a dated note (A5-23); scope.md:113 (the Config table), the user guide and the `Config` doc comment state the refusal, and CHANGELOG has a Changed line (reported by the skeptic).
+
+Residual: `max(FlushBytes, MaxBufferBytes)` at log.go:216 (at the fix commit) is now redundant but true; a later reader may wonder why it stays, and decision 69's note says. The skeptic did not re-run staticcheck or deadcode; the A5-32 skeptic's later run on the tip covers both (see the update at the top).
+
+#### A5-3: `ReadWait` and `Follow` on a failed log block until the context ends (low, fixed 1e0a8ed)
 
 **Claim.** After an fsync error `Log.ReadWait`, `Consumer.ReadWait` and the `Follow` iterators keep blocking until the
 context ends instead of returning the failure; to a consumer goroutine a log that can never produce another record looks
@@ -523,10 +623,20 @@ is fine. Returning `ErrFailed` would change documented behaviour (semantic), and
 **Verdict.** CONFIRMED (C, C). Both reproduced. A voter noted the claim slightly overstates "indistinguishable": `Err()` does
 expose it.
 
-**Disposition.** Held for the owner (semantic). Recommended: in `Log.wait`, when `l.failed != nil` and `l.head < offset`,
+**Disposition as first written.** Held for the owner (semantic). Recommended: in `Log.wait`, when `l.failed != nil` and `l.head < offset`,
 return `l.failed` (reads of existing records still succeed), and document it on `ReadWait` and `Follow`.
 
-#### A5-9: `quill prune` and `quill roll` discard `Close`'s error (low, held)
+**Owner approval.** Approved on 2026-10-31, as recommended: `ErrFailed` from the wait when the head is below the offset; reads of existing records stay valid.
+
+**Disposition.** Fixed in 1e0a8ed (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic). `Log.wait` (read.go:358) returns `l.failed` when the head is below the offset, and `fail()` now broadcasts, so a waiter already parked when the log fails is woken with the error. The broadcast in `fail()` answers the skeptic's objection to the first draft: `Roll` and the retention directory-fsync failure call `fail()` with no flush to broadcast after it, so the check in `wait()` alone left a parked waiter hanging. Four `broadcastLocked` calls that followed a `fail()` became redundant and were removed. `Log.ReadWait`, `Consumer.ReadWait`, `Log.Follow` and `Consumer.Follow` all go through `Log.wait`; `Reader.wait` is deliberately unchanged because a Reader runs in another process and cannot know the writer failed. Reads of records that exist still succeed.
+
+Red before (reported, fix-skeptic): with read.go, flush.go, retention.go, iter.go, consumer.go and errors.go restored to the parent and the new test file kept, `TestReadWaitOnAFailedLogReturnsErrFailed` fails with "ReadWait at the head of a failed log: context deadline exceeded, want ErrFailed" (5.00s) and all three subtests of `TestAParkedWaiterIsWokenWhenTheLogFails` (flush fsync, roll directory fsync, retention directory fsync) fail with "the waiter was not woken by the failure". Reverting only flush.go and retention.go (no broadcast in `fail()`) leaves the flush subtest green and fails the other two, so the two mechanisms are tested separately. `-race -count=30` of both tests passed on the fixed tree.
+
+Decisions 37 and 58 carry a dated note (A5-3); scope.md (the rows at lines 60 and 62, line 245 and the invariant near line 394), the user guide, architecture.md and the doc comments on `ReadWait` and `Follow` are updated, and CHANGELOG has a Changed line (reported by the skeptic).
+
+Residuals, reported by the skeptic. (1) scope.md:90 still says `Follow` waits until its context is cancelled, without the failed-log exception; the table row at scope.md:62 states it, so the prose is incomplete, not false. (2) A waiter parked on an idle log whose `quill.lock` was removed learns of it only at the next flush or prune: pre-existing, not A5-3. (3) The skeptic could not run staticcheck or deadcode (local binaries mismatched the toolchain and the pinned versions need the network); the A5-32 skeptic's later run on the tip covers both (see the update at the top).
+
+#### A5-9: `quill prune` and `quill roll` discard `Close`'s error (low, fixed 46f30db)
 
 **Claim.** The CLI verbs that run through `withWriter` (prune, roll) discard `Close`'s error, which carries the final
 directory fsync and the lock release, so a fatal directory-fsync failure at that point exits 0.
@@ -547,10 +657,20 @@ For `roll` the rotation already syncs the directory, so the exposure is `Close`'
 
 **Verdict.** CONFIRMED (C, C). One reproduction, with the fault simulated.
 
-**Disposition.** Held for the owner (semantic: an exit code). Recommended: report `Close` in `withWriter` the way
+**Disposition as first written.** Held for the owner (semantic: an exit code). Recommended: report `Close` in `withWriter` the way
 `cmdAppend` and `cmdRecover` do, exit 1 on a `Close` error.
 
-#### A5-32: a rerun never verifies a same-size destination segment (low, held)
+**Owner approval.** Approved on 2026-10-31, as recommended: report `Close`'s error as `cmdAppend` and `cmdRecover` do (decision 100) and exit 1.
+
+**Disposition.** Fixed in 46f30db (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic). `withWriter` (cmd/quill/write.go:104, used by `quill prune` and `quill roll`) calls `Close` inline instead of deferring it and, when `fn` succeeded, prints `Close`'s error on stderr and exits 1; when `fn` failed its own exit code stands. `prune` has printed its counts line before `Close` runs, so the summary still appears.
+
+Red before (reported, fix-skeptic): with only cmd/quill/write.go restored from the parent, `TestWithWriterExitsOneWhenCloseFails` fails with "fn succeeded: exit 0; want 1" and "stderr is empty; Close's error must be reported"; the "fn failed" subcase passes either way, correctly. The test passes on the fixed tree on macOS and on the Linux box (uid 1000, so the chmod fault binds). The original reproduction of the record (an injected directory-fsync error in a patched copy, because the shipped binary has no fault hook) was not repeated; the skeptic made no end-to-end run of the real binary for the same reason.
+
+Decisions 53 and 100 carry a dated note (A5-9); scope.md, the user guide, the `withWriter` doc comment and CHANGELOG (Fixed) are updated (reported by the skeptic).
+
+Residuals, reported by the skeptic. `withWriter` no longer defers `Close`, so a panic inside `fn` would skip it, which is moot because the process exits and the lock goes with it. The test makes the directory read-only inside `fn`, so it proves the publication-of-`quill.tail` path only, not the directory fsync or the lock release; all three reach the same `Close` return, the only thing the fix changes. The skeptic did not run deadcode (the commit adds no symbol).
+
+#### A5-32: a rerun never verifies a same-size destination segment (low, fixed 16cb0c8)
 
 **Claim.** `Archive` keeps a destination segment that already exists with the same size, without opening it, so a damaged
 copy survives a rerun, the run exits 0, and only `quill check` on the destination detects it.
@@ -570,10 +690,20 @@ audit. Skipping rewrites is what makes a rerun idempotent and cheap.
 
 **Verdict.** CONFIRMED (C, C). One reproduction.
 
-**Disposition.** Held for the owner (semantic: documented behaviour). Recommended: on a same-size destination file verify its
+**Disposition as first written.** Held for the owner (semantic: documented behaviour). Recommended: on a same-size destination file verify its
 CRC and replace it when it fails, or require a flag to force a re-copy.
 
-#### A5-44: `quill ls` drops any log it cannot open (low, held)
+**Owner approval.** Approved on 2026-10-31, as recommended: read and CRC-verify a same-size destination segment and replace it when verification fails, no flag.
+
+**Disposition.** Fixed in 16cb0c8 (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic, who ran the built CLI on macOS and on the Linux box). `copySegment` now calls `destIntact` (archive.go:250, verified) for a destination segment of the source's size: it must pass `verifySegment` (the CRC of every frame) and carry the source's first and last sequence, or it is replaced through the existing temp-file-and-rename. A healthy same-size file is left alone, not rewritten (its inode is unchanged). The sequence comparison is an addition to the approved answer: a valid-CRC segment of the same size from elsewhere would otherwise pass. A rewound run with a same-size destination segment that cannot be read fails with exit 1; decision 85 says so.
+
+Red before (reported, fix-skeptic): with the parent's archive.go restored, `TestArchiveRerunReplacesASameSizeDamagedDestinationSegmentAndKeepsAHealthyOne` fails with "the damaged same-size destination segment was kept after a rerun (read err <nil>)" and passes on the fixed tree; it also checks the healthy segment keeps its inode and that no `.tmp-*` file is left. Reproduction with the built CLI on macOS and the Linux box: flip one byte of a destination segment, `quill commit -name _archive -offset 1`, archive again; before the fix the rerun exited 0 and `check -dir <dest>` still exited 3, after it the rerun exits 0, `check` exits 0 and the healthy segment keeps its inode. A same-size valid-CRC segment copied over segment 1 (wrong sequence range) was left in place before and is replaced after, on both platforms.
+
+Decision 85 carries a dated note (A5-32); the user guide's Archiving section documents the rerun cost; CHANGELOG has a Fixed line (reported by the skeptic).
+
+Residuals, reported by the skeptic. (1) The first and last sequence branch of `destIntact` has no unit test; a mutation removing it would pass the new test (the skeptic exercised it only through the CLI). (2) The user guide does not mention the exit 1 for an unreadable same-size destination segment; decision 85 does. This skeptic ran staticcheck v0.8.2, deadcode v0.52.0 and the full `-race` suite, all clean, on 16cb0c8, the tip of the chain.
+
+#### A5-44: `quill ls` drops any log it cannot open (low, fixed 29e7db1)
 
 **Claim.** `quill ls` silently omits a log directory whose `OpenReader` fails (corrupt `quill.format`, future format,
 permission denied) and exits 0; nothing is printed unless no log at all was found.
@@ -594,8 +724,18 @@ for non-log directories (`ErrNoLog`) but swallows `ErrCorrupt`, `ErrFutureVersio
 
 **Verdict.** CONFIRMED (C, C). Both reproduced.
 
-**Disposition.** Held for the owner (semantic: exit code and output). Recommended: skip only `errors.Is(err, quill.ErrNoLog)`;
+**Disposition as first written.** Held for the owner (semantic: exit code and output). Recommended: skip only `errors.Is(err, quill.ErrNoLog)`;
 for anything else print an "error:" row, and decide whether `ls` then exits 1.
+
+**Owner approval.** Approved on 2026-10-31, as recommended: skip only `ErrNoLog`, print an "error:" row for anything else, list everything, and exit 1 afterwards as `stat` and `check` do for the same log.
+
+**Disposition.** Fixed in 29e7db1 (in the tree: an ancestor of this commit, verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported by the skeptic, who ran the built CLI on macOS and the new tests on the Linux box). `cmdLs` (cmd/quill/read.go:34) skips a subdirectory only when `errors.Is(err, quill.ErrNoLog)`; any other open or `Stat` failure prints an "error:" row, the other logs are still listed, and `ls` exits 1. "no logs under" is printed only when nothing was listed and nothing failed. The `OpenReader` and `Stat` failures share the one existing error-row branch and a `failed` counter.
+
+Red before (reported, fix-skeptic): with the parent's read.go and the new tests kept, `TestLsReportsALogItCannotOpenAndExits1` fails with "ls with an unopenable log exits 0, want 1" and "no error row for the log that cannot be opened", and `TestLsOnlyAnUnopenableLogIsNotReportedAsNoLogs` with exit 0 and "no logs under ..."; the no-logs guard passes on the parent, as a guard should. Reproduction with the built CLI: a parent directory holding a good log, a log whose `quill.format` is "garbage", a log with `chmod 000`, a log whose `quill.format` is `quill/99`, and a plain directory: `ls` printed an error row for each of the three broken logs, still listed the good one, skipped the plain directory and exited 1, with the same error text `stat` gives.
+
+Decision 53 carries a dated note (A5-44) stating the `ErrNoLog` skip, the error row, exit 1 and the "no logs under" condition; scope.md:161, the user guide (lines 225-227, which state the choice and exit 1) and CHANGELOG (Fixed) are updated (reported by the skeptic).
+
+Residuals, reported by the skeptic. (1) A directory with `quill.format` and no `quill.tail` is still `ErrNoLog` (reader.go:155), so `ls` omits it and exits 0 while `stat` exits 1 (reproduced); this follows the approved "skip only `ErrNoLog`" rule and the mid-creation design, and the user guide's "no quill.format" wording omits it. (2) Any unreadable non-log subdirectory, such as a root-only `lost+found`, now makes `ls` exit 1: a consequence of the approval. Staticcheck, deadcode and fuzz were not run by the skeptic.
 
 ### Fixed
 
@@ -1051,7 +1191,7 @@ States the ledger marks LOG-ONLY or NONE that were not raised as items, each wit
 - **Presentation.** `quill check` on an Archive destination prints a policy warning and an UNBOUNDED line because no
   `quill.policy` is written there; it trains operators to ignore Check output but changes no state (G37, cosmetic).
 - **Round-1 decisions not re-raised.** Archive exits 0 on a source gap and prints once: A1-58 (decisions 85 and 53) is the
-  ruling for the exit code; this pass raised the destination-side silence and the `unregister` case separately (A5-29).
+  ruling for the exit code; this pass raised the destination-side silence and the `unregister` case separately (A5-29). Update 2026-10-31: the owner reversed that ruling for the exit code on approving A5-29, and decisions 53 and 85 were amended.
 
 ## The rule the pass produced
 
