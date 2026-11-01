@@ -97,15 +97,20 @@ var lossOrShortfall = []string{
 func (h lossOnly) WithAttrs(a []slog.Attr) slog.Handler { return lossOnly{h.Handler.WithAttrs(a)} }
 func (h lossOnly) WithGroup(n string) slog.Handler      { return lossOnly{h.Handler.WithGroup(n)} }
 
-// withWriter opens the log writable, runs fn, and closes the log, discarding Close's
-// error; cmdAppend and cmdRecover report it and so use openWriter directly.
+// withWriter opens the log writable, runs fn, and closes the log. Close carries the final
+// directory sync, the publication of quill.tail and the lock release, so its error exits 1
+// when fn succeeded, as it does for cmdAppend and cmdRecover (decision 100); when fn failed
+// its own code stands.
 func (c *cli) withWriter(cfg quill.Config, fn func(l *quill.Log) int) int {
 	l, code := c.openWriter(cfg)
 	if code != exitOK {
 		return code
 	}
-	defer l.Close()
-	return fn(l)
+	code = fn(l)
+	if err := l.Close(); err != nil && code == exitOK {
+		return c.errorf("%v", err)
+	}
+	return code
 }
 
 // cmdAppend closes the log itself rather than deferring: Close is the only flush that

@@ -228,7 +228,8 @@ take positional arguments; any other verb given one, as in `quill read 100` or `
 would otherwise be dropped. `append` exits 1 when closing
 the log fails (with `-sync=false` that close is the only flush that can report an error); with
 `-sync=true` the records were already durable, so it still prints the last sequence to stdout
-beside the error on stderr. A verb that could not write its output to standard output (a full disk,
+beside the error on stderr. `roll` and `prune` likewise exit 1, with the error on stderr, when closing
+the log fails after the pass succeeded (`prune` has printed its counts line by then). A verb that could not write its output to standard output (a full disk,
 a closed descriptor) exits 1 instead of 0. Offline verbs run with
 background maintenance off and never rewrite `quill.policy`; `append`, `roll` and `recover` take
 the segment size from it (the 1 GiB ceiling when it cannot be read), so they do not seal a large

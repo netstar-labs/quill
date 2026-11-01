@@ -166,7 +166,7 @@ beside a live writer without its lock and show only durable records; they print 
 `ErrLocked` beside a live writer. `commit`, `register`, `unregister` and `archive` take only the consumer's lock.
 `cat`, `read`, `tail`, `stat`, `ls`, `consumers` and `check` take no lock. Exit codes: 0 ok, 1 error, 2 usage,
 3 `check` found the log UNHEALTHY. `append` closes the log before it prints and exits 1 when `Close` fails; under
-`-sync=true`, where the records were already durable, it still prints the last sequence to stdout (decision 100). `recover` is `Open` (which performs recovery) followed by `Close`. `register -protect` creates a protected
+`-sync=true`, where the records were already durable, it still prints the last sequence to stdout (decision 100). `roll` and `prune` exit 1 when `Close` fails after a successful pass, with the error on standard error (decision 100). `recover` is `Open` (which performs recovery) followed by `Close`. `register -protect` creates a protected
 consumer; `read`, `cat` and `tail` take `-since <time>` and `commit` takes `-time <time>` (decision 59).
 `prune` ends its line with `dropped N`, the sealed segments the pass deleted while a consumer's offset was
 below them, and prints on standard error one `Warn` per such consumer and segment that names it (decision 12). A `prune` that did less
