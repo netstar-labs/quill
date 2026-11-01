@@ -3,7 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -20,13 +23,30 @@ func cmdConsumers(c *cli, args []string) int {
 		if err != nil {
 			return c.errorf("%v", err)
 		}
+		st, err := r.Stat()
+		if err != nil {
+			return c.errorf("%v", err)
+		}
+		ttl := time.Duration(0)
+		if p, ok := quill.ReadPolicy(c.dir); ok {
+			ttl = p.ConsumerTTL
+		}
+		now := time.Now()
 		if c.json {
 			for _, ci := range list {
 				row := map[string]any{"name": ci.Name, "offset": ci.Offset, "protected": ci.Protected, "lag": lag(head, ci.Offset)}
 				if ci.Err != nil {
 					row["error"] = ci.Err.Error()
-				} else if ci.Offset > head+1 {
-					row["ahead"] = true
+				} else {
+					if ci.Offset > head+1 {
+						row["ahead"] = true
+					}
+					if ci.Offset < st.First {
+						row["behind_first"] = true
+					}
+					if c.stale(r, ci, ttl, head, now) {
+						row["stale"] = true
+					}
 				}
 				if code := printJSON(c, row); code != exitOK {
 					return code
@@ -37,17 +57,45 @@ func cmdConsumers(c *cli, args []string) int {
 		w := tabwriter.NewWriter(c.out, 0, 8, 2, ' ', 0)
 		fmt.Fprintln(w, "NAME\tOFFSET\tLAG\tPROTECTED\tNOTE")
 		for _, ci := range list {
-			note := ""
+			var notes []string
 			if ci.Err != nil {
-				note = "error: " + ci.Err.Error()
-			} else if ci.Offset > head+1 {
-				note = "ahead of the head: rewind it with quill commit"
+				notes = append(notes, "error: "+ci.Err.Error())
+			} else {
+				if ci.Offset > head+1 {
+					notes = append(notes, "ahead of the head: rewind it with quill commit")
+				}
+				if ci.Offset < st.First {
+					notes = append(notes, fmt.Sprintf("behind the first retained sequence %d: records %d to %d are gone, so LAG overstates what can be read", st.First, ci.Offset, st.First-1))
+				}
+				if c.stale(r, ci, ttl, head, now) {
+					notes = append(notes, fmt.Sprintf("stale: behind and silent for the policy's consumer-ttl %s, so the writer no longer protects segments for it", ttl))
+				}
 			}
-			fmt.Fprintf(w, "%s\t%d\t%d\t%v\t%s\n", ci.Name, ci.Offset, lag(head, ci.Offset), ci.Protected, note)
+			fmt.Fprintf(w, "%s\t%d\t%d\t%v\t%s\n", ci.Name, ci.Offset, lag(head, ci.Offset), ci.Protected, strings.Join(notes, "; "))
 		}
 		_ = w.Flush()
 		return exitOK
 	})
+}
+
+// stale derives, as the writer's prune pass does (decision 45), whether a protected consumer has
+// stopped protecting segments under ConsumerTTL: it is behind, its offset file's mtime and the
+// record at its offset (the first retained one when a cap already deleted it, decision 82) are
+// both older than the TTL. Nothing about it is stored, so a probe that fails says nothing.
+func (c *cli) stale(r *quill.Reader, ci quill.ConsumerInfo, ttl time.Duration, head uint64, now time.Time) bool {
+	if ttl <= 0 || !ci.Protected || ci.Err != nil || ci.Offset > head {
+		return false
+	}
+	info, err := os.Lstat(filepath.Join(c.dir, "consumers", ci.Name))
+	if err != nil || now.Sub(info.ModTime()) < ttl {
+		return false
+	}
+	recs, err := r.Read(ci.Offset, 1)
+	var gap *quill.GapError
+	if errors.As(err, &gap) {
+		recs, err = r.Read(gap.To+1, 1)
+	}
+	return err == nil && len(recs) == 1 && now.Unix()-recs[0].At >= int64(ttl.Seconds())
 }
 
 func lag(head, offset uint64) uint64 {

@@ -21,7 +21,9 @@ type Stats struct {
 	// the writer opened the log. A cap that fires at a segment seal judges "below them" by the
 	// consumer offsets of the last prune pass (or of Open, before the first), so a consumer that
 	// moved or was created since can be missed or counted late by up to PruneInterval. Only
-	// Log.Stat knows it.
+	// Log.Stat knows it; it is not persisted, so it is 0 after a restart. Each such deletion
+	// is also logged at Warn naming the consumer, and quill consumers shows a consumer below
+	// First without it.
 	Dropped uint64
 	// StaleConsumers are protected consumers that stopped protecting segments under
 	// ConsumerTTL at the last prune pass. Only Log.Stat knows them.
@@ -158,6 +160,8 @@ func (r *Reader) Check() (CheckResult, error) {
 	var prevAt int64
 	var prevLast uint64
 	havePrev := false
+	first := tl.Seq + 1 // the first retained sequence: the first good segment's, none retained is head + 1
+	haveFirst := false
 	for _, id := range ids {
 		if id > tl.Seg {
 			continue
@@ -205,6 +209,9 @@ func (r *Reader) Check() (CheckResult, error) {
 		if info.frames == 0 {
 			continue
 		}
+		if !haveFirst {
+			first, haveFirst = info.first.Seq, true
+		}
 		if havePrev && info.first.Seq != prevLast+1 {
 			fatal(Problem{Kind: "hole", Path: path, Detail: fmt.Sprintf("sequences %d to %d are missing before it", prevLast+1, info.first.Seq-1)})
 		}
@@ -223,6 +230,10 @@ func (r *Reader) Check() (CheckResult, error) {
 		} else if c.Offset > tl.Seq+1 {
 			// The log is intact; the consumer is what a restore left behind (decision 36).
 			warn(Problem{Kind: "consumer", Path: r.path(filepath.Join(consumersDir, c.Name)), Detail: fmt.Sprintf("at %d, ahead of the head %d: rewind it with quill commit", c.Offset, tl.Seq)})
+		} else if c.Offset < first {
+			// Retention deleted records the consumer had not read (decision 38): the log is
+			// intact, the consumer's next read is a GapError, and this is the only offline sign.
+			warn(Problem{Kind: "consumer", Path: r.path(filepath.Join(consumersDir, c.Name)), Detail: fmt.Sprintf("at %d, behind the first retained sequence %d: records %d to %d are gone", c.Offset, first, c.Offset, first-1)})
 		}
 	}
 	data, err := readState(r.fs, r.path(policyName))

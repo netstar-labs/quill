@@ -63,15 +63,17 @@ func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 	return l, exitOK
 }
 
-// lossOnly passes to its handler only the records that say data was lost to damage: the one Open
-// writes when it cuts the newest segment past the marker, and the one a prune pass writes when it
-// deletes a damaged sealed segment (which erases the file and the hole, the only artifacts of the
-// damage). The operator must be told about those, whichever verb opened the log, while the
-// retention lines the other verbs would provoke are not output these verbs ever had.
+// lossOnly passes to its handler only the records that say data was lost: the one Open writes
+// when it cuts the newest segment past the marker, the one a prune pass writes when it deletes a
+// damaged sealed segment (which erases the file and the hole, the only artifacts of the damage) and
+// the one it writes for each consumer a deletion passes (the offline process keeps no counter that
+// would show it later). The operator must be told about those, whichever verb opened the log, while
+// the retention lines the other verbs would provoke are not output these verbs ever had.
 type lossOnly struct{ slog.Handler }
 
 func (h lossOnly) Handle(ctx context.Context, r slog.Record) error {
-	if !strings.HasPrefix(r.Message, "cut the newest segment") && !strings.HasPrefix(r.Message, "deleted damaged segment") {
+	if !strings.HasPrefix(r.Message, "cut the newest segment") && !strings.HasPrefix(r.Message, "deleted damaged segment") &&
+		!strings.HasPrefix(r.Message, "deleted segment past a consumer's offset") {
 		return nil
 	}
 	return h.Handler.Handle(ctx, r)
@@ -206,7 +208,8 @@ func cmdPrune(c *cli, args []string) int {
 		if err != nil {
 			return c.errorf("%v", err)
 		}
-		fmt.Fprintf(c.out, "segments %d -> %d, bytes %d -> %d, first %d -> %d\n", before.Segments, after.Segments, before.Bytes, after.Bytes, before.First, after.First)
+		// The process opened the log a moment ago, so Dropped is what this pass alone deleted under a consumer.
+		fmt.Fprintf(c.out, "segments %d -> %d, bytes %d -> %d, first %d -> %d, dropped %d\n", before.Segments, after.Segments, before.Bytes, after.Bytes, before.First, after.First, after.Dropped)
 		return exitOK
 	})
 }

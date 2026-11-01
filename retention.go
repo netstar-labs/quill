@@ -16,12 +16,19 @@ import (
 
 // consumerView is what a prune pass learned from the consumer files, read without the lock.
 type consumerView struct {
-	offsets      []uint64 // every readable consumer's offset, for Dropped
-	minProtected uint64   // the slowest live protected consumer's offset
+	offsets      []consumerOffset // every readable consumer, for Dropped and the Warn that names it
+	minProtected uint64           // the slowest live protected consumer's offset
 	hasProtected bool
 	broken       bool // a consumer file could not be read: protect everything
 	stale        []string
 	probeFailed  []probeFailure // protected consumers kept live because their staleness probe errored
+}
+
+// consumerOffset is one readable consumer as a prune pass saw it: the name is what the Warn
+// for a deletion past the consumer's offset prints.
+type consumerOffset struct {
+	name   string
+	offset uint64
 }
 
 // probeFailure is a ConsumerTTL probe that could not run: the consumer is treated as live.
@@ -48,7 +55,7 @@ func (l *Log) consumers(now time.Time) consumerView {
 			cv.broken = true
 			continue
 		}
-		cv.offsets = append(cv.offsets, c.Offset)
+		cv.offsets = append(cv.offsets, consumerOffset{c.Name, c.Offset})
 		if !c.Protected {
 			continue
 		}
@@ -278,7 +285,7 @@ func (l *Log) capsLocked(n int) int {
 // (decision 60 d), and that seal runs the caps (decision 24), which delete a prefix of
 // l.sealed through a nested call. So the segments chosen are recorded first and n is
 // re-derived afterwards as what is left of them at the front (decision 93).
-func (l *Log) deleteLocked(n int, offsets []uint64) error {
+func (l *Log) deleteLocked(n int, offsets []consumerOffset) error {
 	if n == 0 {
 		return nil
 	}
@@ -319,11 +326,21 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 			break
 		}
 		last := l.lastOfLocked(i)
-		for _, off := range offsets {
-			if off <= last {
-				l.dropped++
-				break
+		// A consumer at or below the segment's last record loses records it had not read (or, when
+		// it was already below the first retained sequence, loses more of them). Dropped counts
+		// the segment once; the Warn names each consumer, since Dropped is only a count in this
+		// process's memory (decision 12).
+		counted := false
+		for _, c := range offsets {
+			if c.offset > last {
+				continue
 			}
+			if !counted {
+				l.dropped++
+				counted = true
+			}
+			l.logf(slog.LevelWarn, "deleted segment past a consumer's offset; it has lost records",
+				"consumer", c.name, "offset", c.offset, "segment", s.path, "last", last)
 		}
 		if s.bad != nil {
 			// The file and its hole were the only artifacts of the damage (decision 98), and the

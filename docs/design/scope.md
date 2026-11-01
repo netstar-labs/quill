@@ -119,7 +119,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | `MaxBatchBytes` | 16 MiB | Bound on an `AppendBatch` of more than one record, checked as the sum of `len(payload) + 34` per record (an upper bound of the encoded size, so about 479,000 one-byte records at the default); a larger one is refused (decision 46). A single record is bounded by `MaxPayloadBytes` alone, so it may exceed this |
 | `MaxReadBytes` | 16 MiB | A `Read` stops once at least this many payload bytes are returned (so it can exceed it by up to one record), and returns at least one record |
 | `ProtectedConsumers` | none | Names the writer creates, protected, at the first retained sequence when it opens the log, so a lazy consumer is protected before its process starts (decision 67). A file that already says protected is left alone, so the writer can restart while that consumer runs; switching an unprotected file on needs the consumer's lock |
-| `Logger` | nil (silent) | A `*slog.Logger` for retention deletions, stale consumers, bulk-expiry warnings and failures, for the `Warn` a prune pass gives when it deletes a damaged sealed segment (decision 98), and for the warning `Open` gives when it cuts the newest segment past the marker (decision 39). Its handler, `Enabled` included, runs synchronously with the log's lock held, so it must neither call the `Log` nor block; hand the record to another goroutine and return (decision 50) |
+| `Logger` | nil (silent) | A `*slog.Logger` for retention deletions, stale consumers, bulk-expiry warnings and failures, for the `Warn` a prune pass gives when it deletes a damaged sealed segment (decision 98), for the `Warn` that names each consumer whose offset a deleted segment passes ("deleted segment past a consumer's offset; it has lost records", with `consumer`, `offset`, `segment` and `last`; decision 12), and for the warning `Open` gives when it cuts the newest segment past the marker (decision 39). Its handler, `Enabled` included, runs synchronously with the log's lock held, so it must neither call the `Log` nor block; hand the record to another goroutine and return (decision 50) |
 | `Perm` | 0600 (directories 0700) | File mode; every state file is opened without following symlinks (decision 51). State files are exactly `Perm`; the writer's segments, consumer lock files and directories go through the process umask and can be narrower (`Perm` 0660 under umask 022: `0640` segments, `0750` directories) |
 | `MaxRecords` | 0 (off) | Keep roughly the newest N records, segment-granular like every cap; the record count is exact because sequences are contiguous, and like the other caps it overrides consumer protection (decisions 33, 57) |
 | `ConsumerTTL` | 0 (off) | A **protected** consumer that has been **behind** for this long, counted from its last commit or from when it fell behind, whichever is later, stops protecting segments. Its offset file is kept (decisions 31, 45) |
@@ -168,6 +168,8 @@ beside a live writer without its lock and show only durable records; they print 
 3 `check` found the log UNHEALTHY. `append` closes the log before it prints and exits 1 when `Close` fails; under
 `-sync=true`, where the records were already durable, it still prints the last sequence to stdout (decision 100). `recover` is `Open` (which performs recovery) followed by `Close`. `register -protect` creates a protected
 consumer; `read`, `cat` and `tail` take `-since <time>` and `commit` takes `-time <time>` (decision 59).
+`prune` ends its line with `dropped N`, the sealed segments the pass deleted while a consumer's offset was
+below them, and prints on standard error one `Warn` per such consumer and segment that names it (decision 12).
 
 #### Readable output: `-json`
 
@@ -200,8 +202,12 @@ never `null`. The order of keys within an object is not part of the contract; co
   `hole`, `consumer`, `policy`, `clock`; `offset` and `intact` are integers; `fatal` is a boolean), `[]` when there
   are none. The exit code is 3 when the status is `UNHEALTHY`.
 - `quill consumers -json` prints one object per consumer, one per line: `name`, `offset`, `lag` (integers) and
-  `protected` (a boolean), plus `error` (a string) when the consumer's file cannot be read, or `ahead` (`true`)
-  when its offset is past the head by more than one. Both are optional and absent otherwise.
+  `protected` (a boolean), plus `error` (a string) when the consumer's file cannot be read, `ahead` (`true`)
+  when its offset is past the head by more than one, `behind_first` (`true`) when its offset is below the first
+  retained sequence (records from `offset` to `first - 1` are gone, and `lag` counts them), or `stale` (`true`)
+  when it is protected and the policy's `ConsumerTTL` would find it stale (decision 45; derived from the files, not
+  stored). Each is optional and absent otherwise; the table form says the same in its NOTE column (Stage 2 audit,
+  owner-approved 2026-10-31, A5-18).
 
 ### Durability: what makes a write survive a crash
 
@@ -298,7 +304,9 @@ TTL; the prune pass reads that one frame and keeps no state between passes (deci
 creation (**inferred** from temp-and-rename, to be tested); `cp` and `rsync` reset it. A stale consumer stops protecting
 segments, is counted in `Stat().StaleConsumers` and logged at every prune pass while stale, and keeps its file, so it
 resumes from its offset if it returns and its data still exists. A consumer that is caught up is never
-stale, because it pins nothing. Set the TTL longer than the longest time a live consumer can go between
+stale, because it pins nothing. The command line shows the same state without a writer's memory (Stage 2
+audit, owner-approved 2026-10-31, A5-18): `quill consumers` derives the stale note from the policy's TTL and the
+files (a stale consumer's `protected` column still shows its file). Set the TTL longer than the longest time a live consumer can go between
 commits while it has work to do.
 
 **Archiving.** Sealed segments never change and their ids are never reused, so archiving is copying.

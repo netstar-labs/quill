@@ -117,7 +117,14 @@ err = c.Close()
 **Protection.** A consumer opened with `Protect: quill.ProtectOn` (or `quill register
 -protect`) keeps its unread sealed segments from the age sweep. The caps (`MaxBytes`,
 `MinFreeBytes`, `MaxRecords`) still win, and `Stat().Dropped` counts segments deleted under a
-consumer. Unprotected is the default, so `Retention` must be longer than the worst delay of an
+consumer; the deletion is also logged at `Warn` on `Config.Logger`, naming the consumer ("deleted
+segment past a consumer's offset; it has lost records", with `consumer`, `offset`, `segment` and
+`last`). `Dropped` lives in the writer's memory and is 0 after a restart, so to find a consumer that
+has fallen out of retention without the writer, run `quill consumers`: a consumer whose offset is below
+the first retained sequence gets a NOTE ("behind the first retained sequence N: records X to N-1 are
+gone"; `-json` adds `"behind_first": true`), and its LAG counts those records although they can no
+longer be read. Its next read is a `*GapError`; `Commit(To+1)` or `quill commit` moves it past the gap.
+`quill check` warns of the same consumer and stays HEALTHY. Unprotected is the default, so `Retention` must be longer than the worst delay of an
 unprotected consumer, or negative. `Config.ProtectedConsumers` names consumers the writer
 creates, protected, when it opens the log, so a lazy consumer is protected before its process
 starts. A file that already says protected is left alone, so the writer can be redeployed while
@@ -125,6 +132,9 @@ that consumer runs; a consumer whose file says unprotected and whose process is 
 `Open` fail with `ErrLocked` until that process opens it with `ProtectOn`, or stops and
 `quill register -protect` runs. `ConsumerTTL` lets a protected consumer that has been behind and
 silent for the TTL stop protecting segments; its file is kept and `Stat().StaleConsumers` lists it.
+The `protected` column of `quill consumers` is what the file says, so it still reads true for a stale
+consumer; the command derives staleness from the policy's `ConsumerTTL` and the file's mtime and adds a
+`stale` NOTE (`-json`: `"stale": true`).
 
 ## 5. Reading from another process
 
@@ -171,7 +181,7 @@ stat` or `quill ls`.
 | `MaxReadBytes` | 16 MiB | A `Read` stops once at least this many payload bytes are returned (so it can exceed it by up to one record), and returns at least one record |
 | `ProtectedConsumers` | none | Created, protected, at open; an already protected file is left alone, so a running consumer does not block a restart |
 | `ConsumerTTL` | off | See §4 |
-| `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures, for the `Warn` a prune pass gives when it deletes a damaged sealed segment ("deleted damaged segment", with `segment`, `last` and `damage`), and for the warning `Open` gives when it cuts the newest segment past the marker (`segment`, `offset`, `bytes`, and `kind`: `torn` for an incomplete final frame, the routine crash tail, or `damaged` for a complete-length frame that failed its checks, which may have been an acknowledged record). Its handler, `Enabled` included, runs with the log's lock held, so it must neither call the `Log` (that deadlocks it) nor block (that stalls `Append`, `Read`, `Sync` and the flusher): hand the record to another goroutine and return |
+| `Logger` | nil | A `*slog.Logger` for deletions, warnings and failures, for the `Warn` a prune pass gives when it deletes a damaged sealed segment ("deleted damaged segment", with `segment`, `last` and `damage`), for the `Warn` that names each consumer whose offset a deleted segment passes ("deleted segment past a consumer's offset; it has lost records", with `consumer`, `offset`, `segment` and `last`), and for the warning `Open` gives when it cuts the newest segment past the marker (`segment`, `offset`, `bytes`, and `kind`: `torn` for an incomplete final frame, the routine crash tail, or `damaged` for a complete-length frame that failed its checks, which may have been an acknowledged record). Its handler, `Enabled` included, runs with the log's lock held, so it must neither call the `Log` (that deadlocks it) nor block (that stalls `Append`, `Read`, `Sync` and the flusher): hand the record to another goroutine and return |
 | `Perm` | 0600 (dirs 0700) | File mode. A `Reader`, the CLI and `Archive` create their files (consumer offsets, an archive's files) with the mode of the log's `quill.tail`, so a consumer in the log's group is readable by the writer. State files are exactly that mode; the writer's segments, the consumers' lock files and every directory go through the process umask, so for a group arrangement run the writer with umask 002 (`Perm` 0660 under umask 022 gives `0640` segments and `0750` directories, and a group consumer cannot create its files in `consumers/`). `quill.lock` is the exception: it is always 0600 whatever `Perm` says, and `Open` tightens one an earlier build left wider (if that chmod fails, because another account owns the file, `Open` still succeeds and logs a warning), so a reader-only process cannot take the writer's lock. A consumer's lock keeps the log's mode, because a group consumer must take its own; a process with read access to `consumers/` can therefore hold a consumer's lock and stall that consumer, never the writer. The CLI's offline write verbs (`append`, `roll`, `recover`, `prune`) open with no `Perm` of their own and keep the mode `quill.tail` already has |
 | `NoMaintenance` | off | For offline tools: no background prune or age rotation, and `quill.policy` is not written |
 
@@ -223,7 +233,9 @@ background maintenance off and never rewrite `quill.policy`; `append`, `roll` an
 the segment size from it (the 1 GiB ceiling when it cannot be read), so they do not seal a large
 active segment; `roll` seals regardless. `prune` needs `quill.policy` or at least one retention flag
 and refuses otherwise; like the others it opens without the policy's `ProtectedConsumers`, so a running
-consumer does not block it. Numeric flags (`commit -offset`, `prune -max-bytes`,
+consumer does not block it. It prints `segments`, `bytes` and `first` before and after, and `dropped N`,
+the segments the pass deleted while a consumer's offset was below them; each such consumer is named on
+standard error. Numeric flags (`commit -offset`, `prune -max-bytes`,
 `-min-free-bytes`, `-max-records`, `read`/`cat`/`tail` `-from` and `-limit`, `tail -n`, and
 `@<unix seconds>`) take plain decimal integers, so `010` is ten; `1e6`,
 `1M`, `0x10`, `1_0`, `-1` and trailing text are usage errors, not guesses.
@@ -292,7 +304,7 @@ honest `fsync` (ext4, xfs, btrfs, APFS). Not supported: NFS, SMB, FUSE; bind mou
 filesystems at the operator's risk. Linux and macOS only.
 
 **Checking.** `quill check` verifies every sealed segment whole and the active one up to the
-marker, finds holes, unparseable consumer files (or a `consumers/` directory that cannot be listed) and clock anomalies, warns of a consumer ahead of the head, and reports UNBOUNDED
+marker, finds holes, unparseable consumer files (or a `consumers/` directory that cannot be listed) and clock anomalies, warns of a consumer ahead of the head or behind the first retained sequence, and reports UNBOUNDED
 when neither cap is set. Exit 3 means UNHEALTHY. `check` takes no lock, so a sealed segment that
 retention deletes while it scans is skipped, not reported; one already missing from the listing is a hole.
 

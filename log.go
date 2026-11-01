@@ -66,7 +66,8 @@ type Config struct {
 	// ProtectedConsumers names consumers the writer creates, protected, when it opens the log. A
 	// file already protected is left alone, so a running consumer does not block a restart.
 	ProtectedConsumers []string
-	// Logger receives retention deletions, stale consumers, bulk-expiry warnings and failures,
+	// Logger receives retention deletions, stale consumers, a warning naming each consumer whose
+	// offset a deleted segment passes, bulk-expiry warnings and failures,
 	// and a warning from Open when it cuts the newest segment past the marker (with the segment,
 	// the offset, the bytes cut and whether the first rejected frame was incomplete or damaged).
 	// Its handler, Enabled included, runs synchronously with the log's lock held, on the
@@ -297,12 +298,12 @@ type Log struct {
 	flushed  chan struct{}
 	flushGen uint64
 
-	markerAt   time.Time // when the marker was last written
-	dropped    uint64    // segments deleted while some consumer's offset was below them
-	stale      []string  // protected consumers found stale at the last prune pass
-	offsets    []uint64  // every readable consumer's offset at the last prune pass (or Open), for Dropped at a seal
-	diskFull   bool      // MinFreeBytes cannot be met: appends fail with ENOSPC
-	freeAtPass uint64    // free bytes statfs reported at the last pass that could read it
+	markerAt   time.Time        // when the marker was last written
+	dropped    uint64           // segments deleted while some consumer's offset was below them
+	stale      []string         // protected consumers found stale at the last prune pass
+	offsets    []consumerOffset // every readable consumer at the last prune pass (or Open), for Dropped at a seal
+	diskFull   bool             // MinFreeBytes cannot be met: appends fail with ENOSPC
+	freeAtPass uint64           // free bytes statfs reported at the last pass that could read it
 
 	flushReq chan struct{} // signals the flusher
 	stop     chan struct{}
