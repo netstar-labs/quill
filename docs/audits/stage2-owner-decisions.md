@@ -24,10 +24,15 @@ from: commits for them exist in the tree (ba7c650, b5ad955, 2978378 and 7ef431c,
 sections and table rows are unchanged here. The per-item argument, reproduction and fix-skeptic outcome are in
 [a1-round2-findings.md](a1-round2-findings.md), section "Pass A1h".
 
+**Update 2026-10-31.** The owner approved the recommended answer for A1-67 and A1-80 as well. Their fixes (ba7c650,
+b5ad955) were already on `main` without a recorded fix-skeptic outcome; an independent fix-skeptic per commit returned
+FIXED-VERIFIED (7 of 7 lenses each), and their sections below now carry an **Owner approval** and a **Disposition**.
+A1-62 and A1-59 remain unrecorded here.
+
 | id | sev | one line | recommended | status 2026-10-30 |
 |----|-----|----------|-------------|----|
-| A1-67 | high | the documented `quill commit` rewind of an ahead consumer fails with ErrAhead | fix the doc now; approve letting `commit` rewind | not in the A1h ledger; unchanged here |
-| A1-80 | high | a live protected consumer stops the writer from restarting | approve | not in the A1h ledger; unchanged here |
+| A1-67 | high | the documented `quill commit` rewind of an ahead consumer fails with ErrAhead | fix the doc now; approve letting `commit` rewind | approved 2026-10-31; fixed ba7c650 (FIXED-VERIFIED, 7 of 7) |
+| A1-80 | high | a live protected consumer stops the writer from restarting | approve | approved 2026-10-31; fixed b5ad955 (FIXED-VERIFIED, 7 of 7) |
 | A1-25 | medium | after a failed rotation the active segment can outgrow the 1.5 GiB limit | approve a ceiling | approved; fixed c18a27a (FIXED-VERIFIED, 7 of 7 lenses) |
 | A1-32 | medium | the reserved `_archive` consumer cannot be removed or rewound | approve | approved; fixed a3955cd (FIXED-VERIFIED, 7 of 7) |
 | A1-47 | medium | extra positional arguments are silently ignored | approve (exit 2) | approved; fixed 2c4e4f4 (FIXED-VERIFIED, 7 of 7) |
@@ -65,6 +70,24 @@ offset in [first, Head+1]; and have `quill check` or `quill consumers` flag a co
 **Fix written.** None. The proposed fix is the one above; the reproduction (a 5-record log, a consumer committed at 8,
 the log restored to head 5, `commit -offset 2` failing) is in the docs report.
 
+**Owner approval.** Approved on 2026-10-31, as recommended.
+
+**Disposition.** Fixed in ba7c650 (on main since 2026-10-30; verified from `git log`); fix-skeptic FIXED-VERIFIED
+(7 of 7 lenses pass; reported, from a skeptic that ran everything on a scratch copy of the tree). A new
+`ConsumerOptions.Rewind` opens a consumer ahead of the head; `quill commit` is the only caller that sets it, and
+`Commit` still accepts only offsets in [first, Head+1]. `register`, the default open, `Reader.Consumer`, `Open` with
+`ProtectedConsumers` and the archiver still return ErrAhead. `quill consumers` notes the consumer ("ahead of the head:
+rewind it with quill commit") and `-json` adds `"ahead": true` only when true; `quill check` warns and stays
+HEALTHY. Reproduction after (verified by the skeptic, built binaries): a 5-record log, a consumer committed at 8, the
+log restored to head 5; `commit -offset 2` prints `billing 2`, the protect flag is kept, and `register` still refuses.
+The same works for `_archive`. The recommended documentation step (name the unregister, register, commit sequence) is
+superseded: with the code fix the guide names `quill commit -offset N` directly. Decisions 36 and 53, scope.md, the user
+guide and CHANGELOG are amended. Known and unchanged: a consumer ahead of the head protects no segments, so a writer
+running with caps can delete the rewind target before `commit` runs (the commit then fails cleanly with
+ErrOffsetRange); and once the head grows past a stale ahead offset the consumer silently resumes mid-log and `check`
+stops flagging it. Test coverage is thin on the `-json` key, first-1 and Head+2 on an ahead consumer and `commit -time`;
+the skeptic checked those by hand. The user guide omits `-dir` and `-name` from the example command (cosmetic).
+
 ## A1-80: a live protected consumer stops the writer from restarting (high)
 
 **Claim.** `Config.ProtectedConsumers` makes Open, and `quill prune` (which feeds the policy back in), fail with
@@ -83,6 +106,23 @@ off (under a short retry if the lock is held); make `quill prune` drop Protected
 The workaround today is to drop ProtectedConsumers from the Config after the first run.
 
 **Fix written.** None. A regression test is proposed: reopen with a held consumer lock.
+
+**Owner approval.** Approved on 2026-10-31, as recommended.
+
+**Disposition.** Fixed in b5ad955 (on main since 2026-10-30; verified from `git log`); fix-skeptic FIXED-VERIFIED
+(7 of 7 lenses pass; reported, from a skeptic that ran everything on a scratch copy of the tree). `Open` accepts an
+existing consumer file without its lock when the file parses, is this log's, is already protected and is not ahead of
+the head; every other state goes through the old locked open with the old errors (ErrCorrupt, ErrWrongLog, ErrAhead).
+`openWriter` drops `ProtectedConsumers`, so `quill prune` and the other offline write verbs no longer fail beside a
+running consumer and no longer name the wrong lock; protection read from the consumer files on disk is still honoured
+(an offline `prune -retention 1s -force` over 8 segments deleted nothing with the consumer protected). Reproduction
+before and after (verified by the skeptic): a writer reopen beside a live consumer process took 223 ms and failed
+with ErrLocked before; after it takes 16 ms on macOS and 3.3 ms on Linux with no error. A stress run under `-race`
+(1402 commits against 410 opens, 15 s) showed no torn read and the flag never cleared. Decisions 67 and 99, scope.md,
+the user guide and CHANGELOG are amended. Known and as approved: a protected name whose file says unprotected, under
+a live consumer, still fails `Open` with ErrLocked after the 200 ms retry; offline verbs no longer create a missing
+protected consumer file (decision 99); the lock-free accept path has an inherent check-then-return window if a
+consumer clears protection at that instant (inferred by the skeptic, not a regression).
 
 ## A1-25: after a failed rotation the active segment can outgrow the 1.5 GiB limit (medium)
 

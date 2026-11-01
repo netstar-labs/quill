@@ -75,9 +75,9 @@ prior-deliberate 7.
 
 | disposition | items | what it means |
 |-------------|-------|---------------|
-| fixed | 58 | 42 from 2026-10-29 plus the 16 above; each passed the fix-skeptic |
+| fixed | 60 | 42 from 2026-10-29, the 16 above, and A1-67 and A1-80 (see "Update 2026-10-31" below); each passed the fix-skeptic |
 | fix-failed | 1 | A1-62 (rejected on 2026-10-29); not integrated. A4-1 (pass A4, rejected in A1h, since fixed in the A4-1 commit) is not one of the 73 |
-| held for the owner | 2 | A1-67 and A1-80, which this ledger does not carry |
+| held for the owner | 0 | A1-67 and A1-80 were held here; the owner approved the recommended answers on 2026-10-31 (below) |
 | refuted | 5 | not changed, because the claim does not hold |
 | round-1-decided | 7 | deliberately not changed in round 1 |
 
@@ -90,9 +90,16 @@ disposition. Whoever records those commits should move them.
 |-----------|-------|-------|------------|------|---------|-----------------|
 | simplify | 9 | 6 | 0 | 0 | 1 | 2 |
 | dedup | 12 | 11 | 0 | 0 | 1 | 0 |
-| correctness | 37 | 27 | 1 | 1 | 3 | 5 |
-| docs | 15 | 14 | 0 | 1 | 0 | 0 |
-| total | 73 | 58 | 1 | 2 | 5 | 7 |
+| correctness | 37 | 28 | 1 | 0 | 3 | 5 |
+| docs | 15 | 15 | 0 | 0 | 0 | 0 |
+| total | 73 | 60 | 1 | 0 | 5 | 7 |
+
+**Update 2026-10-31.** The owner approved the recommended answer for A1-67 and A1-80. Their fixes were already on
+`main` (ba7c650 and b5ad955, committed 2026-10-30; verified from `git log`) with no recorded fix-skeptic outcome. On
+2026-10-31 an independent fix-skeptic per commit, working on a scratch copy of the tree, returned FIXED-VERIFIED on
+every lens (7 of 7 each; the reports are summarised in [stage2-owner-decisions.md](stage2-owner-decisions.md)). The
+counts in this table are moved accordingly: A1-67 (docs dimension) and A1-80 (correctness) from held to fixed. A1-62
+and A1-59 are still not carried by this ledger.
 
 ### Coverage (pass A1h)
 
@@ -695,7 +702,7 @@ reproduced it by execution; the commit is shown by its first 7 characters.
 |----|--------|-----|---------|-------|-------|-------------|
 | A1-42 | cmd/quill/read.go:131-156 | high | CONFIRMED | CC | Y | fixed 4337252 |
 | A1-43 | reader.go:299-311, state.go:98-136 | high | CONFIRMED | CC | Y | fixed a4f92e8 |
-| A1-80 | log.go:325-333, consumer.go:81 | high | CONFIRMED | CC | Y | held |
+| A1-80 | log.go:325-333, consumer.go:81 | high | CONFIRMED | CC | Y | fixed b5ad955 |
 | A1-33 | retention.go:242-249 | medium | CONFIRMED | CC | Y | fixed c2a7365 |
 | A1-60 | reader.go:250-265 | medium | CONFIRMED | CC | Y | fixed c8fb07b |
 | A1-46 | cmd/quill/read.go:133, print.go:32 | medium | CONFIRMED | CC | Y | fixed 9c6a8c3 |
@@ -736,7 +743,7 @@ reproduced it by execution; the commit is shown by its first 7 characters.
 | id | anchor | sev | verdict | votes | repro | disposition |
 |----|--------|-----|---------|-------|-------|-------------|
 | A1-66 | docs/userguide.md:243-271 | high | CONFIRMED | CC | Y | fixed 3439946 |
-| A1-67 | consumer.go:120-122, docs/userguide.md:98 | high | CONFIRMED | CC | Y | held |
+| A1-67 | consumer.go:120-122, docs/userguide.md:98 | high | CONFIRMED | CC | Y | fixed ba7c650 |
 | A1-68 | build/quill:25 | medium | CONFIRMED | CC | Y | fixed df7af4f |
 | A1-69 | append.go:30-33 | medium | CONFIRMED | CC | Y | fixed 5b30e7f |
 | A1-70 | examples/README.md:3-4 | low | CONFIRMED | CC | N | fixed 4aec960 |
