@@ -169,7 +169,10 @@ beside a live writer without its lock and show only durable records; they print 
 `-sync=true`, where the records were already durable, it still prints the last sequence to stdout (decision 100). `recover` is `Open` (which performs recovery) followed by `Close`. `register -protect` creates a protected
 consumer; `read`, `cat` and `tail` take `-since <time>` and `commit` takes `-time <time>` (decision 59).
 `prune` ends its line with `dropped N`, the sealed segments the pass deleted while a consumer's offset was
-below them, and prints on standard error one `Warn` per such consumer and segment that names it (decision 12).
+below them, and prints on standard error one `Warn` per such consumer and segment that names it (decision 12). A `prune` that did less
+than asked says why on standard error: an unlink that failed exits 1 (the counts line is still printed; the library's
+`Prune` returns the error), while the clock guard, a segment stamped in the future and a consumer file that cannot be
+read are warnings with exit 0 (decisions 44, 53, 65, 67).
 
 #### Readable output: `-json`
 
@@ -319,7 +322,7 @@ the newest records, `Roll()` first. `_archive` is the one reserved name `registe
 
 **A wrong clock** (decision 44). `At` is the writer's wall clock, so a clock stepped forward makes every sealed
 segment look expired. A prune pass therefore deletes at most a quarter of a log's sealed segments by age, rounded up (at least one; 2 of 5, 4 of 15)
-and warns through the logger when it would have deleted more; `quill prune -force` lifts the limit, and `check`
+and warns through the logger when it would have deleted more (`quill prune` prints the warning on standard error and exits 0); `quill prune -force` lifts the limit, and `check`
 flags records dated more than a day in the future or earlier than their predecessor. This slows the damage so an
 operator can notice; it does not remove the hazard. The opposite hazard is not removed either: the age sweep deletes
 a prefix of the sealed segments, so one segment whose newest record is stamped in the future (a clock that stepped

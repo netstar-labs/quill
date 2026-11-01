@@ -174,8 +174,10 @@ func TestErrClearsWhenAFailedPruneUnlinkSucceeds(t *testing.T) {
 		}
 		return nil
 	}
-	if err := l.Prune(true); err != nil {
-		t.Fatalf("prune: %v", err)
+	// The pass did less than asked, so Prune says so (A5-36): it returns the unlink error, which
+	// is also what Err() reports.
+	if err := l.Prune(true); !errors.Is(err, syscall.EIO) {
+		t.Fatalf("prune with a failing unlink: %v, want EIO", err)
 	}
 	if err := l.Err(); !errors.Is(err, syscall.EIO) {
 		t.Fatalf("Err() after the failed unlink: %v", err)

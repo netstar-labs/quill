@@ -202,7 +202,8 @@ in the meantime (a `DiskFull` already set is kept, and `Err()` reports both). Al
 the `Warn` lines alone: with no `Logger` there are none.
 
 **A wrong clock.** `At` is the writer's clock. A prune pass deletes at most a quarter of the
-sealed segments by age, rounded up (so at least one; 2 of 5, 4 of 15), and warns through the logger when it would delete more;
+sealed segments by age, rounded up (so at least one; 2 of 5, 4 of 15), and warns through the logger when it would delete more
+("age sweep limited by the clock guard"; `quill prune` prints it on standard error and exits 0);
 `quill prune -force` lifts the limit; `quill check` flags records dated more than a day in the
 future or earlier than their predecessor.
 
@@ -235,7 +236,11 @@ active segment; `roll` seals regardless. `prune` needs `quill.policy` or at leas
 and refuses otherwise; like the others it opens without the policy's `ProtectedConsumers`, so a running
 consumer does not block it. It prints `segments`, `bytes` and `first` before and after, and `dropped N`,
 the segments the pass deleted while a consumer's offset was below them; each such consumer is named on
-standard error. Numeric flags (`commit -offset`, `prune -max-bytes`,
+standard error. When the pass did less than the policy allows it says why on standard error: "cannot delete
+segment" (an unlink failed; `Prune` returns the error and `quill prune` exits 1 after printing its counts, and
+`Err()` keeps it until a later pass deletes the segment), "age sweep limited by the clock guard" (exit 0; `-force`
+lifts it), "age sweep stopped at a segment stamped in the future" (exit 0) and "consumer file could not be read"
+(exit 0; the age sweep keeps every segment until the file is fixed or removed, and every pass says so). Numeric flags (`commit -offset`, `prune -max-bytes`,
 `-min-free-bytes`, `-max-records`, `read`/`cat`/`tail` `-from` and `-limit`, `tail -n`, and
 `@<unix seconds>`) take plain decimal integers, so `010` is ten; `1e6`,
 `1M`, `0x10`, `1_0`, `-1` and trailing text are usage errors, not guesses.

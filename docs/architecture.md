@@ -104,13 +104,13 @@ iteration does not re-seek.
 
 A consumer file holds the log id, the next sequence to read and a protect flag, and is
 written only under the consumer's own `flock`, by temp file, fsync, rename. The writer's prune
-pass reads every consumer file: an unparseable one protects everything; a protected one
+pass reads every consumer file: an unparseable one protects everything and the pass logs a `Warn` naming it; a protected one
 protects its unread sealed segments unless `ConsumerTTL` finds it stale (behind, with an old
 file and an old record at its offset; a probe that errors leaves it live and logs a `Warn`); the caps override protection and `Dropped` counts the
 loss; each deletion that passes a consumer's offset is logged at `Warn` with the consumer's name (the pass keeps the names beside the offsets it read), and the lock-free CLI derives the rest from the files: `quill consumers` and `quill check` flag an offset below the first retained sequence, and `consumers` a protected consumer that `ConsumerTTL` would find stale. The caps that run at every seal do not read the consumer files, which would stall every append under the log's lock: they count `Dropped` against the offsets the last prune pass read. The age sweep takes the longest expired prefix of sealed segments, cuts it at protection,
 then at a quarter of the sealed segments per pass, rounded up (the clock guard), then the caps extend it;
 the marker is published and the directory fsynced before any unlink, and again before each
-further one so that a crash leaves the surviving segments a suffix. The same caps run at
+further one so that a crash leaves the surviving segments a suffix; an unlink that fails stops the pass there, and `Prune` returns the error (the flusher's passes leave it in `Err()`). The same caps run at
 every seal.
 
 `quill.policy` records the last writer's settings (retention, caps, segment size, payload limit)

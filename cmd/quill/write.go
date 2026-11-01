@@ -63,20 +63,35 @@ func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 	return l, exitOK
 }
 
-// lossOnly passes to its handler only the records that say data was lost: the one Open writes
-// when it cuts the newest segment past the marker, the one a prune pass writes when it deletes a
-// damaged sealed segment (which erases the file and the hole, the only artifacts of the damage) and
-// the one it writes for each consumer a deletion passes (the offline process keeps no counter that
-// would show it later). The operator must be told about those, whichever verb opened the log, while
-// the retention lines the other verbs would provoke are not output these verbs ever had.
+// lossOnly passes to its handler only the records that say data was lost or a prune pass did less
+// than asked: the one Open writes when it cuts the newest segment past the marker, the one a prune
+// pass writes when it deletes a damaged sealed segment (which erases the file and the hole, the only
+// artifacts of the damage), the one it writes for each consumer a deletion passes (the offline
+// process keeps no counter that would show it later), and the four that explain a pass that
+// deleted less than the policy allows: an unlink that failed, the clock guard, a segment stamped in
+// the future and a consumer file that could not be read. The operator must be told about those,
+// whichever verb opened the log, while the other retention lines the verbs would provoke are not
+// output these verbs ever had.
 type lossOnly struct{ slog.Handler }
 
 func (h lossOnly) Handle(ctx context.Context, r slog.Record) error {
-	if !strings.HasPrefix(r.Message, "cut the newest segment") && !strings.HasPrefix(r.Message, "deleted damaged segment") &&
-		!strings.HasPrefix(r.Message, "deleted segment past a consumer's offset") {
-		return nil
+	for _, p := range lossOrShortfall {
+		if strings.HasPrefix(r.Message, p) {
+			return h.Handler.Handle(ctx, r)
+		}
 	}
-	return h.Handler.Handle(ctx, r)
+	return nil
+}
+
+// lossOrShortfall are the message prefixes lossOnly passes (the library's logf messages).
+var lossOrShortfall = []string{
+	"cut the newest segment",
+	"deleted damaged segment",
+	"deleted segment past a consumer's offset",
+	"cannot delete segment",
+	"age sweep limited by the clock guard",
+	"age sweep stopped at a segment stamped in the future",
+	"consumer file could not be read",
 }
 
 func (h lossOnly) WithAttrs(a []slog.Attr) slog.Handler { return lossOnly{h.Handler.WithAttrs(a)} }
@@ -201,15 +216,20 @@ func cmdPrune(c *cli, args []string) int {
 	}
 	return c.withWriter(cfg, func(l *quill.Log) int {
 		before, _ := l.Stat()
-		if err := l.Prune(c.force); err != nil {
-			return c.errorf("%v", err)
-		}
+		pruneErr := l.Prune(c.force)
 		after, err := l.Stat()
 		if err != nil {
+			if pruneErr != nil {
+				err = pruneErr
+			}
 			return c.errorf("%v", err)
 		}
 		// The process opened the log a moment ago, so Dropped is what this pass alone deleted under a consumer.
+		// The line is printed after a failed unlink too: the pass may have deleted segments before it stopped.
 		fmt.Fprintf(c.out, "segments %d -> %d, bytes %d -> %d, first %d -> %d, dropped %d\n", before.Segments, after.Segments, before.Bytes, after.Bytes, before.First, after.First, after.Dropped)
+		if pruneErr != nil {
+			return c.errorf("%v", pruneErr)
+		}
 		return exitOK
 	})
 }

@@ -19,7 +19,8 @@ type consumerView struct {
 	offsets      []consumerOffset // every readable consumer, for Dropped and the Warn that names it
 	minProtected uint64           // the slowest live protected consumer's offset
 	hasProtected bool
-	broken       bool // a consumer file could not be read: protect everything
+	broken       bool    // a consumer file could not be read: protect everything
+	brokenWhy    []error // what could not be read, naming the file, for the Warn
 	stale        []string
 	probeFailed  []probeFailure // protected consumers kept live because their staleness probe errored
 }
@@ -46,6 +47,7 @@ func (l *Log) consumers(now time.Time) consumerView {
 	list, err := st.list()
 	if err != nil {
 		cv.broken = true
+		cv.brokenWhy = append(cv.brokenWhy, fmt.Errorf("cannot list consumers: %w", err))
 		return cv
 	}
 	head := l.Head()
@@ -53,6 +55,7 @@ func (l *Log) consumers(now time.Time) consumerView {
 	for _, c := range list {
 		if c.Err != nil {
 			cv.broken = true
+			cv.brokenWhy = append(cv.brokenWhy, fmt.Errorf("consumer %q: %w", c.Name, c.Err))
 			continue
 		}
 		cv.offsets = append(cv.offsets, consumerOffset{c.Name, c.Offset})
@@ -95,6 +98,11 @@ func (l *Log) consumers(now time.Time) consumerView {
 // Prune runs a retention pass now: age rotation of a quiet active segment, the age sweep
 // (at most a quarter of the sealed segments, rounded up, unless force lifts the clock guard), then the
 // caps. The flusher runs the same pass every PruneInterval unless NoMaintenance is set.
+//
+// Prune returns an error when the pass did less than the policy asked because an unlink failed:
+// the segment stays, retention stalls behind it, and the same error is in Err() until a later
+// pass deletes it. A pass the clock guard limited, or one that kept segments for an unreadable
+// consumer file, returns nil and logs a Warn: neither is a failure, and force answers the first.
 func (l *Log) Prune(force bool) error {
 	now := l.cfg.clock()
 	cv := l.consumers(now)
@@ -120,6 +128,11 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 	l.stale, l.offsets = cv.stale, cv.offsets
 	for _, name := range cv.stale {
 		l.logf(slog.LevelWarn, "consumer is stale and no longer protects segments", "consumer", name)
+	}
+	// An unreadable consumer file protects every segment from the age sweep; a pass that kept
+	// the segments silently would leave the operator to find out why nothing expires.
+	for _, why := range cv.brokenWhy {
+		l.logf(slog.LevelWarn, "consumer file could not be read; the age sweep keeps every segment until it is fixed or removed", "err", why)
 	}
 	for _, f := range cv.probeFailed {
 		l.logf(slog.LevelWarn, "consumer staleness probe failed; treating it as live", "consumer", f.name, "err", f.err)
@@ -189,7 +202,12 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 	// A pass that reaches its deletions is a fresh attempt at every unlink an earlier pass failed:
 	// the error those left in Err() is dropped here and set again by any unlink that fails now.
 	l.clearBg(bgPrune)
-	return l.deleteLocked(n, cv.offsets)
+	if err := l.deleteLocked(n, cv.offsets); err != nil {
+		return err
+	}
+	// An unlink that failed left its segment in place and is already in Err(): the pass did
+	// less than it was asked, so the caller is told, not only the log (decision 65).
+	return l.bg[bgPrune]
 }
 
 // futureSkewSeconds is how far ahead of now a sealed segment's newest record may be stamped

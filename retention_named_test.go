@@ -6,6 +6,27 @@ import (
 	"time"
 )
 
+// A consumer file that cannot be read makes the pass protect every segment from the age sweep,
+// and the pass says so by name (A5-36, from A5-17): without the line the sweep is suspended
+// silently for as long as the file stays broken.
+func TestAPassWarnsOfAConsumerFileItCannotRead(t *testing.T) {
+	var cap logCapture
+	s, clk, l := retentionLog(t, func(c *Config) { c.Logger = cap.logger(); c.Retention = time.Hour })
+	defer l.Close()
+	fillSegments(t, l, clk, 4)
+	clk.Advance(2 * time.Hour)
+	writeFile(t, s, "/log/consumers/broken", []byte("garbage"))
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := l.Stat(); st.Segments != 5 {
+		t.Fatalf("the sweep ran past an unreadable consumer file: %+v", st)
+	}
+	if !cap.has("consumer file could not be read") || !cap.has("broken") {
+		t.Fatalf("no Warn names the unreadable consumer file: %q", cap.msgs)
+	}
+}
+
 // A deletion that passes a consumer's offset is logged at Warn with the consumer's name and
 // offset, whether the consumer is protected (a cap overrides it) or not (A5-18): the Info
 // line for the segment names nobody, and Dropped is only a count in the writer's memory.
