@@ -70,7 +70,7 @@ func FuzzDecodeTail(f *testing.F) {
 		if err != nil {
 			return
 		}
-		if tl.Off > maxSegmentBytes {
+		if tl.Off > maxSegmentFileBytes {
 			t.Fatalf("accepted off %d above the largest segment", tl.Off)
 		}
 		again, err := decodeTail(encodeTail(tl))

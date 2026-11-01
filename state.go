@@ -82,7 +82,7 @@ func encodeTail(t tail) []byte { return appendTail(nil, t) }
 
 // decodeTail parses quill.tail strictly: exactly the four fields, every one present, seg at
 // most maxseg, maxseg at most maxSegmentID (the ten-digit names hold no more) and off at
-// most maxSegmentBytes (no segment is longer, and a reader would
+// most maxSegmentFileBytes (no segment is longer, and a reader would
 // otherwise carry a value beyond an int64 into a slice bound). The bytes encodeTail writes take decodeTailFast; every other input,
 // valid or not, takes decodeTailSlow, so its verdict and message are the strict decoder's
 // (decision 105).
@@ -110,7 +110,7 @@ func tailDigits(b []byte) (v uint64, n int, ok bool) {
 }
 
 // decodeTailFast accepts only the exact bytes appendTail writes, with seg at most maxseg and
-// off at most maxSegmentBytes,
+// off at most maxSegmentFileBytes,
 // and reports ok=false for anything else without saying why. It allocates nothing.
 func decodeTailFast(data []byte) (t tail, ok bool) {
 	rest := data
@@ -128,7 +128,7 @@ func decodeTailFast(data []byte) (t tail, ok bool) {
 		*f.dst = v
 		rest = rest[len(f.key)+n:]
 	}
-	if string(rest) != "}\n" || t.Seg > t.MaxSeg || t.MaxSeg > maxSegmentID || t.Off > maxSegmentBytes {
+	if string(rest) != "}\n" || t.Seg > t.MaxSeg || t.MaxSeg > maxSegmentID || t.Off > maxSegmentFileBytes {
 		return tail{}, false
 	}
 	return t, true
@@ -156,8 +156,8 @@ func decodeTailSlow(data []byte) (tail, error) {
 	if out.MaxSeg > maxSegmentID {
 		return tail{}, fmt.Errorf("%w: %s: maxseg %d above the largest segment id, %d", errBadState, tailName, out.MaxSeg, uint64(maxSegmentID))
 	}
-	if out.Off > maxSegmentBytes {
-		return tail{}, fmt.Errorf("%w: %s: off %d above the largest segment, %d bytes", errBadState, tailName, out.Off, maxSegmentBytes)
+	if out.Off > maxSegmentFileBytes {
+		return tail{}, fmt.Errorf("%w: %s: off %d above the largest segment, %d bytes", errBadState, tailName, out.Off, maxSegmentFileBytes)
 	}
 	return out, nil
 }

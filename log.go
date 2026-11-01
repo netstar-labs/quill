@@ -175,9 +175,9 @@ func (c Config) validate() error {
 		return bad("SegmentBytes %d above %d", c.SegmentBytes, MaxSegmentBytes)
 	case c.MaxPayloadBytes > MaxPayloadBytes:
 		return bad("MaxPayloadBytes %d above the ceiling %d", c.MaxPayloadBytes, MaxPayloadBytes)
-	case c.maxActiveBytes() >= maxSegmentBytes:
+	case c.maxActiveBytes() >= maxSegmentFileBytes:
 		return bad("SegmentBytes %d plus one flush (up to %d bytes) reaches the %d-byte segment file limit",
-			c.SegmentBytes, c.maxActiveBytes()-c.SegmentBytes, int64(maxSegmentBytes))
+			c.SegmentBytes, c.maxActiveBytes()-c.SegmentBytes, int64(maxSegmentFileBytes))
 	case c.MaxBytes != 0 && c.MaxBytes < 2*c.SegmentBytes:
 		return bad("MaxBytes %d below twice SegmentBytes %d", c.MaxBytes, c.SegmentBytes)
 	case c.Perm&0o600 != 0o600:
@@ -201,7 +201,7 @@ func (c Config) validate() error {
 // Each flush term is capped at the file limit before the sum, so a size near math.MaxInt64
 // cannot wrap the sum negative past validate; a capped term alone already reaches the limit.
 func (c Config) maxActiveBytes() int64 {
-	capped := func(n int) int64 { return min(int64(n), maxSegmentBytes) }
+	capped := func(n int) int64 { return min(int64(n), maxSegmentFileBytes) }
 	return c.SegmentBytes + capped(max(c.FlushBytes, c.MaxBufferBytes)) +
 		max(capped(c.MaxBatchBytes), capped(c.MaxPayloadBytes)+34)
 }

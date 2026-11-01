@@ -16,8 +16,8 @@ import (
 // This file verifies and recovers one segment (decision 39). The directory scan, hole
 // detection and the truncation of a recovered tail are phase 2 and live here too.
 
-// maxSegmentBytes is the largest segment file a reader opens (guarantee 7).
-const maxSegmentBytes = 1536 << 20
+// maxSegmentFileBytes is the largest segment file a reader opens (guarantee 7).
+const maxSegmentFileBytes = 1536 << 20
 
 // indexStride is the byte distance between sparse-index anchors within a segment.
 const indexStride = 64 << 10
@@ -47,7 +47,7 @@ type SegmentError struct {
 	Offset int64  // where the damage starts
 	Intact int64  // the end of the last valid frame
 	Reason string
-	// oversize marks a file over maxSegmentBytes, which is refused whole, not damaged at a byte.
+	// oversize marks a file over maxSegmentFileBytes, which is refused whole, not damaged at a byte.
 	oversize bool
 }
 
@@ -65,7 +65,7 @@ func (e *SegmentError) Is(target error) bool { return target == ErrCorrupt }
 
 // openSegmentFlag opens a segment file with the given open flag: never through a symbolic
 // link, a regular file only (checked before the open, so a FIFO cannot block it, and
-// after, so the open file is what was checked), and at most maxSegmentBytes (guarantee 7).
+// after, so the open file is what was checked), and at most maxSegmentFileBytes (guarantee 7).
 func openSegmentFlag(fsys fsx.FS, path string, flag int) (fsx.File, int64, error) {
 	info, err := fsys.Lstat(path)
 	if err != nil {
@@ -82,8 +82,8 @@ func openSegmentFlag(fsys fsx.FS, path string, flag int) (fsx.File, int64, error
 	if err == nil && !info.Mode().IsRegular() {
 		err = &SegmentError{Path: path, Reason: "not a regular file"}
 	}
-	if err == nil && info.Size() > maxSegmentBytes {
-		err = &SegmentError{Path: path, Reason: fmt.Sprintf("%d bytes, over the %d limit", info.Size(), maxSegmentBytes), oversize: true}
+	if err == nil && info.Size() > maxSegmentFileBytes {
+		err = &SegmentError{Path: path, Reason: fmt.Sprintf("%d bytes, over the %d limit", info.Size(), maxSegmentFileBytes), oversize: true}
 	}
 	if err != nil {
 		_ = f.Close()

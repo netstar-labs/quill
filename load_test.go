@@ -327,8 +327,8 @@ func TestOpenSegmentRefusesSymlinksFIFOsAndOversizeFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := hf.Truncate(maxSegmentBytes + 1); err != nil {
-		t.Skipf("cannot create a sparse %d byte file: %v", maxSegmentBytes+1, err)
+	if err := hf.Truncate(maxSegmentFileBytes + 1); err != nil {
+		t.Skipf("cannot create a sparse %d byte file: %v", maxSegmentFileBytes+1, err)
 	}
 	_ = hf.Close()
 	_, _, err = openSegment(fsx.OS{}, huge)
