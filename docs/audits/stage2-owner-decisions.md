@@ -681,10 +681,10 @@ already decided in round 1, or that a vote refuted, are not held; they are liste
 
 | id | sev | one line | recommended | status |
 |----|-----|----------|-------------|--------|
-| A3-5 | medium | a reader-only process can flock `quill.lock` when Perm grants read, blocking writer Open | approve 0600 for the writer lock; settle Archive's probe first | held; no fix written |
-| A3-14 | medium | `quill archive -to` writes into a directory that has no `quill.format` | approve: require an empty directory | held; no fix written |
-| A3-18 | low | a Reader's read cost scales with the log, not the request | reword now; cache sealed refs after the release | held; no fix written |
-| A3-19 | low | the first-frame probe reads and CRC-checks the whole first frame (up to 64 MiB) | correct decision 47's wording; leave the code | held; no fix written |
+| A3-5 | medium | a reader-only process can flock `quill.lock` when Perm grants read, blocking writer Open | approve 0600 for the writer lock; settle Archive's probe first | approved 2026-10-31; fixed 47315f1 (FIXED-VERIFIED, 7 of 7) |
+| A3-14 | medium | `quill archive -to` writes into a directory that has no `quill.format` | approve: require an empty directory | approved 2026-10-31; fixed 303b794 (FIXED-VERIFIED, 7 of 7) |
+| A3-18 | low | a Reader's read cost scales with the log, not the request | reword now; cache sealed refs after the release | approved 2026-10-31; reworded 3c36fc0 (wording only); the cache is deferred |
+| A3-19 | low | the first-frame probe reads and CRC-checks the whole first frame (up to 64 MiB) | correct decision 47's wording; leave the code | approved 2026-10-31; reworded 3c36fc0 (wording only); code unchanged |
 
 ## A3-5: the writer's lock file is readable by readers, so a reader can hold it (medium)
 
@@ -712,6 +712,10 @@ a probe from another uid, before and after.
 
 **Fix written.** None. The proposed change is in threat-model.md, A3-5.
 
+**Owner approval.** Approved on 2026-10-31, as recommended.
+
+**Disposition.** Fixed in 47315f1 (on main; verified from `git log`); fix-skeptic FIXED-VERIFIED (7 of 7 lenses pass; reported, from a skeptic that ran everything on scratch copies, on macOS and on the Linux box). `quill.lock` is always created 0600 whatever `Config.Perm` says; a wider lock left by an earlier build is tightened (fstat, then fchmod) before the flock is tried. A failed chmod does not fail `Open`: it logs a Warn on `Config.Logger`, because the held lock is what keeps the log single-writer and refusing would turn a hardening step into an outage (the fixer's choice where the recommendation was silent). Archive's destination probe fails closed: a permission error opening the destination's lock returns an error that is both `ErrLocked` and `fs.ErrPermission`. Consumer locks keep the log's mode, and decision 41 states that a reader-only process with read access can hold a consumer's lock and stall that consumer, never the writer. Decisions 41 and 51, scope.md, format.md, the user guide and CHANGELOG are amended. Reproduction before and after (verified by the fixer, Linux, uid 1000 against `nobody`): the lock was 0644 and `nobody` held it, so the owner's `Open` failed with a locked error; after the fix the lock is 0600, `nobody` gets "Permission denied" and the owner's `Open` succeeds. Gate green on macOS and Linux on the fix commit. Not observed: the Archive probe from a second account on an account-owned lock; the skeptic ran a root-owned 0600 destination lock on the Linux box (refused, both error classes satisfied, nothing written) and the fixer a mode-0000 lock. Two minor gaps, neither a regression: the CLI's offline verbs filter log output down to two messages, so the new "could not be tightened" Warn reaches only library users who set `Config.Logger` (the A5-36 item widens that filter); and the Archive probe reports every permission error as "a writer may be live", including an unsearchable destination directory (fails closed, wording only).
+
 ## A3-14: `archive -to` writes into a directory that is not a log (medium)
 
 **Claim.** `archiveDest` (archive.go:108 now) checks only same-file as the source, a held writer lock and the format id when
@@ -730,6 +734,10 @@ that plant an unrelated `0000000000.log` and assert it is untouched; amend decis
 destination left by an interrupted earlier run already has one and is unaffected (inferred from archive.go, not run).
 
 **Fix written.** None.
+
+**Owner approval.** Approved on 2026-10-31, as recommended.
+
+**Disposition.** Fixed in 303b794 (on main; verified from `git log`); fix-skeptic FIXED-VERIFIED (7 of 7 lenses pass; reported). When `quill.format` is absent the destination must be empty, ignoring `.tmp-*` files and `quill.lock`, and otherwise `Archive` returns an error wrapping `ErrNoLog` before writing anything; the CLI exits 1. Reproduction before and after (verified by the skeptic with the built CLI): a destination holding an unrelated `0000000000.log` and `notes.txt` was changed (the log replaced, `quill.format`, `quill.tail`, `consumers/` added, exit 0) before the fix; after it exits 1 naming the directory and every file and directory is byte-identical. A destination left by an interrupted run already has `quill.format` and is unaffected (tested at every successive write of the destination, and by deleting trailing files). Decision 85, the `Archive` doc comment, the user guide and CHANGELOG say plainly that archiving into a populated directory that is not yet a log now fails. Gate green on macOS and Linux on the fix commit. Two minor points, neither caused by the fix: the message says "holds files" even when the destination holds only a subdirectory and does not say that an empty directory is the remedy; and a refused run still touches the source's protected `_archive` consumer, because `archive()` opens it before `archiveDest` (true of the other destination refusals too).
 
 ## A3-18: a Reader's read cost scales with the log, not the request (low)
 
@@ -754,6 +762,10 @@ is the larger change and only worth it if polling consumers are expected.
 
 **Fix written.** None.
 
+**Owner approval.** Approved on 2026-10-31, as recommended: reword now; the sealed-ref cache after the release is deferred.
+
+**Disposition.** Wording only, in 3c36fc0 (on main; verified from `git log`); no code changed and no fix-skeptic ran. scope.md's performance gate and decision 63 now state that a read with no iterator cursor (`Reader.Read`, `ReadWait`, `Scan`, `Consumer.Read`) re-walks and CRC-checks the active segment from byte 0 to the requested offset, O(offset within the segment) and bounded by `SegmentBytes`, and rebuilds the sealed-segment view, O(sealed segments), on every call; `Records` and `Follow` avoid both, and the user guide tells polling consumers to use them. The measured 379 ms is the auditor's, on the Linux box, at the top of a 343 MB active segment; "a few milliseconds at the default 8 MiB segment" is an extrapolation and is labelled as one in scope.md. Not done: caching sealed refs between views as `Log` does (decision 103).
+
 ## A3-19: the first-frame probe reads and CRC-checks the whole first frame (low, PLAUSIBLE)
 
 **Claim.** The Reader's probe of each uncached sealed segment (reader.go:249 now, `window.frameAt(0)`) reads, allocates and
@@ -773,6 +785,10 @@ collectable. Revisit only if a bounded cheaper integrity check is designed, for 
 the CRC to the first scan of that segment, with a test that a damaged first frame is still reported as a hole.
 
 **Fix written.** None.
+
+**Owner approval.** Approved on 2026-10-31, as recommended: correct the wording, leave the code.
+
+**Disposition.** Wording only, in 3c36fc0 (on main; verified from `git log`); no code changed and no fix-skeptic ran. Decision 47 now says the probe reads and CRC-checks the whole first frame, up to 64 MiB, once per `Reader` per segment, with the reason it is not cheaper (two hole-detection tests fail if the check is skipped), and the user guide states the cost for a directory whose first frames are very large. A cheaper bounded check remains a possible later change, with a test that a damaged first frame is still reported as a hole.
 
 ## Not held, but unresolved
 
@@ -835,10 +851,12 @@ A6-4 (recorded as held for the owner) and A6-8 (fix written, commit did not land
 that its reviewer rejected. The recommended answers are the recorder's reading of the auditors' proposals and the
 skeptics' notes, and are recommendations, not decisions.
 
+**Update 2026-10-31.** The owner approved A6-4 (confirm and close) and A6-8 (do it), both recorded in their sections below. The skew harness the reviewer rejected was rebuilt as 01cee10 (`hack/skew.sh`, `hack/skewopen`, CONTRIBUTING.md). The missing check was added: in the kill phase each version runs `recover` on its own copy of the same killed directory and the two copies must be identical (`diff -r`). Verified on macOS: v0.1.0 against 3c36fc0 passes in both directions, ten kills each, every kill leaving part of the stream; and a deliberate fault (recovery stops at the marker, dropping the frames after it) now makes it fail with `rc=1` and the two recovered `quill.tail` files in the evidence (seq 490 against 425). The previous script is reported, by its reviewer, to have passed that same fault; I did not re-run it. The gate is green on macOS and Linux on the harness commit. Not run: the cross-version run on Linux (the Linux box ran only the gate).
+
 | id | sev | one line | recommended | status |
 |----|-----|----------|-------------|--------|
-| A6-4 | low | the writer could rotate into segment id 10000000000, which no scan recognises | confirm and close; the fix is already in the tree as A3-8 (bb646c0) | held in the ledger; closed in the tree, owner to confirm |
-| A6-8 | low | `MaxSegmentBytes` (1 GiB) and `maxSegmentBytes` (1.5 GiB) differ only by case | rename the unexported one, one commit | fix did not land; no owner decision needed beyond "do it" |
+| A6-4 | low | the writer could rotate into segment id 10000000000, which no scan recognises | confirm and close; the fix is already in the tree as A3-8 (bb646c0) | approved 2026-10-31 (confirm and close); closed, reproduction re-run on the fixed tree |
+| A6-8 | low | `MaxSegmentBytes` (1 GiB) and `maxSegmentBytes` (1.5 GiB) differ only by case | rename the unexported one, one commit | approved 2026-10-31 ("do it"); fixed 003de2c (FIXED-VERIFIED, 6 of 6) |
 
 ## A6-4: the segment id has no ceiling (low)
 
@@ -866,6 +884,10 @@ hold", an error at maxseg 9999999999, so the id 9999999999 is the last one usabl
 **Fix written.** bb646c0, landed under A3-8. No separate A6 commit exists, and no A6 fix-skeptic ran on it. The A6-4
 reproduction itself was not re-run against the fixed tree (inferred from the decoder and rotation lines).
 
+**Owner approval.** Approved on 2026-10-31, as recommended (confirm and close).
+
+**Disposition.** Closed. The fix is bb646c0 under A3-8 (fix-skeptic FIXED-VERIFIED in the A3 pass; reported, from [threat-model.md](threat-model.md)), so the A6 ledger item moves from held to closed with no new commit. The record said the A6-4 reproduction had not been re-run on the fixed tree; it was re-run on 2026-10-31 with built CLIs (verified). A log whose only segment is renamed 9999999999.log, with `quill.tail` `seg` and `maxseg` at that value, then `roll`: before bb646c0 (its parent), `roll` exited 0 and created 10000000000.log, and the next `append` failed with "corrupt log: quill.tail names segment 10000000000, the newest on disk is 9999999999"; on main, `roll` is refused ("segment ids exhausted: 9999999999 is the largest the ten-digit names hold", exit 1), no 10000000000.log is created and `append` still succeeds. A forged `maxseg` of 99999999999 is refused at read ("maxseg 99999999999 above the largest segment id, 9999999999"). The limit as written in A3-8 stands: 9999999999 is the last usable segment id.
+
 ## A6-8: two constants differ only by letter case (low)
 
 **Claim.** `MaxSegmentBytes` (1 GiB, the SegmentBytes configuration ceiling, log.go:97 now) and `maxSegmentBytes` (1.5 GiB,
@@ -884,6 +906,10 @@ exported constant, which is public API. Declining is defensible: this is hygiene
 already caught by the segment-limit tests.
 
 **Fix written.** A proposal only; no commit.
+
+**Owner approval.** Approved on 2026-10-31 ("do it"), as recommended: rename the unexported constant, keep the exported one.
+
+**Disposition.** Fixed in 003de2c (on main; verified from `git log`); fix-skeptic FIXED-VERIFIED (6 of 6 lenses pass; reported). The unexported `maxSegmentBytes` (1536 MiB, the segment file limit and the bound on `quill.tail` `off`) is now `maxSegmentFileBytes` in the five files that used it; `MaxSegmentBytes` (1 GiB, the `SegmentBytes` ceiling) is untouched. Verified by the recorder: the word-level diff is 17 identifier pairs and nothing else, and the gate is green on macOS and Linux. The skeptic checked that the exported API (`go doc -all`) is byte-identical, the value is unchanged, no live document keeps the old name, and that changing the new constant to 1 GiB makes three tests fail, so the segment-limit tests still guard it.
 
 ## Not held, but unresolved
 

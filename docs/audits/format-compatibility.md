@@ -63,7 +63,7 @@ written as a plain rename and the commit never landed, for a workflow reason (se
 - Skew: v0.1.0 against HEAD, both directions, two platforms, seven experiment families and a 78-case state-file fuzz: the
   encoded bytes are identical; the differences are the seven decoder changes and a handful of CLI changes that CHANGELOG
   Unreleased already announces. No unannounced difference was found.
-- Not green: the skew harness built in this pass was rejected by its reviewer (see "The skew harness").
+- Not green: the skew harness built in this pass was rejected by its reviewer (see "The skew harness"). Update 2026-10-31: rebuilt with the missing recovery comparison as 01cee10; see stage2-owner-decisions.md, pass A6.
 
 ## Coverage
 
@@ -222,7 +222,7 @@ facts are as cited).
 | keep apart | the fast and slow tail decoders (decision 105) | the fast path is the hot path; the differential run (0 disagreements in 400,000 mutations) and `TestDecodeTailFastAgreesWithSlow` pin them to each other |
 | keep apart | `frameHeader` (CRC-less prefix reader) and the strict frame decoder | the writer reads its own verified buffer; two mutations of the header reader fail the Batch and Read tests |
 | keep apart | `parseUint` and the CLI's `parseDecimal` | one reads files that must be canonical, the other user input |
-| not merged (A6-8) | `maxSegmentBytes` and `MaxSegmentBytes` | the rename was written but did not land; the exported name is API and stays |
+| merged 2026-10-31 (A6-8, 003de2c) | `maxSegmentBytes` and `MaxSegmentBytes` | the unexported constant is now `maxSegmentFileBytes`; the exported name is API and stays |
 | docs instead of code | the format check at open only (A6-5); no reference-written fixture (A6-6) | re-checking the marker per call costs I/O and is not needed while only format 1 exists; no real reference frame was available and fabricating one would repeat the gap |
 
 ## Real v0.1.0 against HEAD experiments
