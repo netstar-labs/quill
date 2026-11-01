@@ -24,6 +24,8 @@ no high or critical item. 23 are degradations (a signal is missing, latched, mis
 (A5-21, A5-23). No item is a loss of acknowledged data by itself, with one exception: A5-16 (a second writer after
 `quill.lock` is removed) lets two writers overwrite each other, and it was fixed as hardening.
 
+**A5-1 update, 2026-10-31.** A5-1 was fixed after this record was written (99b140d, third attempt). Wherever this record says A5-1 has no fix in the tree, that is the state when the pass was recorded; the A5-1 section carries the current disposition. The ledger rows that name A5-1 (for example G3, G10, G11 and G13) and the tally of 75 OK, 20 LOG-ONLY and 28 NONE were not recounted: the Logger is now written once per background transition and `Stats` carries `BufferedRecords`, `BufferedBytes`, `FlushFailing` and `LastFlushOK`, so those rows' marks are out of date in the improving direction.
+
 **A5h update, 2026-10-31.** The eleven items held for the owner were approved as recommended on 2026-10-31 (A5-22
 without the optional "N consecutive failures" rule; A5-29 reverses a round-1 ruling). The tables below carry the whole pass;
 this block carries what the update changed.
@@ -31,7 +33,7 @@ this block carries what the update changed.
 - Verdicts: all 11 were CONFIRMED when first recorded, and none is refuted. They carried 22 skeptic votes, 21 CONFIRMED and
   1 PLAUSIBLE (A5-29's), already counted in the first-pass vote figures below.
 - Dispositions: 10 fixed, each FIXED-VERIFIED by a fix-skeptic (A5-10, A5-22, A5-18, A5-36, A5-9, A5-3, A5-23, A5-44,
-  A5-29, A5-32); 1 fix-failed (A5-1). Fix-skeptic lens verdicts: 60 (6 lenses on each of the 10 fixes: test-fails-without-fix,
+  A5-29, A5-32); 1 fix-failed at the time (A5-1, fixed afterwards: see the A5-1 section). Fix-skeptic lens verdicts: 60 (6 lenses on each of the 10 fixes: test-fails-without-fix,
   root-cause, behaviour-preserved, no-new-gap, reachable, ladder), every one "pass" (reported by the skeptics).
 - Reproduced: every one of the 11 items was reproduced by at least one voter when first recorded (18 of the 22 votes carried a
   run). For the fixes, all 10 skeptics ran the new tests red against the tree with the production change reverted (reported);
@@ -61,7 +63,7 @@ this block carries what the update changed.
 |-------------|-------|-----|
 | fixed in the first A5 pass, fix-skeptic FIXED-VERIFIED | 7 | A5-2 (38d2644), A5-21 (dd460a7), A5-39 (1b68eee), A5-42 (66081fe), A5-16 (6acc23e), A5-40 (906d49c), A5-31 (d451fac) |
 | fixed after the owner's approval of 2026-10-31 (pass A5h), fix-skeptic FIXED-VERIFIED | 10 | A5-10 (91c2fce), A5-22 (1dda449), A5-18 (7b87e64), A5-36 (2cbfdf2), A5-9 (46f30db), A5-3 (1e0a8ed), A5-23 (4d0e8c9), A5-44 (29e7db1), A5-29 (caad4c5), A5-32 (16cb0c8) |
-| approved, fix written and rejected by its fix-skeptic, not in the tree (fix-failed) | 1 | A5-1 (bab952f, branch `stage2/A5-1-a2`) |
+| approved; rejected by its fix-skeptic, then fixed on the third attempt (99b140d, after this record was written) | 1 | A5-1 |
 | resolved by an earlier commit, no A5 commit | 1 | A5-33 (1f896c7, pass A3, documentation) |
 | refuted | 3 | A5-5, A5-6, A5-34 |
 | deliberately not changed (decided earlier) | 3 | A5-7, A5-15, A5-17 |
@@ -73,7 +75,7 @@ this block carries what the update changed.
   by at least one voter. Each item below names the program and the output. Two reproductions are weaker than the
   rest and are marked: A5-9 was reproduced only by injecting a directory-fsync error into a patched copy, because the CLI
   has no fault hook; A5-22 and A5-1 used injected faults on the in-memory file system, with a second run on real files for A5-1.
-- Fix commits: 7 in the first A5 pass and 10 more in pass A5h (A5-1 has none in the tree), all ancestors of this commit (verified from `git log`). The rest of this bullet describes the first seven. Fix-skeptic verdicts: 7 of 7 FIXED-VERIFIED,
+- Fix commits: 7 in the first A5 pass and 10 more in pass A5h (A5-1 had none when this was recorded; it landed afterwards as 99b140d), all ancestors of this commit (verified from `git log`). The rest of this bullet describes the first seven. Fix-skeptic verdicts: 7 of 7 FIXED-VERIFIED,
   through 43 lens verdicts (6 or 7 per fix: test-fails-without-fix, root-cause, behaviour-preserved, no-new-gap,
   reachable, ladder, and independent-route for A5-21), every one "pass". Three fixes were rejected at least once
   before the recorded attempt (A5-2, A5-39, A5-42; reported by their fix summaries). The Linux box was used for the
@@ -341,7 +343,7 @@ Decisions 60, 78 and 98 carry a dated note ("Stage 2 audit, owner-approved 2026-
 
 Residuals, reported by the skeptic and not fixed. (1) `Roll` (flush.go:230) and the age rotation in the prune pass (retention.go:152) call `setBg(bgRotate, err)` without the `l.failed` guard that `publishLocked` has (flush.go:143), so when the rotation fails fatally on the directory fsync `Err()` holds the failed error twice and returns `errors.Join(failed, failed)`: the same line twice. `errors.Is` and the nil or non-nil contract are unaffected, and before the fix the error came back once. I read the three sites in the tree as it is now and the guard is still absent from the two (verified). A one-line `if l.failed == nil` in each, or a dedupe in `Err()`, removes it; cosmetic, recommended, not applied. (2) A failed age rotation stays in `Err()` after its blocker is gone until the next rotation of either kind, which is arguably accurate because none has succeeded since. Not run by the skeptic: the fuzz step and `go mod tidy`.
 
-#### A5-1: background failures reach only a latched `Err()`, never the Logger (medium, approved, fix-failed)
+#### A5-1: background failures reach only a latched `Err()`, never the Logger (medium, approved, fixed on the third attempt)
 
 **Claim.** Every retryable background failure (data write, marker publish, next-segment create, prune sweep) is reported
 through `bgErr` and `Err()` only. It carries no time or count, nothing is logged, and no `Stats` field says how much
@@ -380,13 +382,13 @@ precondition; do both in one pass.
 
 **Owner approval.** Approved on 2026-10-31, as recommended: log each transition (Warn on entering, Info on leaving, never per retry) and add the four `Stats` fields, building on A5-10.
 
-**Disposition.** Not fixed in the tree: the fix was written, rejected by its fix-skeptic (outcome fix-failed) and is not in the tree. It is bab952f on branch `stage2/A5-1-a2` (verified: `git merge-base --is-ancestor bab952f HEAD` fails and `git branch -a --contains bab952f` lists only that branch). An earlier attempt, 574b078, is on `stage2/A5-1-a1`; the ledger this record was written from carries no outcome for it. bab952f does what the owner approved: each retried background failure (flush write, marker publish, rotation, prune unlink) logs one Warn on entry and one Info on recovery through `Config.Logger`, never per retry, using A5-10's clear points as the transition points; `Log.Stat` gains `BufferedRecords`, `BufferedBytes`, `FlushFailing` and `LastFlushOK`. The fixer reports its new tests red on HEAD and green after, and the gate steps it ran green (reported, fix summary); the skeptic found the logging half sound (the log tests go red when it is reverted and the gate is green).
+**Disposition.** Fixed in 99b140d on the third attempt (on main; verified from `git log`; authored as 27ccd31 on branch `stage2/A5-1-a3`); fix-skeptic FIXED-VERIFIED for the approved scope, with follow-ups that were closed before landing (reported, from a skeptic that ran everything on scratch copies, on macOS and on the Linux box). The first two attempts (574b078 and bab952f) are not merged. bab952f was rejected for one documentation defect: `LastFlushOK`'s docs said that `time.Since(LastFlushOK)` with `BufferedRecords` above zero is how long the oldest acknowledged record has waited, which false-alarms on a quiet log (the skeptic's reproduction: `BufferedRecords` 1, `FlushFailing` false, `time.Since(LastFlushOK)` 1h0m0s). The third attempt: through `Config.Logger` each retried background failure (flush write, marker publish, rotation, prune unlink) logs one Warn on entry (with `op` and `err`) and one Info on recovery, never per retry (the skeptic: 50 failing retries gave exactly one Warn each); `Stats` gains `BufferedRecords`, `BufferedBytes`, `FlushFailing` and `LastFlushOK`, additive only. `LastFlushOK` is documented, and now stamped, as the time of the last flush that wrote and published successfully (the time the writer opened the log before the first). The documented alert is `FlushFailing`, or `BufferedRecords` above zero together with it, and `Err()` wrapping `ErrFailed`. Verified by the skeptic on real files (RLIMIT_FSIZE) with a fake clock: over 50 failing flushes `FlushFailing` is true with `BufferedRecords` 4 and `BufferedBytes` 119; after the fault clears and one flush succeeds they are false, 0 and 0; an idle log given one `Append` after an hour does not trip the alert. The secondary edge was real (a prune pass whose pre-delete publish failed logged a false "recovered" for the unlink) and is fixed, with a test the skeptic showed red on the old code. Decisions 60, 66 and 78, scope.md, the user guide, the doc comments and CHANGELOG are amended. Two gaps the skeptic raised were closed before landing: a failed log (after a data fsync error) keeps its buffered records without setting `FlushFailing`, so the docs now also say to alert on `Err()` wrapping `ErrFailed`; and a test that a retried rotation on an idle log does not stamp `LastFlushOK`, which fails when the guard in `flushLocked` is removed (verified by the recorder). Left as is, low severity: a prune pass that finds nothing to delete after a failed unlink logs "recovered" and clears `Err()`, consistent with A5-10 though the unlink was never retried; an idle log whose only failure was a marker publish after `Roll` advances `LastFlushOK` when it lands although no record was written (the doc says "wrote"). Not logged: a failed log itself, outside the retryable scope of the approval. Gate green on macOS and Linux on 27ccd31.
 
 The rejection is one documentation defect (reported by the skeptic, reproduced by it in a scratch copy). `Stats.LastFlushOK`'s doc comment and docs/userguide.md say that `time.Since(LastFlushOK)` with `BufferedRecords` above zero is how long the oldest acknowledged record has been waiting. `LastFlushOK` changes only when a flush actually writes, so a healthy log that has been idle for an hour and then takes one `Append` reports `BufferedRecords` 1, `FlushFailing` false and `time.Since(LastFlushOK)` 1h0m0s. The documented alert recipe would false-alarm on every quiet log. Secondary, inferred by the skeptic from reading and not run: a prune pass whose pre-delete `publishLocked` fails (retention.go:280 on the branch) can log a false "recovered" Info for the prune operation.
 
-Nothing in the tree describes A5-1: no decision note, no CHANGELOG line and no user guide text for the new fields has landed, so every document still describes the behaviour at the audited tree. They are owed with the re-fix.
+The documents that describe the behaviour were amended in 99b140d: decisions 60, 66 and 78, scope.md, the user guide, the doc comments and CHANGELOG.
 
-Recommended next step (the recorder's reading of the skeptic's objection): document `LastFlushOK` as the time of the last successful write and tell embedders to alert on `FlushFailing`, or on `BufferedRecords` above zero together with `FlushFailing`; or instead track the acknowledge time of the oldest buffered record. Then rebase the branch. It starts at 5a7f4f8, and A5-22 and A5-18 have since changed `stat.go`, `log.go` and `retention.go`, so a conflict is likely (inferred from those commits' skeptic reports; not tried). Then amend the affected decisions and add the CHANGELOG line the owner's approval requires, and send it to a fix-skeptic again. The ledger rows that name A5-1 keep their audit marks.
+The step recommended after the second attempt (document `LastFlushOK` as the time of the last successful write and alert on `FlushFailing`) is what the third attempt did.
 
 #### A5-36: `quill prune` exits 0 when it did less than asked (medium, fixed 2cbfdf2)
 
