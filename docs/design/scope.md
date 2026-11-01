@@ -158,7 +158,7 @@ Inspect and manage; no server. Verbs: `ls` (logs under a parent directory), `sta
 (open writable, repair a torn tail, republish `quill.tail`, close). `roll` and `prune` need the writer's
 lock, so they run only when no writer is live; a live writer calls `Roll()` itself. `archive` runs beside a
 live writer (see Disk safety and archiving). `ls` shows each log's bytes, segments, retention and caps from
-`quill.policy`. Global flag `-dir` (the log). `cat`, `read` and `tail` open the log with `OpenReader`, so they work
+`quill.policy`; it skips a subdirectory that is not a log, and gives a log it cannot open an `error:` row and exit 1. Global flag `-dir` (the log). `cat`, `read` and `tail` open the log with `OpenReader`, so they work
 beside a live writer without its lock and show only durable records; they print text by default and JSON with
 `-json` (below).
 

@@ -28,6 +28,9 @@ func (c *cli) withReader(fn func(r *quill.Reader) int) int {
 	return fn(r)
 }
 
+// cmdLs lists the logs under a parent directory. A directory that is not a log (ErrNoLog) is
+// skipped; a log that cannot be opened or read gets an "error:" row, the rest are still listed,
+// and the exit code is 1, as stat and check give for the same log (decision 53, A5-44).
 func cmdLs(c *cli, args []string) int {
 	entries, err := os.ReadDir(c.dir)
 	if err != nil {
@@ -35,19 +38,23 @@ func cmdLs(c *cli, args []string) int {
 	}
 	w := tabwriter.NewWriter(c.out, 0, 8, 2, ' ', 0)
 	fmt.Fprintln(w, "LOG\tHEAD\tRECORDS\tSEGMENTS\tBYTES\tRETENTION\tMAX-BYTES\tMIN-FREE\tMAX-RECORDS\tNOTE")
-	found := 0
+	found, failed := 0, 0
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
 		dir := filepath.Join(c.dir, e.Name())
 		r, err := quill.OpenReader(dir, quill.ReaderOptions{})
-		if err != nil {
+		if errors.Is(err, quill.ErrNoLog) {
 			continue
 		}
-		st, err := r.Stat()
-		_ = r.Close()
+		var st quill.Stats
+		if err == nil {
+			st, err = r.Stat()
+			_ = r.Close()
+		}
 		if err != nil {
+			failed++
 			fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\t\terror: %v\n", e.Name(), err)
 			continue
 		}
@@ -65,8 +72,11 @@ func cmdLs(c *cli, args []string) int {
 		fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\n", e.Name(), st.Head, st.Records, st.Segments, st.Bytes, ret, mb, mf, mr, note)
 	}
 	_ = w.Flush()
-	if found == 0 {
+	if found+failed == 0 {
 		fmt.Fprintf(c.err, "quill: no logs under %s\n", c.dir)
+	}
+	if failed > 0 {
+		return exitError
 	}
 	return exitOK
 }

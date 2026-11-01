@@ -222,7 +222,10 @@ ahead warns through the logger, naming the segment; `quill check` reports the re
 | `commit`, `register`, `unregister`, `archive` | the consumer's | yes |
 | `append`, `roll`, `prune`, `recover` | the writer's | no: `ErrLocked` |
 
-Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. Only `append` (the records) and `help` (a verb name)
+Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. `ls` skips a subdirectory that is not a log
+(no `quill.format`) and lists every log it can open; a log it cannot open or read (a damaged or future `quill.format`, no
+permission) gets a row ending in `error: ...`, and `ls` exits 1 after listing the rest, as `stat` and `check` do for that log.
+Only `append` (the records) and `help` (a verb name)
 take positional arguments; any other verb given one, as in `quill read 100` or `quill tail 5 -json`, is a usage error (exit 2,
 "unexpected argument ...; flags go before arguments"): flag parsing stops at the first positional, so the flags after it
 would otherwise be dropped. `append` exits 1 when closing
