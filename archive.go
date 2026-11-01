@@ -206,8 +206,10 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, perm fs.FileMode,
 }
 
 // copySegment verifies a sealed segment whole, then copies it to the destination under its
-// own name through atomicfile.WriteFrom (temp file, fsync, rename). A destination file of the same size is kept. It
-// returns the size and the segment's last sequence.
+// own name through atomicfile.WriteFrom (temp file, fsync, rename). A destination file of the
+// same size is read and verified the same way and kept only when it is intact and holds the
+// same sequence range; a damaged one is replaced (decision 85), a healthy one is not
+// rewritten. It returns the size and the segment's last sequence.
 func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64, uint64, error) {
 	r, size, closer, err := s.open()
 	if err != nil {
@@ -220,7 +222,13 @@ func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64
 	}
 	dst := filepath.Join(dstDir, segmentName(s.id))
 	if di, err := fsys.Lstat(dst); err == nil && di.Mode().IsRegular() && di.Size() == size {
-		return size, info.last.Seq, nil
+		kept, err := destIntact(fsys, dst, size, info)
+		if err != nil {
+			return 0, 0, err
+		}
+		if kept {
+			return size, info.last.Seq, nil
+		}
 	}
 	err = atomicfile.WriteFrom(fsys, dst, perm, func(f fsx.File) error {
 		n, err := io.CopyBuffer(io.NewOffsetWriter(f, 0), io.NewSectionReader(r, 0, size), make([]byte, windowChunk))
@@ -233,4 +241,25 @@ func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64
 		return 0, 0, err
 	}
 	return size, info.last.Seq, nil
+}
+
+// destIntact reports whether the destination segment at path, which has the source's size,
+// verifies whole and covers the same sequences as the source's info. Damage found by the
+// verification (a *SegmentError) is false, so the caller replaces the file; a read that fails
+// is an error, since nothing is known about the file.
+func destIntact(fsys fsx.FS, path string, size int64, src segInfo) (bool, error) {
+	f, err := fsys.OpenFile(path, fsx.O_RDONLY, 0)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	di, err := verifySegment(f, size, path)
+	var se *SegmentError
+	if errors.As(err, &se) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return di.first.Seq == src.first.Seq && di.last.Seq == src.last.Seq, nil
 }

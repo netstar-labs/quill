@@ -312,6 +312,11 @@ is how it shows after `quill unregister -name _archive` recreated the consumer a
 run that reports the hole commits past it, so the next run has nothing to copy and exits 0; `quill check -dir <dest>`
 keeps reporting the hole (exit 3).
 
+A rerun after rewinding (`quill commit -name _archive -offset N`) verifies the segments it meets again. A destination segment of the
+same size as the source's is read and CRC-checked: a damaged one is replaced by a fresh copy, a healthy one is left as it is, so
+re-copying a damaged archive is a rewind and a rerun. The cost is one sequential read of each such destination segment, in
+addition to the read of the source segment that is verified on every run; a run with nothing to copy reads no destination file.
+
 **Moving, renaming, deleting a log** are directory operations done while no writer holds it and no reader or consumer has it open. A handle opened before a directory was replaced by another log
 refuses `Commit`, and gives up `ReadWait` and `Follow` when they wait, with `ErrWrongLog`; plain reads do not re-check, so close and reopen.
 
