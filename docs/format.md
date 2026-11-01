@@ -24,8 +24,8 @@ that fails validation is a load error. Directories are created `0700` and files 
 default. A consumer file created through a `Reader` or the CLI, and every file `Archive` creates, are requested with
 the log's mode, read from the permission bits of `quill.tail`. State files (`quill.format`, `quill.tail`, `quill.policy`,
 consumer offset files) and the segments `Archive` copies are chmodded to that mode exactly. Everything else goes through
-the process umask and can come out narrower: the writer's own segments, every lock file, and every directory
-(the log directory, `consumers/`, an `Archive` destination). `Perm` 0660 under umask 022 gives `0640` segments and `0750`
+the process umask and can come out narrower: the writer's own segments, every consumer lock file, and every directory
+(the log directory, `consumers/`, an `Archive` destination). The writer's `quill.lock` is always 0600. `Perm` 0660 under umask 022 gives `0640` segments and `0750`
 directories, so a group that needs write access to `consumers/` needs umask 002 or a `chmod` by the operator.
 
 ## The frame

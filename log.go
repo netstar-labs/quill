@@ -73,8 +73,10 @@ type Config struct {
 	Logger *slog.Logger
 	// Perm is the file mode (0600); directories get the matching execute bits (0700). State
 	// files (quill.format, quill.tail, quill.policy, consumer offsets) are exactly Perm. The
-	// writer's segments, its lock files and every directory are created through the process
-	// umask, so under umask 022 Perm 0660 gives 0640 segments and 0750 directories.
+	// writer's segments, its consumers' lock files and every directory are created through the
+	// process umask, so under umask 022 Perm 0660 gives 0640 segments and 0750 directories.
+	// quill.lock is always 0600, whatever Perm says, so a reader-only process cannot take the
+	// writer's lock (decision 51).
 	Perm fs.FileMode
 	// MaxRecords keeps roughly the newest N records (0: off).
 	MaxRecords int64
@@ -375,7 +377,9 @@ func Open(cfg Config) (*Log, error) {
 	if err := l.mkdirAll(l.dir); err != nil {
 		return nil, err
 	}
-	lock, err := takeLock(l.fs, l.path(lockName), cfg.Perm)
+	lock, err := takeWriterLock(l.fs, l.path(lockName), func(err error) {
+		l.logf(slog.LevelWarn, "quill.lock is wider than 0600 and could not be tightened: a process that can read it can take the writer's lock", "path", l.path(lockName), "error", err)
+	})
 	if err != nil {
 		return nil, err
 	}

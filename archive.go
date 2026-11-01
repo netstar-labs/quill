@@ -22,7 +22,10 @@ import (
 // segment. When the source has lost segments the destination holds the same hole, and
 // Archive returns a *GapError naming it after copying what exists. It refuses, before
 // writing to it, a destination that is the source log itself and a destination whose
-// writer lock is held (ErrLocked): quill.tail is the writer's file. A destination that
+// writer lock is held (ErrLocked): quill.tail is the writer's file. quill.lock is always 0600,
+// so a destination lock this account cannot open (it belongs to another account) is treated as
+// a writer that may be live: Archive refuses with an error that is both ErrLocked and
+// fs.ErrPermission (decision 51). A destination that
 // exists and has no quill.format must be empty, ignoring .tmp-* files and quill.lock as
 // Open does for a new log; otherwise it is not a log and Archive returns ErrNoLog without
 // writing to it, so a mistyped destination is never written into and no file in it is
@@ -125,6 +128,10 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, perm fs.FileMode,
 		if errors.Is(err, fsx.ErrLocked) {
 			return fmt.Errorf("%w: archive destination %s has a live writer", ErrLocked, dstDir)
 		}
+	} else if errors.Is(err, fs.ErrPermission) {
+		// quill.lock is 0600, so a lock this account cannot open belongs to another account:
+		// the writer of that log, which may be live. Fail closed.
+		return fmt.Errorf("%w: archive destination %s: its quill.lock cannot be opened, so a writer may be live: %w", ErrLocked, dstDir, err)
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
