@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/netstar-labs/quill/internal/atomicfile"
@@ -21,9 +22,12 @@ import (
 // segment. When the source has lost segments the destination holds the same hole, and
 // Archive returns a *GapError naming it after copying what exists. It refuses, before
 // writing to it, a destination that is the source log itself and a destination whose
-// writer lock is held (ErrLocked): quill.tail is the writer's file. A destination whose
-// quill.format is newer than this build is ErrFutureVersion, another log's is ErrWrongLog,
-// and any other unusable marker is ErrCorrupt.
+// writer lock is held (ErrLocked): quill.tail is the writer's file. A destination that
+// exists and has no quill.format must be empty, ignoring .tmp-* files and quill.lock as
+// Open does for a new log; otherwise it is not a log and Archive returns ErrNoLog without
+// writing to it, so a mistyped destination is never written into and no file in it is
+// replaced (decision 85). A destination whose quill.format is newer than this build is
+// ErrFutureVersion, another log's is ErrWrongLog, and any other unusable marker is ErrCorrupt.
 //
 // The destination's segments and state files, and the source's consumer files, take the
 // source log's file mode exactly, read from its quill.tail (decision 51). The destination's
@@ -137,6 +141,18 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, perm fs.FileMode,
 	have, err := loadFormat(fsys, filepath.Join(dstDir, formatName))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
+		// No marker: the directory is new only if it is empty, as Log.create requires (decision
+		// 85). Archive writes the marker before anything else, so a destination left by an
+		// interrupted run has one and does not come here.
+		names, err := fsys.ReadDir(dstDir)
+		if err != nil {
+			return err
+		}
+		for _, n := range names {
+			if n != lockName && !strings.HasPrefix(n, tempPrefix) {
+				return fmt.Errorf("%w: archive destination %s holds files but no %s", ErrNoLog, dstDir, formatName)
+			}
+		}
 		if err := writeState(fsys, filepath.Join(dstDir, formatName), encodeFormat(id), perm); err != nil {
 			return err
 		}

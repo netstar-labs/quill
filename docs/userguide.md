@@ -268,7 +268,10 @@ segments can name data the copy lacks.
 **Archiving.** `quill archive -dir <log> -to <dest>` copies each sealed segment not yet
 copied, verifying every CRC, and commits the `_archive` consumer, which is protected. The
 destination is itself a log that `OpenReader` opens; the verb refuses the source log as its own
-destination and a destination that has a live writer (`ErrLocked`). To archive the newest records, `quill
+destination and a destination that has a live writer (`ErrLocked`). The destination must be a new or empty directory (a
+`.tmp-*` file or `quill.lock` does not count) or one that is already an archive (it has a `quill.format`); a
+directory that holds anything else and has no `quill.format` is refused with `ErrNoLog` and left untouched, so a
+mistyped `-to` cannot replace an unrelated file. To archive the newest records, `quill
 roll` first (or `Roll()` in the writer). Under disk pressure the caps still win, so an
 archive can fall behind; `Stat().Dropped` counts the loss. A source that lost segments gives
 an archive with the same hole, and the verb says so.
