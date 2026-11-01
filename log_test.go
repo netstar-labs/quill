@@ -196,6 +196,8 @@ func TestEveryConfigDefaultAndRefusal(t *testing.T) {
 		"batch near wrap":       {Dir: "x", MaxBatchBytes: math.MaxInt64 - 1000},
 		"buffer near wrap":      {Dir: "x", MaxBufferBytes: math.MaxInt64 - 100000},
 		"flush wraps int64":     {Dir: "x", FlushBytes: math.MaxInt64},
+		"buffer below flush":    {Dir: "x", FlushBytes: 1000, MaxBufferBytes: 999},
+		"buffer below default":  {Dir: "x", MaxBufferBytes: 1},
 		"batch over file limit": {Dir: "x", MaxBatchBytes: 2 << 30},
 		"maxbytes too small":    {Dir: "x", MaxBytes: 16<<20 - 1},
 		"negative flushbytes":   {Dir: "x", FlushBytes: -1},
@@ -222,6 +224,22 @@ func TestEveryConfigDefaultAndRefusal(t *testing.T) {
 	}
 	ok := Config{Dir: "x", MaxBytes: 16 << 20, Perm: 0o640, ProtectedConsumers: []string{"billing", "a-b_c9"}}
 	if err := ok.withDefaults().validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// The disk bound of decision 69 charges one flush at MaxBufferBytes, so a MaxBufferBytes below
+// FlushBytes (a flush then holds FlushBytes) would break it; Open refuses it (Stage 2 audit A5-23).
+func TestOpenRefusesMaxBufferBytesBelowFlushBytesAndAcceptsEqual(t *testing.T) {
+	_, err := Open(Config{Dir: t.TempDir(), FlushBytes: 4096, MaxBufferBytes: 4095})
+	if !errors.Is(err, ErrConfig) || !strings.Contains(err.Error(), "MaxBufferBytes") {
+		t.Fatalf("below: %v", err)
+	}
+	l, err := Open(Config{Dir: t.TempDir(), FlushBytes: 4096, MaxBufferBytes: 4096})
+	if err != nil {
+		t.Fatalf("equal: %v", err)
+	}
+	if err := l.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

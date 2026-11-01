@@ -34,7 +34,8 @@ type Config struct {
 	// as if it called Sync on its last sequence. An error then means unknown, not lost.
 	SyncAppends bool
 	// MaxBufferBytes applies only while flushes are failing: then an append is accepted only
-	// into an empty buffer or within this limit (16 × FlushBytes).
+	// into an empty buffer or within this limit (16 × FlushBytes). Below FlushBytes is refused,
+	// so the disk bound of decision 69, which charges a flush at this value, is exact.
 	MaxBufferBytes int
 	// SegmentBytes is the rotation size (8 MiB), at most 1 GiB, and under the 1.5 GiB segment file
 	// limit once the largest flush is added: max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes,
@@ -176,6 +177,9 @@ func (c Config) validate() error {
 		c.MaxBytes < 0, c.MinFreeBytes < 0, c.MaxPayloadBytes < 0,
 		c.MaxBatchBytes < 0, c.MaxReadBytes < 0, c.MaxRecords < 0, c.ConsumerTTL < 0:
 		return bad("a size, count or duration is negative") // Retention and SegmentMaxAge may be: negative means never
+	case c.MaxBufferBytes < c.FlushBytes:
+		// Decision 69 charges a flush at MaxBufferBytes; a flush holds at least FlushBytes.
+		return bad("MaxBufferBytes %d below FlushBytes %d", c.MaxBufferBytes, c.FlushBytes)
 	case c.FlushInterval < time.Millisecond:
 		return bad("FlushInterval %v below 1ms", c.FlushInterval)
 	case c.SegmentBytes > MaxSegmentBytes:

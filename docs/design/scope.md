@@ -110,7 +110,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | `PruneInterval` | `min(Retention, 1m)`, ≥ 1 s | Sweep period; one minute when `Retention` is negative |
 | `FlushBytes` / `FlushInterval` | 64 KiB / 250 ms | Buffer size and background flush period |
 | `SyncAppends` | `false` | When true, every `Append` and `AppendBatch` returns only once its records are durable, as if it called `Sync` on its last sequence. A failed flush returns the error to the caller; the records stay buffered and may still become durable, so an error means unknown (decision 37) |
-| `MaxBufferBytes` | 16 × `FlushBytes` | Applies only while flushes are failing: then an append is accepted only into an empty buffer or within this limit, and otherwise fails fast (decision 69) |
+| `MaxBufferBytes` | 16 × `FlushBytes` | Applies only while flushes are failing: then an append is accepted only into an empty buffer or within this limit, and otherwise fails fast (decision 69). At least `FlushBytes`: `Open` refuses a smaller value with `ErrConfig`, so the bounded-disk formula stays exact |
 | `SegmentBytes` | 8 MiB | Rotation size; at most 1 GiB |
 | `SegmentMaxAge` | `Retention` | Rotates a quiet active segment so retention can delete it; the default follows `Retention`, so it is never when `Retention` is negative, but an explicit positive value rotates whatever `Retention` is, and a negative one is never; a no-op on an empty segment |
 | `MaxBytes` | 0 (off) | Cap on this log's segment bytes, enforced at every segment seal and every prune pass: oldest sealed segments go first, the active segment is never deleted, and it overrides consumer protection. `Open` refuses a value below twice `SegmentBytes` |

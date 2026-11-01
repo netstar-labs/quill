@@ -170,7 +170,7 @@ stat` or `quill ls`.
 | `PruneInterval` | min(Retention, 1 m), ≥ 1 s | The sweep period |
 | `FlushBytes`, `FlushInterval` | 64 KiB, 250 ms | Inline flush size; background flush period |
 | `SyncAppends` | off | Every append returns durable |
-| `MaxBufferBytes` | 16 × `FlushBytes` | The buffer bound while flushes are failing |
+| `MaxBufferBytes` | 16 × `FlushBytes` | The buffer bound while flushes are failing. At least `FlushBytes`: `Open` refuses a smaller value (`ErrConfig`), so the bounded-disk formula below is exact |
 | `SegmentBytes` | 8 MiB (≤ 1 GiB) | Rotation size; a segment passes it by the flush that seals it. `Open` refuses a value whose sum with the largest flush (`max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes, MaxPayloadBytes + 34)`) reaches the 1.5 GiB file limit |
 | `SegmentMaxAge` | `Retention` | Rotates a quiet active segment so retention can reach it. The default is never when `Retention` is negative; an explicit positive value rotates whatever `Retention` is |
 | `MaxBytes` | off | Cap on segment bytes, checked at every seal and pass; ≥ 2 × `SegmentBytes` |
