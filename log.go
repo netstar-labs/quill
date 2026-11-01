@@ -68,7 +68,9 @@ type Config struct {
 	// file already protected is left alone, so a running consumer does not block a restart.
 	ProtectedConsumers []string
 	// Logger receives retention deletions, stale consumers, a warning naming each consumer whose
-	// offset a deleted segment passes, bulk-expiry warnings and failures,
+	// offset a deleted segment passes, bulk-expiry warnings and failures, one Warn when a flush
+	// write, a marker publish, a rotation or a prune unlink starts to fail and one Info when it
+	// recovers (never one per retry; Stat has the current state),
 	// and a warning from Open when it cuts the newest segment past the marker (with the segment,
 	// the offset, the bytes cut and whether the first rejected frame was incomplete or damaged).
 	// Its handler, Enabled included, runs synchronously with the log's lock held, on the
@@ -284,6 +286,7 @@ type Log struct {
 	tailBuf  []byte       // scratch for encoding the marker; used only under mu
 	failed   error        // sticky: an fsync error wrapping ErrFailed
 	bg       [numBg]error // the live background errors, one slot per operation, for Err()
+	bgLogged [numBg]bool  // the operation's failure has been logged and its recovery has not
 	flushErr error        // the last flush's error, while flushes are failing; nil once one succeeds
 	loadErr  error        // a sticky load error (a sealed segment that failed), for Err()
 	closed   bool
@@ -308,6 +311,9 @@ type Log struct {
 	offsets    []consumerOffset // every readable consumer at the last prune pass (or Open), for Dropped at a seal
 	diskFull   bool             // MinFreeBytes cannot be met: appends fail with ENOSPC
 	freeAtPass uint64           // free bytes statfs reported at the last pass that could read it
+	// lastFlushOK is when a flush last wrote and published successfully, or Open's time before
+	// the first one (Stats.LastFlushOK).
+	lastFlushOK time.Time
 
 	flushReq chan struct{} // signals the flusher
 	stop     chan struct{}
@@ -380,7 +386,7 @@ func Open(cfg Config) (*Log, error) {
 	if err != nil {
 		return nil, err
 	}
-	l := &Log{cfg: cfg, fs: cfg.fs, dir: dir,
+	l := &Log{cfg: cfg, fs: cfg.fs, dir: dir, lastFlushOK: cfg.clock(),
 		flushReq: make(chan struct{}, 1), stop: make(chan struct{}), done: make(chan struct{})}
 	l.tailPath = l.path(tailName)
 	l.bufPool.New = func() any { b := make([]byte, 0, windowChunk); return &b }
@@ -667,11 +673,35 @@ const (
 	numBg
 )
 
-// setBg records the live error of an operation, replacing its earlier one. Called with the lock held.
-func (l *Log) setBg(k bgKind, err error) { l.bg[k] = err }
+// bgInfo names an operation in the log, and gives the Warn line written when it starts to fail.
+// An empty warn means its caller logs the transitions itself (the policy write).
+var bgInfo = [numBg]struct{ op, warn string }{
+	bgFlush:   {"flush", "cannot write the buffered records; they stay in memory and the write is retried"},
+	bgPublish: {"marker publish", "cannot publish quill.tail; readers keep the old marker and the publish is retried"},
+	bgRotate:  {"rotation", "cannot create the next segment; the active one keeps growing and the rotation is retried"},
+	bgPrune:   {"segment delete", "cannot delete segment"},
+}
 
-// clearBg drops the error of an operation that has just succeeded. Called with the lock held.
-func (l *Log) clearBg(k bgKind) { l.bg[k] = nil }
+// setBg records the live error of an operation, replacing its earlier one. The first failure
+// since the operation last succeeded is logged at Warn, with attrs; a retry that fails again is
+// not (decision 60). Called with the lock held.
+func (l *Log) setBg(k bgKind, err error, attrs ...any) {
+	l.bg[k] = err
+	if info := bgInfo[k]; info.warn != "" && !l.bgLogged[k] {
+		l.bgLogged[k] = true
+		l.logf(slog.LevelWarn, info.warn, append([]any{"op", info.op, "err", err}, attrs...)...)
+	}
+}
+
+// clearBg drops the error of an operation that has just succeeded, and logs at Info that it
+// recovered if its failure was logged. Called with the lock held.
+func (l *Log) clearBg(k bgKind) {
+	l.bg[k] = nil
+	if l.bgLogged[k] {
+		l.bgLogged[k] = false
+		l.logf(slog.LevelInfo, "background operation recovered", "op", bgInfo[k].op)
+	}
+}
 
 // ID returns the log's identity, as recorded in quill.format and every consumer file.
 func (l *Log) ID() string { return string(l.id) }

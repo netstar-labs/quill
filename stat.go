@@ -38,6 +38,31 @@ type Stats struct {
 	// it, before that pass counted the segments it deleted; 0 when MinFreeBytes is off or no
 	// pass has read it yet. Only Log.Stat knows it.
 	FreeBytesAtLastPass uint64
+	// BufferedRecords and BufferedBytes are what Append has acknowledged and no flush has made
+	// durable yet: they are held in memory, invisible to readers, and lost if the process dies
+	// (BufferedBytes is their encoded size). They grow only to MaxBufferBytes while flushes
+	// fail. Only Log.Stat knows them; a Reader reports 0.
+	BufferedRecords int
+	BufferedBytes   int
+	// FlushFailing is true while the last flush that tried to write failed and the records
+	// stay buffered for the next try; it goes false when a flush writes. Err() carries the
+	// error. A log that has failed (Err() wraps ErrFailed: a data fsync error, or a truncate that
+	// could not undo a failed write) does not retry, so FlushFailing stays false while the
+	// records it holds are never written: alert on Err() wrapping ErrFailed as well. Only
+	// Log.Stat knows it.
+	FlushFailing bool
+	// LastFlushOK is when the last flush that wrote its records and published the marker
+	// succeeded, or when the writer opened the log if none has since. It is the time of the
+	// last successful write, not a measure of how long anything has waited: a healthy log with
+	// nothing to flush keeps an old LastFlushOK, and one Append after an hour of quiet reports
+	// BufferedRecords of 1, FlushFailing false and a LastFlushOK an hour old, until the flusher
+	// writes it (within FlushInterval). So never alert on time.Since(LastFlushOK) alone. Alert
+	// on FlushFailing, or on BufferedRecords above zero together with FlushFailing, which is
+	// acknowledged data that is not durable and not being made so, and on Err() wrapping
+	// ErrFailed, where the log has stopped trying; read LastFlushOK then to
+	// say how long the log has been unable to write. Only Log.Stat knows it; a Reader reports
+	// the zero time.
+	LastFlushOK time.Time
 }
 
 func (s *Stats) count(v *segView) {
@@ -69,6 +94,9 @@ func (l *Log) Stat() (Stats, error) {
 	s.Dropped = l.dropped
 	s.StaleConsumers = append([]string(nil), l.stale...)
 	s.DiskFull, s.FreeBytesAtLastPass = l.diskFull, l.freeAtPass
+	s.BufferedRecords, s.BufferedBytes = l.bufCount, len(l.buf)
+	s.FlushFailing = l.flushErr != nil
+	s.LastFlushOK = l.lastFlushOK
 	if !l.markerAt.IsZero() {
 		s.MarkerAge = l.cfg.clock().Sub(l.markerAt)
 	}

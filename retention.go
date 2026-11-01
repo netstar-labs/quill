@@ -200,9 +200,15 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 	n = l.capsLocked(n)
 	// A pass that reaches its deletions is a fresh attempt at every unlink an earlier pass failed:
 	// the error those left in Err() is dropped here and set again by any unlink that fails now.
-	l.clearBg(bgPrune)
+	// The failure stays logged as one failing state: only a pass whose deletions ran and ended
+	// without a failed unlink logs a recovery. A pass that stopped before any unlink (the
+	// publish that precedes them failed) retried nothing, so it neither recovers nor re-warns.
+	l.bg[bgPrune] = nil
 	if err := l.deleteLocked(n, cv.offsets); err != nil {
 		return err
+	}
+	if l.bg[bgPrune] == nil {
+		l.clearBg(bgPrune)
 	}
 	// An unlink that failed left its segment in place and is already in Err(): the pass did
 	// less than it was asked, so the caller is told, not only the log (decision 65).
@@ -337,8 +343,7 @@ func (l *Log) deleteLocked(n int, offsets []consumerOffset) error {
 			// here would block every segment behind this one, and the caps with it.
 			l.logf(slog.LevelWarn, "segment was already gone", "segment", s.path)
 		} else if err != nil {
-			l.setBg(bgPrune, err)
-			l.logf(slog.LevelWarn, "cannot delete segment", "segment", s.path, "err", err)
+			l.setBg(bgPrune, err, "segment", s.path)
 			n = i
 			break
 		}

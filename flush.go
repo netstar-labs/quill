@@ -37,7 +37,13 @@ func (l *Log) flushLocked() error {
 	}
 	if l.bufCount == 0 {
 		if l.pendingPublish {
+			// Only a retry of a marker publish that had failed completes a flush that wrote;
+			// a retried rotation on an idle log wrote nothing and leaves LastFlushOK alone.
+			publishWasFailing := l.bg[bgPublish] != nil
 			err := l.publishLocked()
+			if publishWasFailing {
+				l.noteFlushOKLocked()
+			}
 			l.broadcastLocked()
 			return err
 		}
@@ -71,8 +77,18 @@ func (l *Log) flushLocked() error {
 	l.clearBg(bgFlush)
 	// (d, e) Rotate if due and publish the marker; failures there are retried next time.
 	err := l.publishLocked()
+	l.noteFlushOKLocked()
 	l.broadcastLocked()
 	return err
+}
+
+// noteFlushOKLocked stamps Stats.LastFlushOK after a flush that wrote has also published its
+// marker: the marker publish did not fail and the log is not failed. A rotation or a cap that
+// failed after a good publish does not hold it back; the records are durable and visible.
+func (l *Log) noteFlushOKLocked() {
+	if l.failed == nil && l.bg[bgPublish] == nil {
+		l.lastFlushOK = l.cfg.clock()
+	}
 }
 
 // lockLostLocked fails the log, and reports true, when the quill.lock this writer holds is no
