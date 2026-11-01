@@ -194,7 +194,7 @@ the archiver, and the one reserved name the API and the CLI accept, so it can be
 JSON, indented, the settings the last writer opened with. Informational: `Config` at open is
 authoritative and rewrites it, except that an open with `NoMaintenance` (the offline verbs
 `append`, `roll`, `prune` and `recover`) never writes it, so a tool does not replace the writer's
-settings. If the write at open fails, the open still succeeds, the previous file is removed rather than left standing as the new writer's settings, and the write is retried at each flush, each prune pass and at close; the error is in `Err()`. Offline tools read it: `append`, `roll` and `recover` take the segment size and payload
+settings. If the write at open fails, the open still succeeds, the previous file is removed rather than left standing as the new writer's settings, and the write is retried at each flush, each prune pass and at close; the error is in `Err()` until a write succeeds. Offline tools read it: `append`, `roll` and `recover` take the segment size and payload
 limit from it, so they never seal an active segment below the writer's size. Unknown fields are
 ignored, a policy with no `retention` (`{}`, `null`) is a parse failure, and a parse failure never blocks an open; an offline tool that cannot parse it refuses to
 act on it (`prune`) or uses the segment-size ceiling (`append`, `roll`, `recover`).

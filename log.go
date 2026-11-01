@@ -269,17 +269,13 @@ type Log struct {
 	refsValid  bool
 
 	holes    []Hole
-	marker   tail   // the last published quill.tail
-	tailBuf  []byte // scratch for encoding the marker; used only under mu
-	failed   error  // sticky: an fsync error wrapping ErrFailed
-	bgErr    error  // the last background or retryable error, for Err()
-	flushErr error  // the last flush's error, while flushes are failing; nil once one succeeds
-	loadErr  error  // a sticky load error (a sealed segment that failed), for Err()
+	marker   tail         // the last published quill.tail
+	tailBuf  []byte       // scratch for encoding the marker; used only under mu
+	failed   error        // sticky: an fsync error wrapping ErrFailed
+	bg       [numBg]error // the live background errors, one slot per operation, for Err()
+	flushErr error        // the last flush's error, while flushes are failing; nil once one succeeds
+	loadErr  error        // a sticky load error (a sealed segment that failed), for Err()
 	closed   bool
-
-	// policyErr is the error of the last quill.policy write, while it keeps failing; nil once one
-	// succeeds. A flush and a prune pass retry the write while it is set (decision 29).
-	policyErr error
 
 	// justSealed is set by a rotation until the marker naming the new segment has been
 	// published and fsynced into the directory (decision 65).
@@ -614,18 +610,52 @@ func (l *Log) Head() uint64 {
 	return l.head
 }
 
-// Err returns the sticky load error, the failed state, or the last background error.
+// Err returns what is wrong now: the failed state (ErrFailed) or, when the log is not failed, the
+// sticky load error of the first damaged sealed segment, joined with every background error that
+// is still live (errors.Join; errors.Is matches each). A background error is dropped when the
+// operation that set it succeeds, so it is nil when nothing is failing and the log holds no
+// damaged segment, and it does not disappear because an older error is also set. The load error
+// goes when retention deletes the segment it names.
 func (l *Log) Err() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	switch {
-	case l.failed != nil:
-		return l.failed
-	case l.loadErr != nil:
-		return l.loadErr
+	var errs [1 + numBg]error
+	errs[0] = l.failed
+	if errs[0] == nil {
+		errs[0] = l.loadErr
 	}
-	return l.bgErr
+	copy(errs[1:], l.bg[:])
+	var only error
+	n := 0
+	for _, e := range errs {
+		if e != nil {
+			only = e
+			n++
+		}
+	}
+	if n <= 1 {
+		return only
+	}
+	return errors.Join(errs[:]...)
 }
+
+// bgKind names the slot of a background error: each is cleared by the operation that sets it.
+type bgKind uint8
+
+const (
+	bgFlush   bgKind = iota // a data write
+	bgPublish               // the marker's temp file, rename or the fsync after it
+	bgRotate                // creating the next segment
+	bgPrune                 // unlinking a deleted segment
+	bgPolicy                // writing quill.policy; a flush and a prune pass retry it while it is set (decision 29)
+	numBg
+)
+
+// setBg records the live error of an operation, replacing its earlier one. Called with the lock held.
+func (l *Log) setBg(k bgKind, err error) { l.bg[k] = err }
+
+// clearBg drops the error of an operation that has just succeeded. Called with the lock held.
+func (l *Log) clearBg(k bgKind) { l.bg[k] = nil }
 
 // ID returns the log's identity, as recorded in quill.format and every consumer file.
 func (l *Log) ID() string { return string(l.id) }
@@ -664,24 +694,18 @@ func removeTempsBefore(fsys fsx.FS, dir string, cutoff time.Time) {
 func (l *Log) recordPolicy() {
 	err := l.writePolicy()
 	if err == nil {
-		if l.policyErr != nil {
-			if errors.Is(l.bgErr, l.policyErr) {
-				l.bgErr = nil
-			}
-			l.policyErr = nil
+		if l.bg[bgPolicy] != nil {
+			l.clearBg(bgPolicy)
 			l.logf(slog.LevelInfo, "quill.policy written after an earlier failure")
 		}
 		return
 	}
-	first := l.policyErr == nil
+	first := l.bg[bgPolicy] == nil
 	if first {
 		l.logf(slog.LevelWarn, "quill.policy could not be written; the previous one is removed and the write is retried at each flush and prune pass", "err", err)
 	}
 	_ = l.fs.Remove(l.path(policyName)) // best effort; a missing file is the point
-	if first || errors.Is(l.bgErr, l.policyErr) {
-		l.bgErr = err // never displaces a different background error already in Err()
-	}
-	l.policyErr = err
+	l.setBg(bgPolicy, err)
 }
 
 // writePolicy records the settings the writer opened with (decision 29).

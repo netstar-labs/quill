@@ -107,7 +107,7 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 		l.broadcastLocked()
 		return l.failed
 	}
-	if l.policyErr != nil {
+	if l.bg[bgPolicy] != nil {
 		l.recordPolicy()
 	}
 	l.stale, l.offsets = cv.stale, cv.offsets
@@ -129,7 +129,8 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 			l.logf(slog.LevelWarn, "age rotation skipped because the flush failed; the sweep and the caps still run", "err", err)
 		} else if l.active.frames > 0 && !l.pendingPublish {
 			if err := l.rotateLocked(); err != nil {
-				l.pendingPublish, l.bgErr = true, err
+				l.pendingPublish = true
+				l.setBg(bgRotate, err)
 			} else if err := l.publishLocked(); err != nil {
 				return err
 			}
@@ -178,6 +179,9 @@ func (l *Log) pruneLocked(now time.Time, cv consumerView, force bool) error {
 		n = limit
 	}
 	n = l.capsLocked(n)
+	// A pass that reaches its deletions is a fresh attempt at every unlink an earlier pass failed:
+	// the error those left in Err() is dropped here and set again by any unlink that fails now.
+	l.clearBg(bgPrune)
 	return l.deleteLocked(n, cv.offsets)
 }
 
@@ -293,7 +297,7 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 			// here would block every segment behind this one, and the caps with it.
 			l.logf(slog.LevelWarn, "segment was already gone", "segment", s.path)
 		} else if err != nil {
-			l.bgErr = err
+			l.setBg(bgPrune, err)
 			l.logf(slog.LevelWarn, "cannot delete segment", "segment", s.path, "err", err)
 			n = i
 			break
@@ -325,6 +329,17 @@ func (l *Log) deleteLocked(n int, offsets []uint64) error {
 		}
 	}
 	l.holes = kept
+	if l.loadErr != nil {
+		// The load error names the first damaged segment still on disk: when that one is gone
+		// it names the next, and when none is left there is nothing to report.
+		l.loadErr = nil
+		for _, s := range l.sealed {
+			if s.bad != nil {
+				l.loadErr = s.bad
+				break
+			}
+		}
+	}
 	if syncErr != nil {
 		l.fail(syncErr)
 		return l.failed

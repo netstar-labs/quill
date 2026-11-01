@@ -26,7 +26,7 @@ func (l *Log) Flush() error {
 }
 
 func (l *Log) flushLocked() error {
-	if l.policyErr != nil {
+	if l.bg[bgPolicy] != nil {
 		l.recordPolicy()
 	}
 	if l.failed != nil {
@@ -53,7 +53,8 @@ func (l *Log) flushLocked() error {
 			l.broadcastLocked()
 			return l.failed
 		}
-		l.flushErr, l.bgErr = err, err
+		l.flushErr = err
+		l.setBg(bgFlush, err)
 		l.broadcastLocked()
 		return err
 	}
@@ -70,6 +71,7 @@ func (l *Log) flushLocked() error {
 	l.head = l.bufFirst + uint64(l.bufCount) - 1
 	l.buf, l.bufCount = l.buf[:0], 0
 	l.flushErr = nil
+	l.clearBg(bgFlush)
 	// (d, e) Rotate if due and publish the marker; failures there are retried next time.
 	err := l.publishLocked()
 	l.broadcastLocked()
@@ -104,7 +106,6 @@ func (l *Log) lockLostLocked() bool {
 // fail puts the log in the failed state.
 func (l *Log) fail(err error) {
 	l.failed = fmt.Errorf("%w: %w", ErrFailed, err)
-	l.bgErr = l.failed
 }
 
 // indexBuffer adds the buffer's frames, now durable at off, to the active segment's index.
@@ -141,7 +142,7 @@ func (l *Log) publishLocked() error {
 			if l.failed != nil {
 				return l.failed
 			}
-			l.bgErr = rotErr
+			l.setBg(bgRotate, rotErr)
 		}
 		l.rotErr = rotErr
 	}
@@ -150,10 +151,12 @@ func (l *Log) publishLocked() error {
 	if m != l.marker || l.pendingPublish || sealed {
 		l.tailBuf = appendTail(l.tailBuf[:0], m)
 		if err := writeState(l.fs, l.tailPath, l.tailBuf, l.cfg.Perm); err != nil {
-			l.pendingPublish, l.bgErr = true, err
+			l.pendingPublish = true
+			l.setBg(bgPublish, err)
 			return err
 		}
 		l.marker, l.markerAt = m, l.cfg.clock()
+		l.clearBg(bgPublish)
 		if sealed {
 			// The marker naming the new segment is made durable at rotation (decision 65).
 			if err := l.fs.SyncDir(l.dir); err != nil {
@@ -203,6 +206,7 @@ func (l *Log) rotateLocked() error {
 	l.maxSeg = id
 	l.active = &activeSegment{id: id, path: path, f: f, first: l.head + 1}
 	l.justSealed = true
+	l.clearBg(bgRotate)
 	return nil
 }
 
@@ -221,7 +225,8 @@ func (l *Log) Roll() error {
 		return nil
 	}
 	if err := l.rotateLocked(); err != nil {
-		l.pendingPublish, l.bgErr = true, err
+		l.pendingPublish = true
+		l.setBg(bgRotate, err)
 		return err
 	}
 	err := l.publishLocked()
@@ -315,9 +320,9 @@ func (l *Log) flusher() {
 			cv := l.consumers(now)
 			l.mu.Lock()
 			if !l.closed && l.failed == nil {
-				if err := l.pruneLocked(now, cv, false); err != nil {
-					l.bgErr = err
-				}
+				// An error from the pass is already in Err(): each step that can return one
+				// (a flush, a publish, a rotation, an fsync) records it where it arises.
+				_ = l.pruneLocked(now, cv, false)
 			}
 			l.mu.Unlock()
 			continue

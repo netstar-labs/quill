@@ -11,7 +11,7 @@ var (
 	// (bytes below quill.tail.off that do not verify, a marker above the last valid frame, an
 	// overlap between segments, a damaged quill.tail or quill.format). A sealed segment that does
 	// not verify does not fail Open: it becomes a hole, reads return a *GapError over it, and
-	// Err() returns the *SegmentError, which matches ErrCorrupt. The user guide has the procedure.
+	// Err() returns the *SegmentError, which matches ErrCorrupt, until retention deletes the segment. The user guide has the procedure.
 	ErrCorrupt = errors.New("quill: corrupt log")
 	// ErrFutureVersion reports a quill.format marker newer than this build knows.
 	ErrFutureVersion = errors.New("quill: log format is newer than this build")

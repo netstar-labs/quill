@@ -52,13 +52,16 @@ reopened, because a retried fsync can report success for data that never reached
 error from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still
 become durable, so a producer that retries must tolerate duplicates. A failure to publish the
 marker or create the next segment after the data fsync is retried at the next flush, reported
-by `Err()`, and never rewrites durable data. While flushes fail the buffer is bounded by
+by `Err()` while it lasts, and never rewrites durable data. While flushes fail the buffer is bounded by
 `MaxBufferBytes`; past it, appends fail fast with the flush error. While creating the next
 segment keeps failing, the writer keeps appending to the current one, but only to a ceiling of
 `SegmentBytes + max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes, MaxPayloadBytes + 34)`, which
 `Open` keeps under the 1.5 GiB file limit; past it an append fails with the rotation error and
 assigns no sequence, until a flush creates the segment. Watch `Err()` and fix the cause (descriptors,
-permissions, inodes) before the ceiling.
+permissions, inodes) before the ceiling. `Err()` is what is failing now: a background error clears
+when the operation that set it succeeds (a flush, a rotation, a marker publish, a prune pass), and
+an old damaged segment does not hide it. It is nil when nothing is failing and no sealed segment is
+damaged; when more than one thing is wrong it is their `errors.Join`, and `errors.Is` matches each.
 
 ## 3. Reading in the writer's process
 
@@ -300,7 +303,7 @@ repeated on the next open, so keep the line if you need to know.
 `Open` fails with **`ErrCorrupt`** when the newest segment is damaged below `quill.tail.off`,
 when the marker names a sequence above the last valid frame, when two segments overlap, or
 when `quill.tail` or `quill.format` is malformed. Damage in any sealed segment, the newest's
-predecessor included, does not fail `Open`: the segment becomes a hole, `Err()` names it,
+predecessor included, does not fail `Open`: the segment becomes a hole, `Err()` names it until retention deletes it,
 `quill check` reports it, and reads stop before it with a gap. Retention deletes a damaged sealed
 segment like any other, and with it the file and the hole, the only artifacts of the damage, after
 which `Stat().Holes` is empty and `quill check` is healthy; so the pass logs the deletion at `Warn` as

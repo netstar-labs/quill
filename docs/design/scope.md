@@ -62,7 +62,7 @@ It is not a message broker: no network protocol, no replication, no consumer gro
 | `Records(ctx, offset)` / `Follow(ctx, offset)` | Go iterators (`iter.Seq2[Record, error]`): `Records` reads to the current end and stops, `Follow` then waits for more until the context ends. Payloads are copies (decision 58) |
 | `OffsetForTime(t)` | `(uint64, error)`: the smallest sequence whose `At` is at or after `t`, always a valid `Commit` argument; the error covers I/O failure and a damaged segment (decision 59) |
 | `Archive(srcDir, dstDir)` | Copy sealed segments to a destination that opens as a log; the library function behind `quill archive` (decisions 28, 67) |
-| `Head()` / `Stat()` / `Err()` | Last flushed sequence; `Stat`: first retained sequence, segment, byte and record counts, holes, `Dropped`, stale consumers, the marker's age; the background error or sticky load error |
+| `Head()` / `Stat()` / `Err()` | Last flushed sequence; `Stat`: first retained sequence, segment, byte and record counts, holes, `Dropped`, stale consumers, the marker's age; `Err()`: the failed state or the sticky load error of a damaged sealed segment, joined with every background error still failing (each clears when the operation that set it succeeds, the load error when retention deletes its segment) |
 | `Roll()` | Seal the active segment now, so it can be archived or reached by retention |
 | `Sync(ctx, seq)` | Signal the flusher and block until `seq` is durable, sharing one fsync with every other waiter (group commit). An error means unknown, not lost (decision 42). `Append` then `Sync` is a durable write for one record; `AppendBatch` then `Sync(last)` for a batch |
 | `(*Log).Consumer(name, ConsumerOptions)` | Take a consumer handle, creating its offset file at the first retained sequence if absent (`Protect`: `ProtectAsStored` by default, `ProtectOn` or `ProtectOff`; a protected consumer's unread segments are kept by retention): `Offset()`, `Commit(next)`, `SeekToTime(t)`, `Records(ctx)`, `Follow(ctx)`, `Lag()`, `Close()`. Holds the consumer's lock |
@@ -364,7 +364,7 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
    replaced under a live writer, the writer finds out at its next flush or prune pass and fails with `ErrFailed`
    (decision 62), but a second writer that opened in between is not stopped, so never delete it.
 6. **Corruption is never served silently.** A segment corrupt in the middle fails to load, is never
-   modified, is named by `Err()` and `quill check`, and reaches readers as a gap: reads stop before it with a
+   modified, is named by `Err()` (until retention deletes it) and `quill check`, and reaches readers as a gap: reads stop before it with a
    `GapError`, never skipping it.
 7. **Allocation is bounded on hostile input:** a declared frame length over 64 MiB, a segment over
    1.5 GiB, an oversize payload or batch is refused before it is allocated.
