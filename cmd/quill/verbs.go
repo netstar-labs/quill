@@ -113,7 +113,7 @@ func init() {
 			}, run: cmdPrune},
 		{name: "roll", summary: "seal the active segment now; needs the writer's lock", lock: "log",
 			run: cmdRoll},
-		{name: "archive", summary: "copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer", lock: "consumer",
+		{name: "archive", summary: "copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer; exit 3 when the source had lost records", lock: "consumer",
 			flags: func(fs *flag.FlagSet, c *cli) { fs.StringVar(&c.to, "to", "", "the destination directory") },
 			run:   cmdArchive},
 		{name: "recover", summary: "open the log writable, which repairs a torn tail and republishes quill.tail, then close it", lock: "log",
@@ -242,7 +242,7 @@ func cmdHelp(c *cli, args []string) int {
 	}
 	_ = w.Flush()
 	fmt.Fprintln(c.out)
-	fmt.Fprintln(c.out, "Exit codes: 0 ok, 1 error, 2 usage, 3 check found the log UNHEALTHY.")
+	fmt.Fprintln(c.out, "Exit codes: 0 ok, 1 error, 2 usage, 3 check found the log UNHEALTHY or archive found the source had lost records.")
 	return exitOK
 }
 
@@ -270,7 +270,7 @@ func cmdReference(c *cli, args []string) int {
 	fmt.Fprintln(c.out, "*Generated from the verb table in `cmd/quill/verbs.go` (`quill reference`); a test keeps it current. Do not edit by hand.*")
 	fmt.Fprintln(c.out)
 	fmt.Fprintln(c.out, "`quill [-dir DIR] <verb> [flags]`. Every verb but `help` and `version` takes `-dir`, the log directory")
-	fmt.Fprintln(c.out, "(for `ls`, the parent directory holding the logs). Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY.")
+	fmt.Fprintln(c.out, "(for `ls`, the parent directory holding the logs). Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY or `archive` found the source had lost records.")
 	fmt.Fprintln(c.out)
 	fmt.Fprintln(c.out, "| Verb | Lock | Summary |")
 	fmt.Fprintln(c.out, "|---|---|---|")

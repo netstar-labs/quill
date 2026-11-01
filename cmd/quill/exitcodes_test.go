@@ -45,11 +45,11 @@ func TestExitCodesArePinnedToTheirDocumentedNumbers(t *testing.T) {
 func TestExitCodeProseMatchesTheNumbers(t *testing.T) {
 	const prose = "0 ok, 1 error, 2 usage, 3"
 	_, out, _ := exec(t, "", "help")
-	if !strings.Contains(out, "Exit codes: "+prose+" check found the log UNHEALTHY.") {
+	if !strings.Contains(out, "Exit codes: "+prose+" check found the log UNHEALTHY or archive found the source had lost records.") {
 		t.Errorf("quill help does not list the exit codes as %q:\n%s", prose, out)
 	}
 	_, ref, _ := exec(t, "", "reference")
-	if !strings.Contains(ref, "Exit codes: "+prose+" `check` found the log UNHEALTHY.") {
+	if !strings.Contains(ref, "Exit codes: "+prose+" `check` found the log UNHEALTHY or `archive` found the source had lost records.") {
 		t.Errorf("quill reference does not list the exit codes as %q", prose)
 	}
 }

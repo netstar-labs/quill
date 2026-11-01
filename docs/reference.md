@@ -3,7 +3,7 @@
 *Generated from the verb table in `cmd/quill/verbs.go` (`quill reference`); a test keeps it current. Do not edit by hand.*
 
 `quill [-dir DIR] <verb> [flags]`. Every verb but `help` and `version` takes `-dir`, the log directory
-(for `ls`, the parent directory holding the logs). Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY.
+(for `ls`, the parent directory holding the logs). Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY or `archive` found the source had lost records.
 
 | Verb | Lock | Summary |
 |---|---|---|
@@ -20,7 +20,7 @@
 | `check` | none | verify every segment, hole, consumer file and the clock; exit 3 when UNHEALTHY |
 | `prune` | log | run a retention pass now with the policy in quill.policy or the flags; needs the writer's lock |
 | `roll` | log | seal the active segment now; needs the writer's lock |
-| `archive` | consumer | copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer |
+| `archive` | consumer | copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer; exit 3 when the source had lost records |
 | `recover` | log | open the log writable, which repairs a torn tail and republishes quill.tail, then close it |
 | `help` | none | print this list, or a verb's flags |
 | `version` | none | print the version |
@@ -191,7 +191,7 @@ Lock: the writer's lock (fails with ErrLocked beside a live writer).
 
 ## `quill archive`
 
-Copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer.
+Copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer; exit 3 when the source had lost records.
 
 Lock: the consumer's lock only (runs beside a live writer).
 

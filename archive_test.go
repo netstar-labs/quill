@@ -289,6 +289,40 @@ func TestArchiveStopsAtACorruptSegmentAndReportsASourceHole(t *testing.T) {
 	}
 }
 
+// The documented reset, deleting the _archive consumer, recreates it at the first retained
+// sequence, so a loss between the destination's last record and that sequence is below no
+// offset. Archive compares the destination's quill.tail with the first segment it copies and
+// returns the *GapError, as it does when the offset itself is behind the source (A5-29).
+func TestArchiveAfterTheConsumerIsRecreatedReportsTheRecordsTheDestinationLacks(t *testing.T) {
+	s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
+	defer l.Close()
+	fillSegments(t, l, clk, 3) // segments 0..2, records 1..12
+	if err := archive(s, "/log", "/arch"); err != nil {
+		t.Fatal(err)
+	}
+	fillSegments(t, l, clk, 3) // segments 3..5, records 13..24, never archived
+	for id := 0; id <= 3; id++ {
+		if err := s.Remove("/log/" + segmentName(uint64(id))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := OpenReader("/log", ReaderOptions{fs: s})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.DeleteConsumer(archiveConsumer); err != nil {
+		t.Fatal(err)
+	}
+	r.Close()
+	if err := archive(s, "/log", "/arch"); !isGap(err, 13, 16) {
+		t.Fatalf("%v", err)
+	}
+	// The gap is reported by the run that finds it; the destination's tail now names what it holds.
+	if err := archive(s, "/log", "/arch"); err != nil {
+		t.Fatalf("a run with nothing to copy: %v", err)
+	}
+}
+
 func TestTheArchiverIsAProtectedConsumerUntilACapOverridesIt(t *testing.T) {
 	s, clk, l := retentionLog(t, nil)
 	defer l.Close()

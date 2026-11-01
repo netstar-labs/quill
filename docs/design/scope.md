@@ -165,7 +165,8 @@ beside a live writer without its lock and show only durable records; they print 
 **Locks and exit codes** (decision 53). `append`, `roll`, `prune` and `recover` open the log writable and fail with
 `ErrLocked` beside a live writer. `commit`, `register`, `unregister` and `archive` take only the consumer's lock.
 `cat`, `read`, `tail`, `stat`, `ls`, `consumers` and `check` take no lock. Exit codes: 0 ok, 1 error, 2 usage,
-3 `check` found the log UNHEALTHY. `append` closes the log before it prints and exits 1 when `Close` fails; under
+3 `check` found the log UNHEALTHY or `archive` found that the source had lost records the archive never copied
+(it still copied what exists; Stage 2 audit, owner-approved 2026-10-31, A5-29). `append` closes the log before it prints and exits 1 when `Close` fails; under
 `-sync=true`, where the records were already durable, it still prints the last sequence to stdout (decision 100). `roll` and `prune` exit 1 when `Close` fails after a successful pass, with the error on standard error (decision 100). `recover` is `Open` (which performs recovery) followed by `Close`. `register -protect` creates a protected
 consumer; `read`, `cat` and `tail` take `-since <time>` and `commit` takes `-time <time>` (decision 59).
 `prune` ends its line with `dropped N`, the sealed segments the pass deleted while a consumer's offset was
@@ -317,7 +318,7 @@ commits while it has work to do.
 not yet copied, verifies every CRC while copying, writes `<dest>`'s `quill.tail` and `quill.format` so the
 destination opens with `OpenReader`, then commits its offset. The archiver is a protected consumer, so
 retention will not delete a segment the archiver has not copied, but `MaxBytes` and `MinFreeBytes` still
-win, so archiving can fall behind and lose segments under disk pressure (`Dropped` counts them). To archive
+win, so archiving can fall behind and lose segments under disk pressure (`Dropped` counts them). A source that lost records the archive never copied gives the destination the same hole: `Archive` copies what exists and returns a `*GapError`, and `quill archive` prints the range and exits 3, whether the `_archive` offset is below the first retained sequence or the consumer was removed and recreated (the destination's `quill.tail` is then compared with the first segment copied); the run that reports it commits past it, and `quill check` on the destination keeps reporting it (Stage 2 audit, owner-approved 2026-10-31, A5-29). To archive
 the newest records, `Roll()` first. `_archive` is the one reserved name `register`, `unregister`, `commit` and `DeleteConsumer` accept, so after a restore that leaves it ahead of the head it is rewound with `quill commit -name _archive -offset N` or removed with `quill unregister -name _archive`. Moving an archive to other storage is the operator's `rsync` or `tar`.
 
 **A wrong clock** (decision 44). `At` is the writer's wall clock, so a clock stepped forward makes every sealed

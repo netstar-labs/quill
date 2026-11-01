@@ -20,7 +20,13 @@ import (
 // consumer (decisions 28, 67, 68). It is idempotent, runs beside a live writer (it reads
 // only sealed segments, through a Reader), and stops with an error at a corrupt sealed
 // segment. When the source has lost segments the destination holds the same hole, and
-// Archive returns a *GapError naming it after copying what exists. It refuses, before
+// Archive returns a *GapError naming it after copying what exists. The gap is found by the
+// run that copies past it, in two ways: the _archive offset is below the first retained
+// sequence or a segment is missing between two it copies, or the destination's quill.tail
+// names a last record below the first segment it copies, which is how a loss shows after the
+// consumer was removed and recreated at the first retained sequence (Stage 2 audit, A5-29).
+// Later runs have nothing to copy and return nil; `quill check` on the destination keeps
+// reporting the hole. It refuses, before
 // writing to it, a destination that is the source log itself and a destination whose
 // writer lock is held (ErrLocked): quill.tail is the writer's file. quill.lock is always 0600,
 // so a destination lock this account cannot open (it belongs to another account) is treated as
@@ -68,6 +74,15 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 	if offset < v.first {
 		gap = &GapError{From: offset, To: v.first - 1}
 	}
+	// What the destination holds: its quill.tail names the last record of the last run. A zero
+	// Seq is a new destination (the whole source is then the archive's to copy) and a marker
+	// that cannot be read is about to be replaced, so neither says anything about a hole.
+	var destSeq uint64
+	if data, err := readState(fsys, filepath.Join(dstDir, tailName)); err == nil {
+		if dt, err := decodeTail(data); err == nil {
+			destSeq = dt.Seq
+		}
+	}
 	var lastSeq, lastID uint64
 	var lastSize int64
 	copied := 0
@@ -83,6 +98,12 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 		}
 		if gap == nil && copied > 0 && s.first != lastSeq+1 {
 			gap = &GapError{From: lastSeq + 1, To: s.first - 1}
+		}
+		// The first segment copied begins past the destination's last record: the records between
+		// were lost from the source before any archiver copied them, which the offset cannot show
+		// after the consumer was removed and recreated at the first retained sequence.
+		if gap == nil && copied == 0 && destSeq > 0 && s.first > destSeq+1 {
+			gap = &GapError{From: destSeq + 1, To: s.first - 1}
 		}
 		lastSeq, lastID, lastSize = last, s.id, size
 		copied++

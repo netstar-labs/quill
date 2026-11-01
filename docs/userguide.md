@@ -222,7 +222,7 @@ ahead warns through the logger, naming the segment; `quill check` reports the re
 | `commit`, `register`, `unregister`, `archive` | the consumer's | yes |
 | `append`, `roll`, `prune`, `recover` | the writer's | no: `ErrLocked` |
 
-Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY. `ls` skips a subdirectory that is not a log
+Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY or `archive` found the source had lost records (the run still copied what exists). `ls` skips a subdirectory that is not a log
 (no `quill.format`) and lists every log it can open; a log it cannot open or read (a damaged or future `quill.format`, no
 permission) gets a row ending in `error: ...`, and `ls` exits 1 after listing the rest, as `stat` and `check` do for that log.
 Only `append` (the records) and `help` (a verb name)
@@ -303,7 +303,14 @@ directory that holds anything else and has no `quill.format` is refused with `Er
 mistyped `-to` cannot replace an unrelated file. Because `quill.lock` is always 0600, an archiver in a different account than the destination's writer cannot open that lock; the verb treats the permission error as a writer that may be live and refuses (the error is both `ErrLocked` and a permission error), so archive into a directory the archiver's own account owns. To archive the newest records, `quill
 roll` first (or `Roll()` in the writer). Under disk pressure the caps still win, so an
 archive can fall behind; `Stat().Dropped` counts the loss. A source that lost segments gives
-an archive with the same hole, and the verb says so.
+an archive with the same hole. The run that finds the hole copies what exists, prints
+`the source lost records N to M; the archive holds the same hole` on standard error, and exits 3 (the
+code `check` uses for UNHEALTHY; the library returns a `*GapError`), so `quill archive && notify-ok` does not
+report success for an incomplete archive. It finds it two ways: the `_archive` offset is below the source's first
+retained sequence, or the destination's `quill.tail` names a last record below the first segment the run copies, which
+is how it shows after `quill unregister -name _archive` recreated the consumer at the first retained sequence. The
+run that reports the hole commits past it, so the next run has nothing to copy and exits 0; `quill check -dir <dest>`
+keeps reporting the hole (exit 3).
 
 **Moving, renaming, deleting a log** are directory operations done while no writer holds it and no reader or consumer has it open. A handle opened before a directory was replaced by another log
 refuses `Commit`, and gives up `ReadWait` and `Follow` when they wait, with `ErrWrongLog`; plain reads do not re-check, so close and reopen.
