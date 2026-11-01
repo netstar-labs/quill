@@ -69,7 +69,8 @@ func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 // artifacts of the damage), the one it writes for each consumer a deletion passes (the offline
 // process keeps no counter that would show it later), and the four that explain a pass that
 // deleted less than the policy allows: an unlink that failed, the clock guard, a segment stamped in
-// the future and a consumer file that could not be read. The operator must be told about those,
+// the future and a consumer file that could not be read, and the one Open writes when it cannot tighten a
+// quill.lock an earlier build left wider (another account owns it). The operator must be told about those,
 // whichever verb opened the log, while the other retention lines the verbs would provoke are not
 // output these verbs ever had.
 type lossOnly struct{ slog.Handler }
@@ -92,6 +93,7 @@ var lossOrShortfall = []string{
 	"age sweep limited by the clock guard",
 	"age sweep stopped at a segment stamped in the future",
 	"consumer file could not be read",
+	"quill.lock is wider than 0600",
 }
 
 func (h lossOnly) WithAttrs(a []slog.Attr) slog.Handler { return lossOnly{h.Handler.WithAttrs(a)} }

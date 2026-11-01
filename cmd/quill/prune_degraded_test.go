@@ -92,3 +92,16 @@ func TestOfflineLogFilterPassesEveryPruneShortfallMessage(t *testing.T) {
 		t.Errorf("an undamaged deletion is printed: %q", out.String())
 	}
 }
+
+// A writable open that cannot tighten a quill.lock an earlier build left wider (the file belongs to
+// another account) logs a Warn and still succeeds. The offline verbs open the log writable and say
+// so on standard error, because the process that owns that lock may be one nobody is watching.
+func TestOfflineLogFilterPassesTheLockTighteningWarning(t *testing.T) {
+	const msg = "quill.lock is wider than 0600 and could not be tightened: a process that can read it can take the writer's lock"
+	var out strings.Builder
+	slog.New(lossOnly{slog.NewTextHandler(&out, nil)}).Log(context.Background(), slog.LevelWarn, msg,
+		"path", "/log/quill.lock", "error", "operation not permitted")
+	if !strings.Contains(out.String(), msg) || !strings.Contains(out.String(), "operation not permitted") {
+		t.Errorf("the lock tightening warning is filtered out: %q", out.String())
+	}
+}
