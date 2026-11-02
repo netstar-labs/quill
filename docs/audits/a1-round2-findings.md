@@ -75,11 +75,11 @@ prior-deliberate 7.
 
 | disposition | items | what it means |
 |-------------|-------|---------------|
-| fixed | 60 | 42 from 2026-10-29, the 16 above, and A1-67 and A1-80 (see "Update 2026-10-31" below); each passed the fix-skeptic |
-| fix-failed | 1 | A1-62 (rejected on 2026-10-29); not integrated. A4-1 (pass A4, rejected in A1h, since fixed in the A4-1 commit) is not one of the 73 |
+| fixed | 62 | 42 from 2026-10-29, the 16 above, A1-67 and A1-80 (see "Update 2026-10-31" below), and A1-62 and A1-59 (see "Update 2026-11-02" below); each passed the fix-skeptic |
+| fix-failed | 0 | none: A1-62, rejected on 2026-10-29, was resolved on 2026-11-02 (below). A4-1 (pass A4, rejected in A1h, since fixed in the A4-1 commit) is not one of the 73 |
 | held for the owner | 0 | A1-67 and A1-80 were held here; the owner approved the recommended answers on 2026-10-31 (below) |
 | refuted | 5 | not changed, because the claim does not hold |
-| round-1-decided | 7 | deliberately not changed in round 1 |
+| round-1-decided | 6 | deliberately not changed in round 1 (A1-59 was reopened and fixed) |
 
 Not carried by this ledger, and so not re-judged here: A1-67, A1-80, A1-62 and A1-59. Commits for them exist in the
 tree (ba7c650 A1-67, b5ad955 A1-80, 2978378 A1-62r, 7ef431c A1-59; verified from `git log`), but their fix-skeptic
@@ -90,16 +90,18 @@ disposition. Whoever records those commits should move them.
 |-----------|-------|-------|------------|------|---------|-----------------|
 | simplify | 9 | 6 | 0 | 0 | 1 | 2 |
 | dedup | 12 | 11 | 0 | 0 | 1 | 0 |
-| correctness | 37 | 28 | 1 | 0 | 3 | 5 |
+| correctness | 37 | 30 | 0 | 0 | 3 | 4 |
 | docs | 15 | 15 | 0 | 0 | 0 | 0 |
-| total | 73 | 60 | 1 | 0 | 5 | 7 |
+| total | 73 | 62 | 0 | 0 | 5 | 6 |
 
 **Update 2026-10-31.** The owner approved the recommended answer for A1-67 and A1-80. Their fixes were already on
 `main` (ba7c650 and b5ad955, committed 2026-10-30; verified from `git log`) with no recorded fix-skeptic outcome. On
 2026-10-31 an independent fix-skeptic per commit, working on a scratch copy of the tree, returned FIXED-VERIFIED on
 every lens (7 of 7 each; the reports are summarised in [stage2-owner-decisions.md](stage2-owner-decisions.md)). The
 counts in this table are moved accordingly: A1-67 (docs dimension) and A1-80 (correctness) from held to fixed. A1-62
-and A1-59 are still not carried by this ledger.
+and A1-59 are covered by the next paragraph.
+
+**Update 2026-11-02.** A1-62 and A1-59 were integrated at the owner's request. Their commits were already on `main` (2978378 and 7ef431c, committed 2026-10-30) with no recorded fix-skeptic outcome; an independent fix-skeptic per commit returned FIXED-VERIFIED (A1-62 as a documented-constraint resolution, with a documentation defect corrected in d7b51e0; A1-59 with a test gap closed in fe9fe31; see stage2-owner-decisions.md). Both are correctness items, so the correctness row and the total move: fixed 62, fix-failed 0, round-1-decided 6.
 
 ### Coverage (pass A1h)
 
@@ -715,14 +717,14 @@ reproduced it by execution; the commit is shown by its first 7 characters.
 | A1-85 | consumer.go:313, archive.go:25 | medium | CONFIRMED | CC | Y | fixed 279d7ce |
 | A1-34 | consumer.go:245-260, retention.go:38-41 | medium | REFUTED | RCR | Y | refuted |
 | A1-49 | cmd/quill/write.go:19-41 | medium | REFUTED | CRR | Y | refuted |
-| A1-59 | read.go:295-296 | medium | prior-deliberate | - | N | round-1-decided (decision 103); revisit |
+| A1-59 | read.go:295-296 | medium | prior-deliberate | - | N | fixed 7ef431c (reopened; decision 103 amended) |
 | A1-26 | append.go:61-77, flush.go:227 | low | CONFIRMED | CC | Y | fixed 890c70e |
 | A1-31 | retention.go:225-250 | low | CONFIRMED | PC | Y | fixed e2f7801 |
 | A1-37 | load.go:339-348 | low | PLAUSIBLE | CRC | N | fixed 89073cb |
 | A1-64 | archive.go:74, 94-126 | low | CONFIRMED | CC | Y | fixed 5b486d2 |
 | A1-53 | reader.go:42, 199-247 | low | CONFIRMED | CC | Y | fixed 8f29e05 |
 | A1-61 | flush.go:226-229 | low | CONFIRMED | CC | Y | fixed 3208dab |
-| A1-62 | retention.go:94-274 | low | CONFIRMED | CC | Y | fix-failed (fdcd880) |
+| A1-62 | retention.go:94-274 | low | CONFIRMED | CC | Y | documented 2978378 (fdcd880 not integrated) |
 | A1-63 | archive.go:96, 126 | low | CONFIRMED | CC | Y | fixed 7672a8d |
 | A1-65 | archive.go:146 | low | CONFIRMED | CC | N | fixed db30a94 |
 | A1-78 | cmd/quill/verbs.go:45-47 | low | CONFIRMED | CC | Y | fixed 8449425 |
