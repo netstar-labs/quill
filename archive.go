@@ -19,8 +19,9 @@ import (
 // destination's quill.format and quill.tail so it opens with OpenReader, then commits the
 // consumer (decisions 28, 67, 68). It is idempotent, runs beside a live writer (it reads
 // only sealed segments, through a Reader), and stops with an error at a corrupt sealed
-// segment. When the source has lost segments the destination holds the same hole, and
-// Archive returns a *GapError naming it after copying what exists. The gap is found by the
+// segment, and at two segments that overlap (ErrCorrupt, as a Reader and Open do, decision
+// 102), before it copies the earlier of the two. When the source has lost segments the
+// destination holds the same hole, and Archive returns a *GapError naming it after copying what exists. The gap is found by the
 // run that copies past it, in two ways: the _archive offset is below the first retained
 // sequence or a segment is missing between two it copies, or the destination's quill.tail
 // names a last record below the first segment it copies, which is how a loss shows after the
@@ -226,6 +227,13 @@ func copySegment(fsys fsx.FS, s *segRef, dstDir string, perm fs.FileMode) (int64
 	info, err := verifySegment(r, size, fmt.Sprintf("segment %d", s.id))
 	if err != nil {
 		return 0, 0, err
+	}
+	// The view derived this segment's last sequence from where the next segment starts, which
+	// cannot show an overlap; the whole-segment verification just learned the real one. Frames
+	// past the derived end are the overlap Open refuses (decision 102): copying them would
+	// publish a marker below the last record copied.
+	if info.last.Seq > s.last {
+		return 0, 0, fmt.Errorf("%w: segment %d holds sequence %d, inside the next segment (starts at %d)", ErrCorrupt, s.id, info.last.Seq, s.last+1)
 	}
 	dst := filepath.Join(dstDir, segmentName(s.id))
 	if di, err := fsys.Lstat(dst); err == nil && di.Mode().IsRegular() && di.Size() == size {

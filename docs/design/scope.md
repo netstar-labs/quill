@@ -203,7 +203,7 @@ never `null`. The order of keys within an object is not part of the contract; co
   inclusive are missing), `[]` when there are none.
 - `quill check -json` prints one object: `status` (`"HEALTHY"` or `"UNHEALTHY"`), `unbounded` (a boolean) and
   `problems`, an array of `{"kind","path","offset","intact","detail","fatal"}` objects (`kind` is one of `segment`,
-  `hole`, `consumer`, `policy`, `clock`; `offset` and `intact` are integers; `fatal` is a boolean), `[]` when there
+  `hole`, `overlap`, `consumer`, `policy`, `clock`; `offset` and `intact` are integers; `fatal` is a boolean), `[]` when there
   are none. The exit code is 3 when the status is `UNHEALTHY`.
 - `quill consumers -json` prints one object per consumer, one per line: `name`, `offset`, `lag` (integers) and
   `protected` (a boolean), plus `error` (a string) when the consumer's file cannot be read, `ahead` (`true`)

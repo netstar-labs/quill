@@ -133,7 +133,7 @@ func (r *Reader) Stat() (Stats, error) {
 
 // Problem is one finding of Check.
 type Problem struct {
-	Kind   string // "segment", "hole", "consumer", "policy", "clock"
+	Kind   string // "segment", "hole", "overlap", "consumer", "policy", "clock"
 	Path   string
 	Offset int64 // for a segment: where the damage starts
 	Intact int64 // for a segment: the end of the last valid frame
@@ -187,7 +187,7 @@ func (r *Reader) Check() (CheckResult, error) {
 	}
 	future := r.opts.clock().Add(24 * time.Hour).Unix()
 	var prevAt int64
-	var prevLast uint64
+	var prevLast, prevID uint64
 	havePrev := false
 	first := tl.Seq + 1 // the first retained sequence: the first good segment's, none retained is head + 1
 	haveFirst := false
@@ -241,10 +241,14 @@ func (r *Reader) Check() (CheckResult, error) {
 		if !haveFirst {
 			first, haveFirst = info.first.Seq, true
 		}
-		if havePrev && info.first.Seq != prevLast+1 {
+		switch {
+		case havePrev && info.first.Seq <= prevLast:
+			// The overlap Open refuses (decision 102), not a hole.
+			fatal(Problem{Kind: "overlap", Path: path, Detail: fmt.Sprintf("segment %d starts at %d, inside the one before (segment %d, ends at %d)", id, info.first.Seq, prevID, prevLast)})
+		case havePrev && info.first.Seq != prevLast+1:
 			fatal(Problem{Kind: "hole", Path: path, Detail: fmt.Sprintf("sequences %d to %d are missing before it", prevLast+1, info.first.Seq-1)})
 		}
-		prevLast, havePrev = info.last.Seq, true
+		prevLast, prevID, havePrev = info.last.Seq, id, true
 	}
 	if havePrev && prevLast < tl.Seq {
 		fatal(Problem{Kind: "hole", Path: r.path(tailName), Detail: fmt.Sprintf("the marker names %d, the last frame is %d", tl.Seq, prevLast)})

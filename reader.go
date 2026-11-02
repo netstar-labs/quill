@@ -389,9 +389,10 @@ func (r *Reader) view() (*segView, func(), error) {
 	// First the ranges of the good segments, then one contiguity check over them and the
 	// active segment, then the segment references.
 	type cand struct {
-		s     *readerSegment
-		last  uint64
-		index []anchor
+		s       *readerSegment
+		last    uint64
+		bounded bool // last was derived from the next segment's first sequence, not the marker
+		index   []anchor
 	}
 	cands := make([]cand, 0, len(sealed))
 	rs := make([]seqRange, 0, len(sealed)+1)
@@ -403,16 +404,16 @@ func (r *Reader) view() (*segView, func(), error) {
 		}
 		// The range ends at the next good segment's first sequence, or the active one's.
 		var last uint64
-		nextKnown := false
+		bounded := false
 		for _, n := range sealed[i+1:] {
 			if n.bad == nil {
-				last, nextKnown = n.first-1, true
+				last, bounded = n.first-1, true
 				break
 			}
 		}
-		if !nextKnown {
+		if !bounded {
 			if activeFirst > 0 {
-				last = activeFirst - 1
+				last, bounded = activeFirst-1, true
 			} else {
 				last = tl.Seq
 			}
@@ -426,9 +427,11 @@ func (r *Reader) view() (*segView, func(), error) {
 			index = res.index
 			if res.last < last {
 				last = res.last // scanned already: its real end is known; the next segment or the marker reports the hole
+			} else if res.last > last && bounded {
+				last = res.last // it runs into the next segment: contiguity reports the overlap, as Open does
 			}
 		}
-		cands = append(cands, cand{s, last, index})
+		cands = append(cands, cand{s, last, bounded, index})
 		rs = append(rs, seqRange{id: s.id, first: s.first, last: last})
 	}
 	if activeFile != nil {
@@ -447,7 +450,7 @@ func (r *Reader) view() (*segView, func(), error) {
 	refs := make([]segRef, len(cands)+1)
 	v.segs = make([]*segRef, 0, len(cands)+1)
 	for i, c := range cands {
-		s, last := c.s, c.last
+		s, last, bounded := c.s, c.last, c.bounded
 		ref := &refs[i]
 		*ref = segRef{id: s.id, first: s.first, last: last, at: s.at, index: c.index,
 			open: func() (io.ReaderAt, int64, func(), error) {
@@ -476,6 +479,10 @@ func (r *Reader) view() (*segView, func(), error) {
 					return nil, 0, err
 				}
 				res := s.result.Load()
+				if bounded && res.last > last {
+					// Frames past where the next segment starts: the overlap Open refuses (decision 102).
+					return nil, 0, fmt.Errorf("%w: segment %d holds sequence %d, inside the next segment (starts at %d)", ErrCorrupt, s.id, res.last, last+1)
+				}
 				return res.index, res.last, nil
 			}
 		}

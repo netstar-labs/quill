@@ -315,7 +315,7 @@ gives `Head + 1`). It opens the consumer for the purpose and keeps its protect f
 segments can name data the copy lacks.
 
 **Archiving.** `quill archive -dir <log> -to <dest>` copies each sealed segment not yet
-copied, verifying every CRC, and commits the `_archive` consumer, which is protected. The
+copied, verifying every CRC, and commits the `_archive` consumer, which is protected. A segment that runs into the next one's sequences (two overlapping segments, which `Open` refuses too) stops the verb with `ErrCorrupt` before that segment is copied. The
 destination is itself a log that `OpenReader` opens; the verb refuses the source log as its own
 destination and a destination that has a live writer (`ErrLocked`). The destination must be a new or empty directory (a
 `.tmp-*` file or `quill.lock` does not count) or one that is already an archive (it has a `quill.format`); a
@@ -366,7 +366,9 @@ repeated on the next open, so keep the line if you need to know.
 
 `Open` fails with **`ErrCorrupt`** when the newest segment is damaged below `quill.tail.off`,
 when the marker names a sequence above the last valid frame, when two segments overlap, or
-when `quill.tail` or `quill.format` is malformed. Damage in any sealed segment, the newest's
+when `quill.tail` or `quill.format` is malformed. A reader meets the same overlap as
+`ErrCorrupt` once it has scanned the segment that runs into the next, and `quill check`
+reports it as an overlap. Damage in any sealed segment, the newest's
 predecessor included, does not fail `Open`: the segment becomes a hole, `Err()` names it until retention deletes it,
 `quill check` reports it, and reads stop before it with a gap. Retention deletes a damaged sealed
 segment like any other, and with it the file and the hole, the only artifacts of the damage, after
