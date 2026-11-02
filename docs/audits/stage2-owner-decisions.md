@@ -50,6 +50,28 @@ reader and check tests) and A5-1f (the new tests at the commit); for A3-10 the f
 18662b6 and again at ed518a2 (verified, my own runs). Open points the skeptics left: A3-20's fresh-Reader limit and two wording
 nits, and four A3-10 points (each in its section).
 
+**Update 2026-11-02 (pass A1i).** One item, A1-67r, the owner-approved follow-up to A1-67 (its residuals R1 and R2; see the
+dated note under "Follow-ups (2026-11-02)" in the A1-67 section, a note and not a new item). The owner approved the recommended
+answer for both on 2026-11-02. No item was held for the owner in this pass, so no new held-item section is added.
+
+| counted over the 1 item | |
+|---|---|
+| verdict | 1 CONFIRMED (the owner's follow-up, not put to a vote); 0 PLAUSIBLE; 0 REFUTED |
+| disposition | 1 fixed, in 5b5e185, FIXED-VERIFIED by a fix-skeptic (6 of 6 lenses pass); 0 fix-failed; 0 held; 0 deliberately not changed |
+| skeptic votes on the item | none (the ledger carries no votes) |
+| reproduced by execution | the defect itself was not separately reproduced in this pass (it is the residual recorded in the A1-67 section, which states it as inferred, not run). The fix-skeptic ran the fixed tree on real files on macOS and on the Linux box (ext4) and saw exactly one `WARN` line (reported) |
+
+**Coverage (pass A1i).** This is a fix pass with no auditors: the ledger lists no auditor clean checks and no auditor that
+failed to return, and nothing was audited afresh. What the fix-skeptic checked and found clean (reported): the new tests fail
+without the fix (the warn-once and warn-per-consumer tests give "0 warnings", the offline-verb test fails when the CLI filter is
+widened); the warning fires on a real log with one ahead, one at Head+1 and one corrupt consumer, and only for the ahead one; the
+corrupt or foreign file never reaches the new loop because the consumer scan leaves it out; `gofmt`, `go vet` and
+`go test -race` on macOS clean; golden bytes untouched; `go doc` differs only in the `Config.Logger` comment; no new exported
+symbol, flag, file or config field; the added text names no internal product. Not covered: the skeptic did not run
+`staticcheck` or `deadcode` from `hack/gate.sh`; the commit adds no function, so there is nothing for `deadcode` to flag (the
+skeptic's reasoning, inferred). One wording nit the skeptic left: the user guide calls `first` and `-time` "always a valid target",
+which repeats the owner record and is slightly strong under a racing writer (`SeekToTime` retries once on `ErrOffsetRange`).
+
 | id | sev | one line | recommended | status 2026-10-30 |
 |----|-----|----------|-------------|----|
 | A1-67 | high | the documented `quill commit` rewind of an ahead consumer fails with ErrAhead | fix the doc now; approve letting `commit` rewind | approved 2026-10-31; fixed ba7c650 (FIXED-VERIFIED, 7 of 7) |
@@ -110,6 +132,34 @@ stops flagging it. Test coverage is thin on the `-json` key, first-1 and Head+2 
 the skeptic checked those by hand. The user guide omits `-dir` and `-name` from the example command (cosmetic).
 
 **Follow-ups (2026-11-02).** Test cleanup done in 7a8564e, no behaviour change: tests that a rewind accepts exactly first through Head+1, that `consumers -json` carries `ahead` only on the row of an ahead consumer, and that `commit -time` rewinds an ahead consumer (before every record gives first, after every record gives Head+1); each fails against a mutant of the code it pins. The user guide now types the whole remedy, `quill commit -dir <log> -name <consumer> -offset N`, and how to list the consumers that are ahead (checked verbatim on a built binary). Two residuals the fix-skeptic left are recommended here, not implemented. (R1) An ahead consumer protects no segments, so a writer with caps can delete the rewind target before `commit` runs, and the commit then fails cleanly with ErrOffsetRange. Recommended: no code change, since `first` is always a valid target at commit time; tell the operator to read `quill stat` just before committing or to rewind to `first` or by `-time`, in the restore section of the user guide (inferred from the commit's range check). (R2) Once the writer's head grows past a stale ahead offset, the consumer silently resumes mid-log and `check` stops flagging it, although after a restore those sequence numbers name different records; a restored log keeps its log ID, so an ID check cannot detect it. Recommended: the writer's `Open` logs one Warn per consumer that is ahead of the head (name, offset, head, "rewind it with quill commit"), and the restore procedure says to rewind consumers before restarting the writer; additive, no format change (inferred, not run).
+
+**Follow-up A1-67r (2026-11-02), fixed in 5b5e185.** The owner approved the recommended answers for R1 and R2 on 2026-11-02;
+the recommendation text above is kept as written. Verdict CONFIRMED (the owner's follow-up, not voted); kind degradation, severity
+low. Fix-skeptic outcome FIXED-VERIFIED (6 of 6 lenses pass; reported, from a skeptic that ran the commit on a scratch copy).
+What changed: (R2) the writer's `Open` logs one `Warn` through `Config.Logger` for each consumer whose offset is above Head+1,
+with the message "consumer offset is ahead of the head; rewind it with quill commit" and the attributes `consumer`, `offset` and
+`head` (`log.go:435-441`, a loop over the result of the existing `l.consumers()` read in `Open`, so there is no second pass over
+`consumers/`; it runs before `Open` returns, with no lock held, like the other `Open` warnings, decision 50). A consumer file that
+is unreadable or for another log never reaches it, because the scan leaves those out of the offsets. No change to what `Open`
+accepts or refuses, to `Stats`, to any exported symbol, flag or file format. The offline verbs do not print it: `cmd/quill`
+already filters their logger by message prefix (`lossOnly`), and that filter was not widened. (R1) Documentation only: the
+restore section of the user guide now says to rewind consumers before restarting the writer, that an ahead consumer protects no
+segments, and to read `quill stat` just before committing or to rewind to the first retained sequence (the `First` that `stat`
+prints) or by `-time`. Decisions 36 (dated note) and 50, the scope.md `Logger` row and restore line, the user guide `Logger`
+row, the `Config.Logger` doc comment and CHANGELOG ("Added:" under Unreleased) are amended.
+
+Reproduction after the fix (verified by the skeptic, real filesystem, macOS and Linux ext4): a log with head 3 and three consumers,
+`bill` at offset 9, one at Head+1, and one corrupt file; `Open` with a text-handler logger printed exactly one line,
+`level=WARN msg="consumer offset is ahead of the head; rewind it with quill commit" consumer=bill offset=9 head=3`. The R1 and R2
+defects themselves were recorded in the A1-67 disposition above as known and unchanged (the skeptic's own runs); they were not
+reproduced afresh before the fix in this pass. Tests added (`ahead_warn_test.go`, `cmd/quill/ahead_test.go`): one warning with the right
+attributes for a consumer ahead; none at Head+1 or behind; two for two ahead consumers; none from this warning for a corrupt or
+foreign consumer file; none when `Config.Logger` is nil; and `TestOfflineVerbsDoNotPrintTheAheadConsumerWarning` for the CLI. The
+fix-skeptic confirmed they fail without the fix (the negative guards pass without it, as they should).
+
+Disposition: fixed in 5b5e185, FIXED-VERIFIED. Left as is: the residual that an ahead consumer protects no segments is still true
+(R1 is documented, not coded, as approved), and the warning is given once, at the writer's `Open`; a writer that is already running
+when the head passes a stale offset does not repeat it (inferred from the code: the loop is in `Open` only).
 
 ## A1-80: a live protected consumer stops the writer from restarting (high)
 
