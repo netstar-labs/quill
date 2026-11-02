@@ -241,3 +241,41 @@ func TestArchiveRefusesARealDestinationWhoseLockIsUnreadable(t *testing.T) {
 		t.Fatal("Archive wrote quill.format into the refused destination")
 	}
 }
+
+// A destination directory that cannot be searched is refused with a permission error that names it
+// and does not claim a live writer, and is not ErrLocked: that error is for a lock that exists.
+// Skipped as root, which searches anything.
+func TestArchiveToAnUnsearchableDestinationDoesNotClaimALiveWriter(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root searches any directory")
+	}
+	src := filepath.Join(t.TempDir(), "src")
+	l := openDir(t, src, func(c *Config) { c.SegmentBytes = 256 })
+	defer l.Close()
+	appendN(t, l, 8)
+	mustFlush(t, l)
+	dst := filepath.Join(t.TempDir(), "dst")
+	if err := os.Mkdir(dst, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dst, 0o600); err != nil { // readable and writable, not searchable
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dst, 0o700) })
+	err := Archive(src, dst)
+	if err == nil {
+		t.Fatal("Archive went ahead into a directory it cannot search")
+	}
+	if !errors.Is(err, fs.ErrPermission) || errors.Is(err, ErrLocked) {
+		t.Fatalf("got %v, want a permission error that is not ErrLocked", err)
+	}
+	if !strings.Contains(err.Error(), dst) || strings.Contains(err.Error(), "writer may be live") {
+		t.Fatalf("the message should name %s and claim no writer: %v", dst, err)
+	}
+	if err := os.Chmod(dst, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if names, _ := os.ReadDir(dst); len(names) != 0 {
+		t.Fatalf("Archive wrote into the refused destination: %v", names)
+	}
+}

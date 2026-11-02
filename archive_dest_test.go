@@ -190,3 +190,29 @@ func TestArchiveRerunsAfterARunInterruptedAtAnyWrite(t *testing.T) {
 		_ = l.Close()
 	}
 }
+
+// The refusal says what is wrong and what to do: a destination holding only a subdirectory is not
+// empty either, and the message names the remedy.
+func TestArchiveRefusalNamesTheRemedyEvenForASubdirectoryOnly(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "src")
+	l := openDir(t, src, func(c *Config) { c.SegmentBytes = 256 })
+	defer l.Close()
+	appendN(t, l, 8)
+	mustFlush(t, l)
+	dst := filepath.Join(t.TempDir(), "dst")
+	if err := os.MkdirAll(filepath.Join(dst, "photos"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	err := Archive(src, dst)
+	if !errors.Is(err, ErrNoLog) {
+		t.Fatalf("got %v, want ErrNoLog", err)
+	}
+	for _, want := range []string{dst, "not empty", formatName, "new or empty directory"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the message lacks %q: %v", want, err)
+		}
+	}
+	if strings.Contains(err.Error(), "holds files") {
+		t.Errorf("the message still says it holds files: %v", err)
+	}
+}

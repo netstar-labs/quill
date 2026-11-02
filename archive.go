@@ -31,7 +31,8 @@ import (
 // writer lock is held (ErrLocked): quill.tail is the writer's file. quill.lock is always 0600,
 // so a destination lock this account cannot open (it belongs to another account) is treated as
 // a writer that may be live: Archive refuses with an error that is both ErrLocked and
-// fs.ErrPermission (decision 51). A destination that
+// fs.ErrPermission (decision 51); a destination directory that cannot be searched is refused
+// with a permission error that names the directory and claims no writer. A destination that
 // exists and has no quill.format must be empty, ignoring .tmp-* files and quill.lock as
 // Open does for a new log; otherwise it is not a log and Archive returns ErrNoLog without
 // writing to it, so a mistyped destination is never written into and no file in it is
@@ -150,8 +151,14 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, perm fs.FileMode,
 			return fmt.Errorf("%w: archive destination %s has a live writer", ErrLocked, dstDir)
 		}
 	} else if errors.Is(err, fs.ErrPermission) {
-		// quill.lock is 0600, so a lock this account cannot open belongs to another account:
-		// the writer of that log, which may be live. Fail closed.
+		// quill.lock is 0600, so a lock this account can see but cannot open belongs to another
+		// account: the writer of that log, which may be live. Fail closed. If the lock cannot even
+		// be seen, the directory (or a parent) cannot be searched: that is a permission problem
+		// with the destination, not evidence of a writer, so it does not claim one.
+		lock := filepath.Join(dstDir, lockName)
+		if _, serr := fsys.Lstat(lock); serr != nil {
+			return fmt.Errorf("quill: archive destination %s cannot be searched, so nothing is written to it: %w", dstDir, err)
+		}
 		return fmt.Errorf("%w: archive destination %s: its quill.lock cannot be opened, so a writer may be live: %w", ErrLocked, dstDir, err)
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -178,7 +185,7 @@ func archiveDest(fsys fsx.FS, srcDir, dstDir string, id logID, perm fs.FileMode,
 		}
 		for _, n := range names {
 			if n != lockName && !strings.HasPrefix(n, tempPrefix) {
-				return fmt.Errorf("%w: archive destination %s holds files but no %s", ErrNoLog, dstDir, formatName)
+				return fmt.Errorf("%w: archive destination %s is not empty and has no %s: archive into a new or empty directory, or into an existing archive of this log", ErrNoLog, dstDir, formatName)
 			}
 		}
 		if err := writeState(fsys, filepath.Join(dstDir, formatName), encodeFormat(id), perm); err != nil {
