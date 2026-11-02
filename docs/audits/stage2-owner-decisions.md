@@ -31,6 +31,25 @@ FIXED-VERIFIED (7 of 7 lenses each), and their sections below now carry an **Own
 
 **Update 2026-10-31 (pass A5h).** The owner approved the recommended answer for the eleven held items of pass A5 (A5-10, A5-1, A5-36, A5-18, A5-22, A5-29, A5-3, A5-9, A5-23, A5-32 and A5-44; see section "Pass A5" below) on 2026-10-31. Ten are fixed, each in its own commit in the tree, and each was FIXED-VERIFIED by a fix-skeptic (6 of 6 lenses each, 60 lens verdicts, all pass; reported by the skeptics). The eleventh, A5-1, was rejected once for a documentation defect and then fixed on a third attempt (99b140d, FIXED-VERIFIED for the approved scope; see its section). Each A5 section keeps its recommendation text as first written and now carries an **Owner approval** and a **Disposition** paragraph.
 
+**Update 2026-11-02 (pass A3h).** Three items were approved by the owner on 2026-11-02 and fixed in one run: A3-10, A3-20
+(both from pass A3, see "A3-10" and "A3-20" below) and A5-1f, the follow-up to A5-1 that the owner asked for (a dated note in
+the A5-1 section, not a new item). No item was held for the owner in this pass, so no new held-item section is added.
+
+| counted over the 3 items | |
+|---|---|
+| verdict | 3 CONFIRMED (A3-10 and A3-20 as voted 2 of 2 in pass A3; A5-1f as the owner's follow-up, not put to a vote) |
+| disposition | 2 fixed, each FIXED-VERIFIED by its own fix-skeptic (A3-20 in 53a5d3b, 7 of 7 lenses; A5-1f in 531fb35, 6 of 6 lenses); 1 fix-failed (A3-10, 64837ac, rejected, not on `main`); 0 held; 0 deliberately not changed |
+| skeptic votes on the items | none in this pass (the ledger carries no votes; the pass A3 votes for A3-10 and A3-20 are in [threat-model.md](threat-model.md)) |
+| fix-skeptic lens verdicts | 13, all pass (7 for A3-20, 6 for A5-1f); none recorded for A3-10 (reported, from the ledger: its rejection is an objection, with no per-lens table) |
+| reproduced by execution | A3-10 and A3-20: yes, in pass A3 (both skeptics, per threat-model.md). A5-1f: the defect was not separately reproduced; the fix-skeptic probed the fix on real files (macOS) and saw one `ERROR` line (reported) |
+
+**Coverage (pass A3h).** This is a fix pass with no auditors: the ledger lists no auditor clean checks and no auditor that
+failed to return, and nothing was audited afresh. What each fix-skeptic checked is in its Disposition below. Not covered:
+Windows (the library does not support it); the Linux box was used for A3-20 (commit 53a5d3b, `-race` on the overlap, archive,
+reader and check tests) and A5-1f (the new tests at the commit); A3-10 was not run by a fix-skeptic on a landed commit. Open
+points the skeptics left: A3-20's fresh-Reader limit and two wording nits, and A3-10's unamended decisions (each in its
+section).
+
 | id | sev | one line | recommended | status 2026-10-30 |
 |----|-----|----------|-------------|----|
 | A1-67 | high | the documented `quill commit` rewind of an ahead consumer fails with ErrAhead | fix the doc now; approve letting `commit` rewind | approved 2026-10-31; fixed ba7c650 (FIXED-VERIFIED, 7 of 7) |
@@ -683,8 +702,9 @@ Date 2026-10-31. Pass A3 (record: [threat-model.md](threat-model.md)) applied el
 (11 of 11 FIXED-VERIFIED), and held back four items whose fix would change a documented file mode, a CLI behaviour or a
 documented performance statement: A3-5, A3-14, A3-18 and A3-19. None of the four has a fix written; the recommended answers
 below are the recorder's reading of the auditors' proposals and the skeptics' notes, and are recommendations, not
-decisions. Two further items have a fix that was written and rejected by its fix-skeptic and is not in the tree (A3-10 and
-A3-20); they are listed after the four, as "not held, but unresolved". Items the auditors raised that the project had
+decisions. Two further items had a fix that was written and rejected by its fix-skeptic (A3-10 and A3-20); they are
+listed after the four, with the owner's approval of 2026-11-02 and what became of each (A3-20 fixed; A3-10 rejected again,
+not in the tree). Items the auditors raised that the project had
 already decided in round 1, or that a vote refuted, are not held; they are listed last with the proposal on file.
 
 | id | sev | one line | recommended | status |
@@ -802,21 +822,50 @@ the CRC to the first scan of that segment, with a test that a damaged first fram
 
 **Disposition.** Wording only, in 3c36fc0 (on main; verified from `git log`); no code changed and no fix-skeptic ran. Decision 47 now says the probe reads and CRC-checks the whole first frame, up to 64 MiB, once per `Reader` per segment, with the reason it is not cheaper (two hole-detection tests fail if the check is skipped), and the user guide states the cost for a directory whose first frames are very large. A cheaper bounded check remains a possible later change, with a test that a damaged first frame is still reported as a hole.
 
-## Not held, but unresolved
+## A3-10: a damaged oldest segment is skipped silently by a default-start read (low)
 
-**A3-10: a damaged oldest segment is skipped silently by a default-start read (low).** A fix was written (54b99d0, not in this
-tree): a read from the beginning (`ScanAll`, a scan from offset 0, `quill read` and `cat` without `-from`, `tail -n` reaching the
-oldest record) and a new consumer start at sequence 1 when a damaged oldest segment is a hole from 1, so they return its
-GapError (CLI exit 1); a prefix deleted by retention, `-since` and `OffsetForTime` still start at `First`. Decision 41, scope.md's
-Consumer row, the CLI help, the regenerated docs/reference.md, the user guide and the changelog carry the exception. The
-fix-skeptic found the code sound and rejected it on the no-new-gap lens only: three statements still say a new consumer starts
-at the first retained sequence, the godoc for `Log.Consumer` (consumer.go:330-331), the comment on `consumerStore.open`
-(consumer.go:78-79) and the `Config.ProtectedConsumers` row at scope.md:121. Recommended answer: approve the behaviour (it is
-what decision 38 and scope.md already say: "reported as a gap, never skipped"), update those three statements, and land the
-commit. If the owner prefers expiry-like treatment of a damaged oldest segment, the alternative is to say so in decision 38 and
-change no code.
+**Claim.** A damaged or truncated oldest segment makes `quill cat` and `read` (default start), `tail -n` reaching the oldest
+record, `Log`/`Reader.ScanAll` and a new consumer silently start at the first good segment and exit 0; the lost range shows
+only in `stat` and `check`. Decision 38 and scope.md say a gap is "reported as a gap, never skipped". Full item, with its
+reproduction: [threat-model.md](threat-model.md), A3-10.
 
-**A3-20: a Reader serves overlapping segments (low).** A fix was written (e0df757, not in this tree): a Reader refuses overlapping
+**State at recording (2026-10-31).** A fix was written (54b99d0): a read from the beginning (`ScanAll`, a scan from offset 0,
+`quill read` and `cat` without `-from`, `tail -n` reaching the oldest record) and a new consumer start at sequence 1 when a
+damaged oldest segment is a hole from 1, so they return its GapError (CLI exit 1); a prefix deleted by retention, `-since` and
+`OffsetForTime` still start at `First`. Decision 41, scope.md's Consumer row, the CLI help, the regenerated docs/reference.md,
+the user guide and the changelog carry the exception. The fix-skeptic found the code sound and rejected it on the no-new-gap
+lens only: three statements still say a new consumer starts at the first retained sequence, the godoc for `Log.Consumer`
+(consumer.go:330-331), the comment on `consumerStore.open` (consumer.go:78-79) and the `Config.ProtectedConsumers` row at
+scope.md:121. Recommended answer: approve the behaviour (it is what decision 38 and scope.md already say: "reported as a gap,
+never skipped"), update those three statements, and land the commit. If the owner prefers expiry-like treatment of a damaged
+oldest segment, the alternative is to say so in decision 38 and change no code.
+
+**Owner approval.** Approved on 2026-11-02, as recommended: the behaviour change is intended.
+
+**Disposition.** Fix-failed a second time; no fix is in the tree. The second attempt is 64837ac, on branch `stage2/A3-10-a2`
+and not an ancestor of `main` or of this commit (verified: `git merge-base --is-ancestor` and `git branch --contains`).
+It cherry-picks 54b99d0 and adapts it. It closes the three statements the first skeptic named, and the `Log/Reader.ScanAll`
+godoc, the `Config.ProtectedConsumers` comment, the scope.md Scan/ScanAll row, decisions 38 and 41 (dated notes) and the
+changelog. It also fixes a root cause the first attempt left: `deleteLocked` (retention.go) dropped the hole when the
+retention pass deleted the clean prefix in front of a damaged segment, because the hole's end is below the new `First`, so a
+live `Log` skipped the damaged file silently while a `Reader` and a fresh `Open` reported it; it now keeps a hole from 1 while a
+damaged segment is the oldest sealed file (reported, from the fixer's summary; the commit touches retention.go by six added
+lines, verified from `git show --stat`). The ledger gives no per-lens table for this attempt, only the fix-skeptic's objection
+(reported): decision 84 (decisions.md:92) still says `ScanAll`, and `Scan` with offset 0, start at the first retained
+sequence, which is false for a damaged oldest segment, and 64837ac never amended it; decisions 9 and 67 and two user-guide
+lines (318 and 335 in the fix tree) still state the old "created at the first retained sequence" rule with no exception. The
+skeptic judged the code and tests sound. Needed: a third attempt that amends decision 84 with a dated A3-10 note, adds the
+exception to decisions 9 and 67 and the two user-guide lines, and re-submits; no code or test change is asked for. Until then
+the behaviour is the unfixed one described in the claim, and the owner's answer stands as the recommended one.
+
+## A3-20: a Reader serves overlapping segments (low)
+
+**Claim.** When a sealed segment holds frames past the next segment's first sequence, `Reader.Read` and `ScanAll` deliver the
+earlier segment's records for sequences the next segment also claims; writable `Open` refuses the same directory with
+ErrCorrupt; `Check` reports a nonsensical hole ("sequences 11 to 4 are missing"). Full item and reproduction:
+[threat-model.md](threat-model.md), A3-20.
+
+**State at recording (2026-10-31).** A fix was written (e0df757, not in this tree): a Reader refuses overlapping
 segments as ErrCorrupt and Check reports an "overlap" problem; "overlap" is added to the closed `kind` list for `quill check
 -json` in scope.md. The fix-skeptic rejected it because Archive, another path through `Reader.view`, is not covered:
 `copySegment` (archive.go:167-192) never compares the segment's real last sequence with the reference's derived last, so on a
@@ -825,6 +874,28 @@ hand-built overlap Archive copies both segments, writes a destination `quill.tai
 `archive` (reject when `info.last.Seq` is above the reference's bounded last, or run the reference's `ensureIndex`), add an Archive
 test on the layout in threat-model.md A3-20, and land the commit. The new `kind` value is an addition to a documented JSON
 field, so the owner should accept it.
+
+**Owner approval.** Approved on 2026-11-02, as recommended, including the new `overlap` value in the closed `kind` list for
+`quill check -json` (scope.md:206); the CHANGELOG says so.
+
+**Disposition.** Fixed in 53a5d3b (an ancestor of this commit; verified from `git log`); fix-skeptic **FIXED-VERIFIED**, 7 of
+7 lenses pass (reported by the skeptic, who ran everything on scratch copies on macOS and on the Linux box). The commit
+cherry-picks e0df757 and resolves conflicts in CHANGELOG.md, docs/userguide.md and stat.go. A Reader refuses overlapping
+segments as ErrCorrupt and `Check` reports an `overlap` problem (stat.go:247); `copySegment` now compares the verified
+`info.last.Seq` with the derived `s.last` and returns ErrCorrupt before anything is written (archive.go:235-236), reusing the
+whole-segment verification Archive already runs (no second scan, no new symbol). Test: `reader_overlap_test.go` (three
+Reader subtests, two Archive subtests). Evidence, reported from the skeptic: with archive.go, reader.go and stat.go reverted
+and the test file kept, all five subtests fail for the claimed reasons (Read(1) and ScanAll return 1..8 with nil error; Check
+says "sequences 11 to 4 are missing"; Archive says "records 11 to 4 are unavailable" and "offset out of range"); reverting
+only archive.go fails only the two Archive subtests, and only reader.go fails Read and ScanAll, so both halves are
+load-bearing. On real files the built `cat` and `archive` exit 1 with "corrupt log: segment 0 holds sequence 10, inside the next
+segment (starts at 5)", the destination holds no segment file and a zero marker, and `check -json` reports kind `overlap` with
+exit 3. Gate on the commit (skeptic): gofmt, vet, `go test -race -count=1 ./...`, staticcheck v0.8.2, deadcode v0.52.0 all
+clean; golden files and testdata unchanged; no exported symbol changed; fuzz 10 s per target passed. Residuals, as the skeptic
+reported them and the CHANGELOG states the first: a fresh Reader whose first read starts in the later segment (`Read(5)`,
+`Read(9)`) still serves that segment's own records without error, because the earlier segment is never scanned, and `Stat` and
+`OffsetForTime` do not scan; decision 85 ("stops at a corrupt segment") and the ErrCorrupt comment in errors.go (it says only
+`Open` returns it for an overlap) are not themselves amended, though decision 102 is and neither statement is false.
 
 ## Not held, but worth a line
 
@@ -1020,6 +1091,25 @@ be built on `Err()` in the meantime. Decide with A5-10.
 **Owner approval.** Approved on 2026-10-31, as recommended: log each transition (Warn on entering, Info on leaving, never per retry) and add the four `Stats` fields, building on A5-10.
 
 **Disposition.** Fixed in 99b140d on the third attempt (on main; verified from `git log`; authored as 27ccd31 on branch `stage2/A5-1-a3`); fix-skeptic FIXED-VERIFIED for the approved scope, with follow-ups that were closed before landing (reported, from a skeptic that ran everything on scratch copies, on macOS and on the Linux box). The first two attempts (574b078 and bab952f) are not merged. bab952f was rejected for one documentation defect: `LastFlushOK`'s docs said that `time.Since(LastFlushOK)` with `BufferedRecords` above zero is how long the oldest acknowledged record has waited, which false-alarms on a quiet log (the skeptic's reproduction: `BufferedRecords` 1, `FlushFailing` false, `time.Since(LastFlushOK)` 1h0m0s). The third attempt: through `Config.Logger` each retried background failure (flush write, marker publish, rotation, prune unlink) logs one Warn on entry (with `op` and `err`) and one Info on recovery, never per retry (the skeptic: 50 failing retries gave exactly one Warn each); `Stats` gains `BufferedRecords`, `BufferedBytes`, `FlushFailing` and `LastFlushOK`, additive only. `LastFlushOK` is documented, and now stamped, as the time of the last flush that wrote and published successfully (the time the writer opened the log before the first). The documented alert is `FlushFailing`, or `BufferedRecords` above zero together with it, and `Err()` wrapping `ErrFailed`. Verified by the skeptic on real files (RLIMIT_FSIZE) with a fake clock: over 50 failing flushes `FlushFailing` is true with `BufferedRecords` 4 and `BufferedBytes` 119; after the fault clears and one flush succeeds they are false, 0 and 0; an idle log given one `Append` after an hour does not trip the alert. The secondary edge was real (a prune pass whose pre-delete publish failed logged a false "recovered" for the unlink) and is fixed, with a test the skeptic showed red on the old code. Decisions 60, 66 and 78, scope.md, the user guide, the doc comments and CHANGELOG are amended. Two gaps the skeptic raised were closed before landing: a failed log (after a data fsync error) keeps its buffered records without setting `FlushFailing`, so the docs now also say to alert on `Err()` wrapping `ErrFailed`; and a test that a retried rotation on an idle log does not stamp `LastFlushOK`, which fails when the guard in `flushLocked` is removed (verified by the recorder). Left as is, low severity: a prune pass that finds nothing to delete after a failed unlink logs "recovered" and clears `Err()`, consistent with A5-10 though the unlink was never retried; an idle log whose only failure was a marker publish after `Roll` advances `LastFlushOK` when it lands although no record was written (the doc says "wrote"). Not logged: a failed log itself, outside the retryable scope of the approval. Gate green on macOS and Linux on 27ccd31.
+
+**Note 2026-11-02 (A5-1f, the failed-log line).** The sentence above, "Not logged: a failed log itself", is closed. The owner
+asked how a failed log is supposed to log itself and approved the answer on 2026-11-02: at the one moment the log becomes
+failed, write one `Error` record through `Config.Logger`. Fixed in 531fb35 (an ancestor of this commit; verified from `git
+log`); fix-skeptic FIXED-VERIFIED, 6 of 6 lenses pass (reported by the skeptic, on macOS and on the Linux box). `fail`
+(flush.go:125) is the only place the sticky failed state is set (the skeptic's grep, reported); it now takes `(op, err)`,
+returns at once if the log is already failed, which keeps the first cause and logs nothing for a later failure, and otherwise
+logs "log failed: it accepts no more writes and every later call returns ErrFailed" with attributes `op` and `error`. The
+callers pass `flush` (a truncate that cannot undo a failed write; a data fsync error), `rotation` (a directory fsync at
+rotation or seal), `segment delete` (a directory fsync in the prune pass) and `lock check` (a lost `quill.lock`); the older
+lost-lock `Error` line, which carried no cause, is removed, so that path still gives one line. `Stats` and the offline verbs'
+standard-error filter are unchanged, as asked, because those verbs already return the error and exit non-zero. Four tests
+(a data fsync error, a truncate failure, two failures asserting one line and the first cause, a lost lock) each fail with the
+body of `fail` reverted (reported, from the skeptic); a probe on real files that deleted `quill.lock` under a live writer, opened
+a second writer and flushed twice printed exactly one `level=ERROR` line with `op="lock check"` and both flushes returned
+`ErrFailed`. Gate (skeptic): gofmt, vet, `go test -race -count=1 ./...`, staticcheck v0.8.2 and deadcode v0.52.0 clean; golden
+files unchanged; `go doc` differs only in the `Config.Logger` comment. Decision 60 carries a dated note; the user guide, the
+scope.md and `Config.Logger` Logger texts and the CHANGELOG are updated. Residual, not a defect: there is no line without a
+`Logger`, and the first cause now wins where the old code kept the last, which the finding required.
 
 **Follow-up (2026-11-02).** Wording, no behaviour change (d7b51e0): `LastFlushOK` is documented as the last flush that completed, that is wrote and published its records or landed a marker publish that had failed with nothing new written; and "recovered" is documented as a pass that completed without a failure, not a retry of the failing step, pinned by a new test (a protected consumer makes the next prune pass find nothing: `Err()` is nil, one Info, the segment still on disk). Not done: a failed log (`l.fail`) still writes nothing to `Config.Logger`. Recommended: one Error record at the single place the sticky failed state is set, which logs exactly once because the state is sticky and keeps its first cause.
 
