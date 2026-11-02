@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -141,6 +142,35 @@ func TestALogReadOfASealedSegmentDeletedAfterTheViewIsAGapNotAPathError(t *testi
 			}
 			if !isGap(err, tc.wantFrom, tc.wantTo) {
 				t.Fatalf("readFrom(%d): %v (%T), want a gap %d..%d", tc.from, err, err, tc.wantFrom, tc.wantTo)
+			}
+		})
+	}
+}
+
+// Only "not found" becomes a gap. Any other error opening a sealed segment is returned as it was:
+// mapping every open error to a gap would hide a permission or I/O fault as missing records.
+func TestALogReadOfASealedSegmentThatFailsToOpenForAnotherReasonKeepsItsError(t *testing.T) {
+	for _, errno := range []error{syscall.EIO, syscall.EACCES} {
+		t.Run(errno.Error(), func(t *testing.T) {
+			s, clk, l := retentionLog(t, nil)
+			defer l.Close()
+			fillSegments(t, l, clk, 6)
+			s.Inject = func(o fsx.Op, name string) error {
+				if o == fsx.OpOpen && name == "/log/"+segmentName(0) {
+					return errno
+				}
+				return nil
+			}
+			_, err := readFrom(l, 1, 10)
+			if err == nil {
+				t.Fatal("readFrom: want the open error")
+			}
+			var ge *GapError
+			if errors.As(err, &ge) {
+				t.Fatalf("an open failing with %v was reported as a gap: %v", errno, err)
+			}
+			if !errors.Is(err, errno) {
+				t.Fatalf("got %v, want an error wrapping %v", err, errno)
 			}
 		})
 	}
