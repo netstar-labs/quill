@@ -396,7 +396,7 @@ func (l *Log) deleteLocked(n int, offsets []consumerOffset) error {
 		}
 	}
 	if syncErr != nil {
-		l.fail(syncErr)
+		l.fail("segment delete", syncErr)
 		return l.failed
 	}
 	return nil

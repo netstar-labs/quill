@@ -70,7 +70,8 @@ type Config struct {
 	// Logger receives retention deletions, stale consumers, a warning naming each consumer whose
 	// offset a deleted segment passes, bulk-expiry warnings and failures, one Warn when a flush
 	// write, a marker publish, a rotation or a prune unlink starts to fail and one Info when it
-	// recovers (never one per retry; Stat has the current state),
+	// recovers (never one per retry; Stat has the current state), one Error when the log
+	// becomes failed (ErrFailed; with the cause and the operation, written once),
 	// and a warning from Open when it cuts the newest segment past the marker (with the segment,
 	// the offset, the bytes cut and whether the first rejected frame was incomplete or damaged).
 	// Its handler, Enabled included, runs synchronously with the log's lock held, on the

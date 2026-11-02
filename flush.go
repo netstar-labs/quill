@@ -54,7 +54,7 @@ func (l *Log) flushLocked() error {
 	if _, err := a.f.WriteAt(l.buf, off); err != nil {
 		// (a) Truncate back so no partial frame remains; keep the records buffered.
 		if terr := a.f.Truncate(off); terr != nil {
-			l.fail(terr)
+			l.fail("flush", terr)
 			return l.failed
 		}
 		l.flushErr = err
@@ -64,7 +64,7 @@ func (l *Log) flushLocked() error {
 	}
 	if err := a.f.Sync(); err != nil {
 		// (b) Fatal and sticky: a retried fsync can report success for lost data.
-		l.fail(err)
+		l.fail("flush", err)
 		return l.failed
 	}
 	l.fsyncs++
@@ -111,17 +111,23 @@ func (l *Log) lockLostLocked() bool {
 	if err == nil && fsx.SameFile(held, cur) {
 		return false
 	}
-	l.fail(errors.New("quill.lock is no longer the file this writer holds: it was removed or replaced, so another writer may have opened the log"))
-	l.logf(slog.LevelError, "writer lost its lock file; the log is failed", "path", l.path(lockName))
+	l.fail("lock check", errors.New("quill.lock is no longer the file this writer holds: it was removed or replaced, so another writer may have opened the log"))
 	return true
 }
 
 // fail puts the log in the failed state and wakes every waiter, so a ReadWait or Follow parked
 // above the head returns the failure instead of waiting for a record that can no longer come
 // (the wake is here, not at each call site: Roll and a retention pass fail the log without a
-// flush to broadcast after it). The caller holds l.mu.
-func (l *Log) fail(err error) {
+// flush to broadcast after it). It also writes the one Error record that says so through
+// Config.Logger: op names the operation that failed, err is the cause. The state is sticky and
+// keeps its first cause, so a later call changes nothing and logs nothing, and the record is
+// written once. The caller holds l.mu, which Config.Logger's documented rule allows.
+func (l *Log) fail(op string, err error) {
+	if l.failed != nil {
+		return
+	}
 	l.failed = fmt.Errorf("%w: %w", ErrFailed, err)
+	l.logf(slog.LevelError, "log failed: it accepts no more writes and every later call returns ErrFailed", "op", op, "error", err)
 	l.broadcastLocked()
 }
 
@@ -177,7 +183,7 @@ func (l *Log) publishLocked() error {
 		if sealed {
 			// The marker naming the new segment is made durable at rotation (decision 65).
 			if err := l.fs.SyncDir(l.dir); err != nil {
-				l.fail(err)
+				l.fail("rotation", err)
 				return l.failed
 			}
 			l.justSealed = false
@@ -211,7 +217,7 @@ func (l *Log) rotateLocked() error {
 	}
 	if err := l.fs.SyncDir(l.dir); err != nil {
 		_ = f.Close()
-		l.fail(err) // (e) a directory fsync error is fatal
+		l.fail("rotation", err) // (e) a directory fsync error is fatal
 		return l.failed
 	}
 	old := l.active
