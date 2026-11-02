@@ -1307,9 +1307,14 @@ failure branch does, and decide whether `ls` then exits 1.
   segments and directories go through the umask. The finding's optional second half, a `quill check` warning when a segment's
   mode differs from the marker's, was not applied: it would flag every writer run under a tighter umask, which the
   documents now call normal. Apply it only as a new decision.
-- **A5-5 (refuted; hardening remains).** A Reader's plain `Read` still serves a replacement log from the old cursor; `Commit`
-  and a Reader's wait now return `ErrWrongLog` (495e457). If the owner wants plain reads to check too, it is one constant-cost
-  read of `quill.format` per view, which decision 83 declined on cost.
+- **A5-5 (refuted; closed for `Commit` and a Reader's wait, plain `Read` declined on cost; owner 2026-11-02).** `Commit` and a
+  Reader's wait return `ErrWrongLog` on a replaced directory (495e457, A3-30). A Reader's plain `Read` and `Scan` still serve a
+  replacement log from the old cursor, and that stays: on 2026-11-02 the owner said to stay with decision 83's refusal on cost
+  if 83 declined it. The record's reading is that it did: the A5-5 verdict rests on decision 83 (a `Reader` does not re-check
+  cached files on every call, so a read costs nothing per segment), and the voters recorded the one `quill.format` read per view
+  as the cost. One caveat, inferred from decision 83's own text: 83 declines re-checking each cached segment (cost grows with the
+  segment count), and a single `quill.format` read per view is constant, so 83 does not by itself rule it out; the decision to stay
+  is the owner's, and the hardening is recorded as declined, not as open.
 - **A5-17 (prior-refuted).** The age sweep is still suspended silently by an unparseable consumer file; a Warn per pass naming
   it was recorded as "would close it (not done)" in round 1 and is part of the A5-36 recommendation above.
 - **Residuals of the seven fixes** (reported by the fix-skeptics, in the record): A5-16 does not stop a second writer that

@@ -1028,7 +1028,9 @@ REFUTED because it was uncertain whether this is intended, and that neither side
 Reader's `wait` re-check `quill.format` once per commit or poll and return `ErrWrongLog` on a mismatch (verified by the
 recorder, reader.go `wait` and consumer.go `Commit`; the A3-30 message says plain `Read` and `Scan` are not re-checked). So
 the stamping of the old id into the new log is closed; plain `Read` on a replaced directory still serves the new log. The
-ledger keeps NONE for that surface.
+ledger keeps NONE for that surface. **Owner, 2026-11-02:** stay with the cost refusal of decision 83; the plain-`Read` check is
+declined and no code changes (see stage2-owner-decisions.md, the A5-5 line). The note above that 83 declines per-segment
+checks, not one `quill.format` read per view, is the recorder's inference from 83's text.
 
 #### A5-6: a stale marker is invisible to every reader-side tool (low, refuted)
 
