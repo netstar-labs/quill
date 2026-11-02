@@ -74,14 +74,16 @@ type Config struct {
 	// recovers (never one per retry; Stat has the current state), one Error when the log
 	// becomes failed (ErrFailed; with the cause and the operation, written once),
 	// and a warning from Open when it cuts the newest segment past the marker (with the segment,
-	// the offset, the bytes cut and whether the first rejected frame was incomplete or damaged).
+	// the offset, the bytes cut and whether the first rejected frame was incomplete or damaged), and a
+	// warning from Open for each consumer whose offset is above Head + 1 (a log restored to an older state; with
+	// the consumer, the offset and the head).
 	// Its handler, Enabled included, runs synchronously with the log's lock held, on the
 	// goroutine that made the record (an Append, Flush, Roll, Prune or Close call, or the
 	// log's flusher). It must therefore neither call the Log, which deadlocks it, nor block,
 	// which stalls every Append, Read, Sync and the flusher (a handler that writes straight to a
 	// pipe or socket blocks when the reader does), nor take a lock that a caller of the Log may
 	// hold while calling it: hand the record to another goroutine and return. The warnings Open
-	// itself gives (cutting the newest segment, tightening quill.lock, a policy write) run on the
+	// itself gives (cutting the newest segment, tightening quill.lock, a policy write, an ahead consumer) run on the
 	// caller's goroutine before Open returns, before there is a Log, so with no lock held.
 	Logger *slog.Logger
 	// Perm is the file mode (0600); directories get the matching execute bits (0700). State
@@ -430,6 +432,14 @@ func Open(cfg Config) (*Log, error) {
 		}
 	}
 	l.offsets = l.consumers(cfg.clock()).offsets // Dropped at a seal before the first prune pass
+	// A consumer ahead of the head (a log restored to an older state) resumes mid-log, unflagged,
+	// once the head passes it; say so while the operator can still rewind it (decision 36). It
+	// reuses the read above, and like the other Open warnings runs with no lock held.
+	for _, o := range l.offsets {
+		if head := l.Head(); o.offset > head+1 {
+			l.logf(slog.LevelWarn, "consumer offset is ahead of the head; rewind it with quill commit", "consumer", o.name, "offset", o.offset, "head", head)
+		}
+	}
 	go l.flusher()
 	return l, nil
 }

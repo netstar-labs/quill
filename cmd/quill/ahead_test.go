@@ -150,3 +150,17 @@ func TestCommitTimeRewindsAConsumerAheadOfTheHead(t *testing.T) {
 		}
 	}
 }
+
+// The library's Open warning for an ahead consumer is not printed by the offline verbs that open
+// the log writable: they have `quill check` and `quill consumers` for it, and the filter on their
+// logger lets only loss and shortfall records through.
+func TestOfflineVerbsDoNotPrintTheAheadConsumerWarning(t *testing.T) {
+	dir := newLog(t, 5, func(i int) []byte { return []byte("record") })
+	aheadConsumer(t, dir, "billing", "8")
+	for _, verb := range []string{"roll", "recover"} {
+		code, _, stderr := exec(t, "", verb, "-dir", dir)
+		if code != exitOK || strings.Contains(stderr, "rewind it with quill commit") {
+			t.Errorf("%s: exit %d, stderr %q", verb, code, stderr)
+		}
+	}
+}
