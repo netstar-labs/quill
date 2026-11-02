@@ -315,7 +315,7 @@ type `quill commit -dir <log> -name <consumer> -offset N`, with N from `first` t
 `-offset` picks the first record at or after that time: a time before the first record gives `first`, one after the last
 gives `Head + 1`). It opens the consumer for the purpose and keeps its protect flag. That holds for the archiver's `_archive` consumer too:
 `quill commit -dir <log> -name _archive -offset N` rewinds it, or `quill unregister -name _archive` removes it (the next
-`quill archive` recreates it at the first retained sequence). A naive copy that takes the marker after the
+`quill archive` recreates it at the first retained sequence, or at 1 when a damaged oldest segment left a gap below it). A naive copy that takes the marker after the
 segments can name data the copy lacks.
 
 **Archiving.** `quill archive -dir <log> -to <dest>` copies each sealed segment not yet
@@ -332,7 +332,7 @@ an archive with the same hole. The run that finds the hole copies what exists, p
 code `check` uses for UNHEALTHY; the library returns a `*GapError`), so `quill archive && notify-ok` does not
 report success for an incomplete archive. It finds it two ways: the `_archive` offset is below the source's first
 retained sequence, or the destination's `quill.tail` names a last record below the first segment the run copies, which
-is how it shows after `quill unregister -name _archive` recreated the consumer at the first retained sequence. The
+is how it shows after `quill unregister -name _archive` recreated the consumer at the first retained sequence (at 1 when a damaged oldest segment left a gap below it). The
 run that reports the hole commits past it, so the next run has nothing to copy and exits 0; `quill check -dir <dest>`
 keeps reporting the hole (exit 3).
 
