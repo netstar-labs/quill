@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -105,6 +106,47 @@ func TestTheArchiveConsumerCanBeRewoundAndRemoved(t *testing.T) {
 	for _, verb := range []string{"register", "unregister"} {
 		if code, _, stderr := exec(t, "", verb, "-dir", dir, "-name", "_other"); code != exitError || !strings.Contains(stderr, "underscore") {
 			t.Fatalf("%s _other: exit %d, stderr %q", verb, code, stderr)
+		}
+	}
+}
+
+// consumers -json adds "ahead": true to the row of a consumer ahead of the head and to no other row.
+func TestConsumersJSONMarksOnlyAnAheadConsumer(t *testing.T) {
+	dir := newLog(t, 5, func(i int) []byte { return []byte("record") })
+	mustRun(t, "", "register", "-dir", dir, "-name", "ok")
+	aheadConsumer(t, dir, "billing", "8")
+	rows := map[string]map[string]any{}
+	for _, line := range strings.Split(strings.TrimSpace(mustRun(t, "", "consumers", "-dir", dir, "-json")), "\n") {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			t.Fatalf("row %q: %v", line, err)
+		}
+		rows[m["name"].(string)] = m
+	}
+	if rows["billing"]["ahead"] != true {
+		t.Errorf("the ahead consumer's row has no \"ahead\": true: %v", rows["billing"])
+	}
+	if _, has := rows["ok"]["ahead"]; has {
+		t.Errorf("a normal consumer's row carries an ahead key: %v", rows["ok"])
+	}
+}
+
+// commit -time rewinds a consumer ahead of the head: a time before every record gives the first
+// retained sequence, a time after every record gives Head+1; the protect flag is kept.
+func TestCommitTimeRewindsAConsumerAheadOfTheHead(t *testing.T) {
+	dir := newLog(t, 5, func(i int) []byte { return []byte("record") })
+	for _, c := range []struct{ when, want string }{
+		{"2000-01-01T00:00:00Z", "1"},
+		{"2999-01-01T00:00:00Z", "6"},
+	} {
+		name := "t" + c.want
+		path := aheadConsumer(t, dir, name, "8")
+		if out := mustRun(t, "", "commit", "-dir", dir, "-name", name, "-time", c.when); out != name+" "+c.want+"\n" {
+			t.Fatalf("commit -time %s printed %q, want offset %s", c.when, out, c.want)
+		}
+		b, _ := os.ReadFile(path)
+		if f := strings.Fields(string(b)); len(f) != 3 || f[1] != c.want || f[2] != "1" {
+			t.Fatalf("consumer file %q, want offset %s and the protect flag kept", b, c.want)
 		}
 	}
 }

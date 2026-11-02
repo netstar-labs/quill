@@ -125,7 +125,7 @@ err = c.Close()
 - `ErrWrongLog`: the consumer file belongs to another log (the log was recreated).
   `ErrAhead`: the offset is above `Head + 1` (the log was restored to an older state); Open
   refuses it unless `ConsumerOptions.Rewind` is set, which opens it so `Commit` can rewind it
-  to any offset in `[first, Head + 1]`. `quill commit` sets it, so `quill commit -offset N`
+  to any offset in `[first, Head + 1]`. `quill commit` sets it, so `quill commit -dir <log> -name <consumer> -offset N`
   is the remedy and keeps the protect flag; `quill register` still refuses. `quill consumers`
   notes such a consumer and `quill check` warns of it (the log stays HEALTHY). `quill commit` registers the consumer when the name is
   new, so a mistyped `-name` creates one; a commit that fails leaves no new consumer behind.
@@ -306,8 +306,11 @@ hour when it opens the log, and `Archive` does the same in its destination befor
 
 **Backup.** Copy `quill.tail` first, then the segments in id order, then `consumers/`. A
 restored log keeps its log ID; a consumer ahead of the restored head fails with `ErrAhead`
-and must be rewound with `quill commit -offset N`, which opens it for the purpose. That holds for the archiver's `_archive` consumer too:
-`quill commit -name _archive -offset N` rewinds it, or `quill unregister -name _archive` removes it (the next
+and must be rewound. List them with `quill consumers -dir <log>` (the ones ahead carry the note "ahead of the head"), then for each
+type `quill commit -dir <log> -name <consumer> -offset N`, with N from `first` to `Head + 1` (`-time <RFC 3339>` instead of
+`-offset` picks the first record at or after that time: a time before the first record gives `first`, one after the last
+gives `Head + 1`). It opens the consumer for the purpose and keeps its protect flag. That holds for the archiver's `_archive` consumer too:
+`quill commit -dir <log> -name _archive -offset N` rewinds it, or `quill unregister -name _archive` removes it (the next
 `quill archive` recreates it at the first retained sequence). A naive copy that takes the marker after the
 segments can name data the copy lacks.
 
