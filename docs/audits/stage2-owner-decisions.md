@@ -31,24 +31,24 @@ FIXED-VERIFIED (7 of 7 lenses each), and their sections below now carry an **Own
 
 **Update 2026-10-31 (pass A5h).** The owner approved the recommended answer for the eleven held items of pass A5 (A5-10, A5-1, A5-36, A5-18, A5-22, A5-29, A5-3, A5-9, A5-23, A5-32 and A5-44; see section "Pass A5" below) on 2026-10-31. Ten are fixed, each in its own commit in the tree, and each was FIXED-VERIFIED by a fix-skeptic (6 of 6 lenses each, 60 lens verdicts, all pass; reported by the skeptics). The eleventh, A5-1, was rejected once for a documentation defect and then fixed on a third attempt (99b140d, FIXED-VERIFIED for the approved scope; see its section). Each A5 section keeps its recommendation text as first written and now carries an **Owner approval** and a **Disposition** paragraph.
 
-**Update 2026-11-02 (pass A3h).** Three items were approved by the owner on 2026-11-02 and fixed in one run: A3-10, A3-20
+**Update 2026-11-02 (pass A3h).** Three items were approved by the owner on 2026-11-02 and fixed in one run (A3-10 needed a further round by hand): A3-10, A3-20
 (both from pass A3, see "A3-10" and "A3-20" below) and A5-1f, the follow-up to A5-1 that the owner asked for (a dated note in
 the A5-1 section, not a new item). No item was held for the owner in this pass, so no new held-item section is added.
 
 | counted over the 3 items | |
 |---|---|
 | verdict | 3 CONFIRMED (A3-10 and A3-20 as voted 2 of 2 in pass A3; A5-1f as the owner's follow-up, not put to a vote) |
-| disposition | 2 fixed, each FIXED-VERIFIED by its own fix-skeptic (A3-20 in 53a5d3b, 7 of 7 lenses; A5-1f in 531fb35, 6 of 6 lenses); 1 fix-failed (A3-10, 64837ac, rejected, not on `main`); 0 held; 0 deliberately not changed |
+| disposition | 3 fixed: A3-20 (53a5d3b) and A5-1f (531fb35) each FIXED-VERIFIED by its own fix-skeptic (7 of 7 and 6 of 6 lenses); A3-10 landed in badb254, 18662b6 and ed518a2 after two fix-skeptic rejections, the last for two comment lines that were then fixed, with no skeptic re-run on the final commit (see its section); 0 fix-failed; 0 held; 0 deliberately not changed |
 | skeptic votes on the items | none in this pass (the ledger carries no votes; the pass A3 votes for A3-10 and A3-20 are in [threat-model.md](threat-model.md)) |
-| fix-skeptic lens verdicts | 13, all pass (7 for A3-20, 6 for A5-1f); none recorded for A3-10 (reported, from the ledger: its rejection is an objection, with no per-lens table) |
+| fix-skeptic lens verdicts | 13, all pass (7 for A3-20, 6 for A5-1f). A3-10: the last skeptic (reported) passed its test, behaviour and no-new-gap lenses and rejected on the old-rule statements in two `archive.go` comments; that is not counted as a FIXED-VERIFIED |
 | reproduced by execution | A3-10 and A3-20: yes, in pass A3 (both skeptics, per threat-model.md). A5-1f: the defect was not separately reproduced; the fix-skeptic probed the fix on real files (macOS) and saw one `ERROR` line (reported) |
 
 **Coverage (pass A3h).** This is a fix pass with no auditors: the ledger lists no auditor clean checks and no auditor that
 failed to return, and nothing was audited afresh. What each fix-skeptic checked is in its Disposition below. Not covered:
 Windows (the library does not support it); the Linux box was used for A3-20 (commit 53a5d3b, `-race` on the overlap, archive,
-reader and check tests) and A5-1f (the new tests at the commit); A3-10 was not run by a fix-skeptic on a landed commit. Open
-points the skeptics left: A3-20's fresh-Reader limit and two wording nits, and A3-10's unamended decisions (each in its
-section).
+reader and check tests) and A5-1f (the new tests at the commit); for A3-10 the full gate, with fuzz, ran green on macOS and Linux at
+18662b6 and again at ed518a2 (verified, my own runs). Open points the skeptics left: A3-20's fresh-Reader limit and two wording
+nits, and four A3-10 points (each in its section).
 
 | id | sev | one line | recommended | status 2026-10-30 |
 |----|-----|----------|-------------|----|
@@ -703,8 +703,8 @@ Date 2026-10-31. Pass A3 (record: [threat-model.md](threat-model.md)) applied el
 documented performance statement: A3-5, A3-14, A3-18 and A3-19. None of the four has a fix written; the recommended answers
 below are the recorder's reading of the auditors' proposals and the skeptics' notes, and are recommendations, not
 decisions. Two further items had a fix that was written and rejected by its fix-skeptic (A3-10 and A3-20); they are
-listed after the four, with the owner's approval of 2026-11-02 and what became of each (A3-20 fixed; A3-10 rejected again,
-not in the tree). Items the auditors raised that the project had
+listed after the four, with the owner's approval of 2026-11-02 and what became of each (both fixed; A3-10 only after a
+third round, see its section). Items the auditors raised that the project had
 already decided in round 1, or that a vote refuted, are not held; they are listed last with the proposal on file.
 
 | id | sev | one line | recommended | status |
@@ -842,21 +842,43 @@ oldest segment, the alternative is to say so in decision 38 and change no code.
 
 **Owner approval.** Approved on 2026-11-02, as recommended: the behaviour change is intended.
 
-**Disposition.** Fix-failed a second time; no fix is in the tree. The second attempt is 64837ac, on branch `stage2/A3-10-a2`
-and not an ancestor of `main` or of this commit (verified: `git merge-base --is-ancestor` and `git branch --contains`).
-It cherry-picks 54b99d0 and adapts it. It closes the three statements the first skeptic named, and the `Log/Reader.ScanAll`
-godoc, the `Config.ProtectedConsumers` comment, the scope.md Scan/ScanAll row, decisions 38 and 41 (dated notes) and the
-changelog. It also fixes a root cause the first attempt left: `deleteLocked` (retention.go) dropped the hole when the
-retention pass deleted the clean prefix in front of a damaged segment, because the hole's end is below the new `First`, so a
-live `Log` skipped the damaged file silently while a `Reader` and a fresh `Open` reported it; it now keeps a hole from 1 while a
-damaged segment is the oldest sealed file (reported, from the fixer's summary; the commit touches retention.go by six added
-lines, verified from `git show --stat`). The ledger gives no per-lens table for this attempt, only the fix-skeptic's objection
-(reported): decision 84 (decisions.md:92) still says `ScanAll`, and `Scan` with offset 0, start at the first retained
-sequence, which is false for a damaged oldest segment, and 64837ac never amended it; decisions 9 and 67 and two user-guide
-lines (318 and 335 in the fix tree) still state the old "created at the first retained sequence" rule with no exception. The
-skeptic judged the code and tests sound. Needed: a third attempt that amends decision 84 with a dated A3-10 note, adds the
-exception to decisions 9 and 67 and the two user-guide lines, and re-submits; no code or test change is asked for. Until then
-the behaviour is the unfixed one described in the claim, and the owner's answer stands as the recommended one.
+**Disposition.** Fixed and on `main` (2026-11-02): badb254 (code, tests and docs, the second attempt 64837ac rebased onto
+`main` with one `scope.md` conflict resolved), 18662b6 (decisions 9, 67, 84 and 85 and the two user-guide lines that the second
+rejection named; 85 carried the same sentence and was not named) and ed518a2 (two comments in `archive.go` and a user-guide
+note). The behaviour is as the owner approved: a read from the beginning and a new consumer start at sequence 1 when a damaged
+oldest segment is a hole from 1 and return its `GapError`; retention, `-since` and `OffsetForTime` still start at `First`. The
+second attempt also fixed a root cause the first left: `deleteLocked` (retention.go) dropped the hole when the retention pass
+deleted the clean prefix in front of a damaged segment, so a live `Log` skipped the damaged file silently while a `Reader` and a
+fresh `Open` reported it; it now keeps a hole from 1 while a damaged segment is the oldest sealed file.
+
+Sign-off, stated exactly. The fix-skeptic of 64837ac rejected it on the docs alone (decisions 84, 9 and 67 and two user-guide
+lines; reported from the ledger). A fresh fix-skeptic on 18662b6 (reported, its own runs) found the code and tests sound and
+rejected it for two statements of the old rule that survived in `archive.go` (the `Archive` godoc and one inline comment). Its
+checks: four new tests and the reference-currency test fail without the production change (the last only because the help text was reverted) and pass with it; seven hand-made mutants of the new start-at-1
+logic and of retention's hole-keeping were all killed; a differential run of 400 seeds x 5 prune passes (2000 comparisons, 1042
+with a hole from 1) found a live `Log` and a fresh `Open` agreeing every time; `docs/reference.md` is what `quill reference`
+prints; the CLI before and after is identical on a healthy log, on a prefix deleted by retention and with `-since`, and differs
+only for a damaged oldest segment (exit 1, "records 1 to 10 are unavailable"). I made the two comment edits it asked for and
+added the user-guide note below, then ran the full gate on both platforms (verified). **No skeptic re-ran on ed518a2**: the
+diff since the skeptic's tree is comments and documentation only (verified: `git diff 18662b6 ed518a2` touches `archive.go`
+comments and `docs/userguide.md`), and I grepped the tree for the same statement and found none left outside the frozen
+original `docs/design/build-prompt.md` (lines 212 and 318, left as they are) and `docs/audits`. That is a check by me, not a
+fix-skeptic's FIXED-VERIFIED.
+
+Open points the fix-skeptic left, none fixed here:
+
+1. When every sealed segment of the source is damaged, `Archive` copies nothing, so it does not commit and every run exits 3
+   until `quill commit -name _archive -offset N` goes past the gap (observed by the skeptic; before the fix this case exited 0
+   silently). The user guide now says so where it claimed the next run exits 0.
+2. Pre-existing, not introduced here: after archiving a source with a damaged oldest segment, `quill check` on the destination
+   prints HEALTHY (exit 0), because a hole from 1 leaves no damaged file in the destination. `userguide.md` and `scope.md:321`
+   say `check -dir <dest>` keeps reporting the hole (exit 3); that holds only when a damaged file was copied.
+3. `quill tail -n 21` on a log with 10 records in a hole from 1 and 20 readable records exits 1 ("records 10 to 10 are
+   unavailable"), because 21 reaches one record into the hole. That follows the rule, but no test pins it and the owner's
+   wording ("reaching the oldest record") is looser.
+4. The A5-18 notes (decision 36, the user guide, `scope.md`) say a consumer behind `First` means the log is intact and `check`
+   stays HEALTHY. That describes the retention case; with a damaged oldest segment `check` is UNHEALTHY for the hole and also warns
+   of the new consumer at 1 (observed by the skeptic).
 
 ## A3-20: a Reader serves overlapping segments (low)
 

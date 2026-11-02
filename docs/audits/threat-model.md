@@ -32,7 +32,8 @@ A3-28). No CRITICAL and no HIGH item. 11 MEDIUM and 18 LOW, as rated by the audi
 | disposition | items | ids |
 |-------------|-------|-----|
 | fixed, fix-skeptic FIXED-VERIFIED | 12 | A3-1, A3-15, A3-16, A3-27, A3-8, A3-12, A3-21, A3-22, A3-25, A3-30, A3-33, A3-20 (since 2026-11-02) |
-| fix-failed (fix written, rejected by its fix-skeptic, not in the tree) | 1 | A3-10 (second attempt, 64837ac, 2026-11-02) |
+| fixed after fix-skeptic rejections; the last rejection was for two comment lines, fixed, with no skeptic re-run (not FIXED-VERIFIED) | 1 | A3-10 (badb254, 18662b6, ed518a2; 2026-11-02) |
+| fix-failed (fix written, rejected by its fix-skeptic, not in the tree) | 0 | none |
 | held for the owner (no fix written) | 4 | A3-5, A3-14, A3-18, A3-19 |
 | refuted, deliberately not changed | 3 | A3-26, A3-7, A3-24 |
 | decided in round 1, not re-opened | 9 | A3-3, A3-4, A3-6, A3-9, A3-11, A3-23, A3-29, A3-31, A3-32 |
@@ -53,9 +54,10 @@ A3-28). No CRITICAL and no HIGH item. 11 MEDIUM and 18 LOW, as rated by the audi
   (54b99d0, rejected on the no-new-gap lens only) and A3-20 (e0df757, rejected for an unfixed Archive path). Neither is in the tree.
 - **Update 2026-11-02 (pass A3h).** The owner approved the recommended answer for A3-10 and A3-20. A3-20 is now fixed in
   53a5d3b, fix-skeptic FIXED-VERIFIED (7 of 7 lenses pass, reported): the table above counts it with the fixed items, which
-  makes 12 fix commits and 12 of 12 FIXED-VERIFIED (81 lens verdicts, derived: 74 + 7). A3-10 was attempted again (64837ac,
-  on branch `stage2/A3-10-a2`, not an ancestor of the tree; verified) and rejected again, now because decisions 84, 9 and 67
-  and two user-guide lines still state the old rule; it stays fix-failed with 1 item. The record is in
+  makes 12 fix commits and 12 of 12 FIXED-VERIFIED (81 lens verdicts, derived: 74 + 7). A3-10 was attempted again (64837ac)
+  and rejected again because decisions 84, 9 and 67 and two user-guide lines still stated the old rule; I then rebased it, fixed
+  those and two `archive.go` comments a third skeptic named, gated it on both platforms and landed it (badb254, 18662b6,
+  ed518a2). It is counted separately in the table below: no skeptic re-ran on the last commit. The record is in
   [stage2-owner-decisions.md](stage2-owner-decisions.md), sections "A3-10" and "A3-20". The rest of this file is as recorded
   on 2026-10-31 except the two Disposition paragraphs and the two table rows below.
 
@@ -153,7 +155,7 @@ the round-1 items.
 | A3-6 | medium | bug | prior-deliberate | round 1 | Archive keeps a same-size destination segment without verifying it |
 | A3-29 | medium | gap | prior-deliberate | round 1 | no detection of filesystems where flock is not coherent; names missing from the docs |
 | A3-8 | low | bug | CONFIRMED | fixed bb646c0 | `quill.tail` accepts a segment id the ten-digit file names cannot hold |
-| A3-10 | low | gap | CONFIRMED | fix-failed 54b99d0, again 64837ac (not in the tree) | a damaged oldest segment is skipped silently by a default-start read |
+| A3-10 | low | gap | CONFIRMED | fixed badb254, 18662b6, ed518a2 (2026-11-02; no skeptic re-run on the last, see stage2-owner-decisions.md) | a damaged oldest segment is skipped silently by a default-start read |
 | A3-12 | low | doc | CONFIRMED | fixed 1f896c7 | segments and directories go through the umask; decision 51 said "exact" |
 | A3-20 | low | bug | CONFIRMED | fixed 53a5d3b (e0df757 rejected earlier) | a Reader serves overlapping segments that writable Open refuses |
 | A3-21 | low | bug | CONFIRMED | fixed d6dc2b9 | a non-minimal varint passes Check and Open, then breaks the read cursor |
@@ -681,15 +683,16 @@ the no-new-gap lens only: three statements still said a new consumer starts at t
 update those three with the same exception decision 41 and the scope.md Consumer row now carry; no code or test change.
 
 **Owner approval and second attempt (2026-11-02).** The owner approved the recommended answer (the behaviour change is
-intended). A second attempt, 64837ac (branch `stage2/A3-10-a2`; not in the tree, verified with `git merge-base
---is-ancestor`), cherry-picked 54b99d0, updated the three statements above, and also fixed a root cause the first attempt
+intended). A second attempt, 64837ac (later rebased and landed, see below), cherry-picked 54b99d0, updated the three statements above, and also fixed a root cause the first attempt
 left: `deleteLocked` (retention.go) dropped the hole from 1 when the retention pass deleted the clean prefix in front of a
 damaged segment, so a live `Log` still skipped it while a `Reader` and a fresh `Open` reported it (reported, from the fixer's
 summary). It was rejected again (reported, from the ledger's objection; no per-lens table is recorded): decision 84
 (decisions.md:92) still says `ScanAll`, and `Scan` with offset 0, start at the first retained sequence; decisions 9 and 67
 and two user-guide lines (318 and 335 in the fix tree) still state the old rule without the exception. The skeptic judged
-the code and tests sound. Disposition: fix-failed; a third attempt must amend decisions 84, 9 and 67 and those two lines.
-See stage2-owner-decisions.md, section "A3-10".
+the code and tests sound. Disposition: fixed and on `main` (2026-11-02) as badb254 (the second attempt rebased), 18662b6 (decisions 9, 67, 84, 85 and the two
+user-guide lines) and ed518a2 (two `archive.go` comments and a user-guide note); full gate green on macOS and Linux (verified). The
+last fix-skeptic passed the code lenses and rejected for the two comments; no skeptic re-ran after they were fixed. Open points
+and the exact sign-off: stage2-owner-decisions.md, section "A3-10".
 
 #### A3-12: segments and directories go through the umask; decision 51 said "exact" (low, doc)
 
