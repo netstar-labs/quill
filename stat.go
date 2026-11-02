@@ -51,9 +51,10 @@ type Stats struct {
 	// records it holds are never written: alert on Err() wrapping ErrFailed as well. Only
 	// Log.Stat knows it.
 	FlushFailing bool
-	// LastFlushOK is when the last flush that wrote its records and published the marker
-	// succeeded, or when the writer opened the log if none has since. It is the time of the
-	// last successful write, not a measure of how long anything has waited: a healthy log with
+	// LastFlushOK is when the last flush that completed succeeded: it wrote its records and
+	// published the marker, or it landed a marker publish that had failed (nothing new written),
+	// or when the writer opened the log if none has since. It is the time of the
+	// last successful write or publish, not a measure of how long anything has waited: a healthy log with
 	// nothing to flush keeps an old LastFlushOK, and one Append after an hour of quiet reports
 	// BufferedRecords of 1, FlushFailing false and a LastFlushOK an hour old, until the flusher
 	// writes it (within FlushInterval). So never alert on time.Since(LastFlushOK) alone. Alert

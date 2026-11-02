@@ -9,7 +9,7 @@ import (
 )
 
 // lockProbe is a slog.Handler that records whether the log's lock was held when its Enabled and
-// Handle methods ran. Config.Logger documents that both run under the lock; this pins it.
+// Handle methods ran: 1 if every call saw it held, 2 if any call saw it free. Config.Logger documents that both run under the lock; this pins it.
 type lockProbe struct {
 	log                     *atomic.Pointer[Log]
 	enabledHeld, handleHeld *atomic.Int32 // 1: the lock was held, 2: it was free
@@ -22,7 +22,7 @@ func (p lockProbe) note(into *atomic.Int32) {
 	}
 	if l.mu.TryLock() {
 		l.mu.Unlock()
-		into.CompareAndSwap(0, 2)
+		into.Store(2) // sticky: one call with the lock free is enough to fail the test
 		return
 	}
 	into.CompareAndSwap(0, 1)

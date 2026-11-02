@@ -76,8 +76,11 @@ type Config struct {
 	// Its handler, Enabled included, runs synchronously with the log's lock held, on the
 	// goroutine that made the record (an Append, Flush, Roll, Prune or Close call, or the
 	// log's flusher). It must therefore neither call the Log, which deadlocks it, nor block,
-	// which stalls every Append, Read, Sync and the flusher: hand the record to another
-	// goroutine and return.
+	// which stalls every Append, Read, Sync and the flusher (a handler that writes straight to a
+	// pipe or socket blocks when the reader does), nor take a lock that a caller of the Log may
+	// hold while calling it: hand the record to another goroutine and return. The warnings Open
+	// itself gives (cutting the newest segment, tightening quill.lock, a policy write) run on the
+	// caller's goroutine before Open returns, before there is a Log, so with no lock held.
 	Logger *slog.Logger
 	// Perm is the file mode (0600); directories get the matching execute bits (0700). State
 	// files (quill.format, quill.tail, quill.policy, consumer offsets) are exactly Perm. The
@@ -311,7 +314,7 @@ type Log struct {
 	offsets    []consumerOffset // every readable consumer at the last prune pass (or Open), for Dropped at a seal
 	diskFull   bool             // MinFreeBytes cannot be met: appends fail with ENOSPC
 	freeAtPass uint64           // free bytes statfs reported at the last pass that could read it
-	// lastFlushOK is when a flush last wrote and published successfully, or Open's time before
+	// lastFlushOK is when a flush last completed (wrote and published, or landed a failed marker publish), or Open's time before
 	// the first one (Stats.LastFlushOK).
 	lastFlushOK time.Time
 

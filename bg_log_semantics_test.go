@@ -183,3 +183,47 @@ func TestLastFlushOKIsNotStampedByTheRetriesOfAFailedRotationOnAnIdleLog(t *test
 		t.Fatalf("an idle retry that landed a rotation moved LastFlushOK to %v, want %v: it wrote nothing", st.LastFlushOK, wrote)
 	}
 }
+
+// "Recovered" means a pass completed without a failure, not that the failing step was retried: a
+// prune pass that finds nothing to delete after a failed unlink (the segment became protected) logs
+// the one Info and clears Err(), though the segment is still on disk. Documented in decision 60 and
+// the user guide; pinned here so a change to it is a decision (Stage 2 audit A5-1).
+func TestAnIdlePrunePassAfterAFailedUnlinkLogsRecoveryAndClearsErrWithoutRetryingIt(t *testing.T) {
+	var lc logCapture
+	s, clk, l := retentionLog(t, func(c *Config) { c.Logger = lc.logger() })
+	defer l.Close()
+	fillSegments(t, l, clk, 4)
+	clk.Advance(2 * time.Hour)
+	s.Inject = func(o fsx.Op, name string) error {
+		if o == fsx.OpRemove && name == "/log/"+segmentName(0) {
+			return syscall.EIO
+		}
+		return nil
+	}
+	if err := l.Prune(true); err == nil {
+		t.Fatal("prune: want the unlink error")
+	}
+	if l.Err() == nil || lc.countMsgs("level=WARN", "op=\"segment delete\"") != 1 {
+		t.Fatalf("after the failed unlink: Err %v, %d warnings", l.Err(), lc.countMsgs("level=WARN", "op=\"segment delete\""))
+	}
+
+	// A protected consumer at the first sequence makes every segment ineligible: the next pass has
+	// nothing to delete, so the failing unlink is never retried.
+	c, err := l.Consumer("keep", ConsumerOptions{Protect: ProtectOn})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := l.Prune(true); err != nil {
+		t.Fatalf("the idle pass: %v", err)
+	}
+	if err := l.Err(); err != nil {
+		t.Fatalf("Err() after a pass that completed without a failure: %v", err)
+	}
+	if n := lc.countMsgs("level=INFO", "op=\"segment delete\""); n != 1 {
+		t.Fatalf("%d recovery lines, want 1", n)
+	}
+	if _, err := s.Lstat("/log/" + segmentName(0)); err != nil {
+		t.Fatalf("the segment whose unlink failed is gone: %v", err)
+	}
+}
