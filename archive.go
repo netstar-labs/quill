@@ -25,7 +25,8 @@ import (
 // run that copies past it, in two ways: the _archive offset is below the first retained
 // sequence or a segment is missing between two it copies, or the destination's quill.tail
 // names a last record below the first segment it copies, which is how a loss shows after the
-// consumer was removed and recreated at the first retained sequence (Stage 2 audit, A5-29).
+// consumer was removed and recreated at the first retained sequence (at 1 when a damaged oldest
+// segment left a gap below it; Stage 2 audit, A5-29).
 // Later runs have nothing to copy and return nil; `quill check` on the destination keeps
 // reporting the hole. It refuses, before
 // writing to it, a destination that is the source log itself and a destination whose
@@ -103,7 +104,8 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 		}
 		// The first segment copied begins past the destination's last record: the records between
 		// were lost from the source before any archiver copied them, which the offset cannot show
-		// after the consumer was removed and recreated at the first retained sequence.
+		// after the consumer was removed and recreated at the first retained sequence (or at 1 when a
+		// damaged oldest segment left a gap below it).
 		if gap == nil && copied == 0 && destSeq > 0 && s.first > destSeq+1 {
 			gap = &GapError{From: destSeq + 1, To: s.first - 1}
 		}

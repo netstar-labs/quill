@@ -333,7 +333,7 @@ code `check` uses for UNHEALTHY; the library returns a `*GapError`), so `quill a
 report success for an incomplete archive. It finds it two ways: the `_archive` offset is below the source's first
 retained sequence, or the destination's `quill.tail` names a last record below the first segment the run copies, which
 is how it shows after `quill unregister -name _archive` recreated the consumer at the first retained sequence (at 1 when a damaged oldest segment left a gap below it). The
-run that reports the hole commits past it, so the next run has nothing to copy and exits 0; `quill check -dir <dest>`
+run that reports the hole commits past it, so the next run has nothing to copy and exits 0 (unless it copied nothing, as when every sealed segment is damaged: nothing is committed then, and every run exits 3 until `quill commit -name _archive -offset N` goes past the gap); `quill check -dir <dest>`
 keeps reporting the hole (exit 3).
 
 A rerun after rewinding (`quill commit -name _archive -offset N`) verifies the segments it meets again. A destination segment of the
