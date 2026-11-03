@@ -241,3 +241,32 @@ func TestCheckWarnsAboutAPolicyThatCannotBeParsed(t *testing.T) {
 		})
 	}
 }
+
+// The marker's maxseg is the highest segment id ever created and is never lowered. After an
+// Open that finds it above the active segment (the newest segments were removed or damaged),
+// the next flush must republish the loaded value, not the active id: otherwise a crash before
+// the next rotation lets a later start create a segment id that was already used.
+func TestKillMarkerKeepsMaxSegAboveTheActiveSegment(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	appendN(t, l, 2)
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tl := readTail(t, s, "/log")
+	if tl.Seq != 2 || tl.Seg != 0 || tl.MaxSeg != 0 {
+		t.Fatalf("setup: marker %+v, want seq 2 in segment 0 with maxseg 0", tl)
+	}
+	tl.MaxSeg = 9
+	writeFile(t, s, "/log/"+tailName, encodeTail(tl))
+
+	l = openSim(t, s, nil)
+	defer l.Close()
+	if _, err := l.Append(payloadFor(3)); err != nil {
+		t.Fatal(err)
+	}
+	mustFlush(t, l)
+	if got := readTail(t, s, "/log"); got.Seq != 3 || got.Seg != 0 || got.MaxSeg != 9 {
+		t.Fatalf("published marker %+v, want seq 3 in segment 0 with maxseg 9 kept", got)
+	}
+}
