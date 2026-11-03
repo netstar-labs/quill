@@ -167,7 +167,8 @@ func (r *Reader) Head() (uint64, error) {
 	return tl.Seq, err
 }
 
-// Read is the Log's Read, bounded by the marker; ReadWait, Scan and ScanAll follow.
+// Read is the Log's Read, bounded by the marker, and leaves an error met after records the same
+// way (see Log.Read); ReadWait, Scan and ScanAll follow.
 func (r *Reader) Read(offset uint64, limit int) ([]Record, error) { return readFrom(r, offset, limit) }
 
 // ReadWait is Read, blocking until a record is available, ctx is done or the handle closes.

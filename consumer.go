@@ -243,7 +243,8 @@ func (c *Consumer) Lag() (uint64, error) {
 	return head + 1 - c.state.Next, nil
 }
 
-// Read reads from the consumer's offset, without committing; ReadWait and Scan follow.
+// Read reads from the consumer's offset, without committing, as the Log's Read (an error met
+// after records is left for the next call); ReadWait and Scan follow.
 func (c *Consumer) Read(limit int) ([]Record, error) { return readFrom(c.src, c.Offset(), limit) }
 
 // ReadWait is Read, blocking until a record is available, ctx is done or the handle closes.

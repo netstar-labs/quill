@@ -14,7 +14,11 @@ import (
 // records (limit <= 0 means no limit), and it stops once at least MaxReadBytes of payload have
 // been returned, so the total can exceed MaxReadBytes by up to one record. It always returns at
 // least one record when one exists. It returns a *GapError where records are unavailable
-// (decision 38) and an empty result when offset is past the head.
+// (decision 38) and an empty result when offset is past the head. An error met after at least
+// one record was collected (a gap, an I/O error, corruption of any segment) is not returned with
+// the records: they come back with a nil error and the next call, from where they end, meets it
+// again, except that an I/O error may not recur. The one error returned together with records is
+// a segment that ends before its last record.
 func (l *Log) Read(offset uint64, limit int) ([]Record, error) {
 	return readFrom(l, offset, limit)
 }
@@ -153,9 +157,12 @@ func readWait(ctx context.Context, src source, offset uint64, limit int) ([]Reco
 // scanSource drives every read: at most limit records (0: no limit), stopping once at least
 // maxBytes of payload (0: no bound) have been delivered, so the last record may carry the total
 // past maxBytes, and always at least one. copyPayloads makes each payload its own allocation.
-// A gap met after records were delivered is returned at once when gapAfter is set (Scan:
-// the callback already has the records) and otherwise left for the next call (Read: the
-// records are the result). A from.seq of 0 means the beginning (segView.start). It returns
+// An error that goes through fail (a gap, an I/O error, corruption of a segment) met after
+// records were delivered is returned at once when gapAfter is set (Scan: the callback already
+// has the records) and otherwise left for the next call (Read: the records are the result,
+// and that call meets the error again unless it was an I/O error that does not recur). A
+// segment that ends before its last record does not go through fail: it is returned with the
+// records either way. A from.seq of 0 means the beginning (segView.start). It returns
 // where it stopped, for the next scan to continue from. expect, when not nil, is called once,
 // just before the first record is delivered, with how many records the scan may deliver at
 // most (at least 1, at most maxExpect), so a caller collecting them can size its slice
@@ -176,9 +183,11 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 	defer pool.Put(bufp)
 	stop := false
 	next := cursor{seq: cur}
-	// fail ends the scan with err, unless records were delivered and the caller leaves a gap
-	// for the next call (decision 38): then the records are the result and the gap is reported
-	// by that call.
+	// fail ends the scan with err, unless records were delivered and the caller leaves the error
+	// for the next call (decisions 38, 79 and 84): then the records are the result and that call
+	// reads again from where they end. Every error that goes through fail is deferred this way,
+	// whatever its class; an I/O error (decision 79) is a fact about the moment, so the next
+	// call may not meet it.
 	fail := func(err error) (cursor, error) {
 		if count > 0 && !gapAfter {
 			return next, nil
