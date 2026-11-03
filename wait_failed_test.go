@@ -226,3 +226,32 @@ func TestDirFsyncErrorAfterTheRotationMarkerFailsTheLog(t *testing.T) {
 		t.Fatalf("Append after the failure: %v, want ErrFailed", err)
 	}
 }
+
+// Decision 60 (d): a marker publish that failed is retried at the next flush. On an idle log
+// the background flusher is the only one that can make that flush, so its condition must
+// include the pending publish, not only a non-empty buffer (audit L2-16, mutant F39). Every
+// other retry test calls Flush itself and never reaches the flusher's own condition.
+func TestKillFlusherRetriesAFailedMarkerPublishOnAnIdleLog(t *testing.T) {
+	s := fsx.NewSim()
+	var armed atomic.Bool
+	failOps(s, fsx.OpRename, &armed)
+	l := openSim(t, s, func(c *Config) { c.FlushInterval = 5 * time.Millisecond })
+	defer l.Close()
+	armed.Store(true)
+	appendN(t, l, 1)
+	if err := l.Flush(); err == nil {
+		t.Fatal("flush: the marker publish was armed to fail and the flush reported nothing")
+	}
+	armed.Store(false)
+	// No further call: only the flusher can publish the marker now.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if readTail(t, s, "/log").Seq == 1 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the marker still names seq %d 3s after the fault cleared: the flusher does not retry a failed publish on an idle log", readTail(t, s, "/log").Seq)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
