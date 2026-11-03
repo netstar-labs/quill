@@ -1874,3 +1874,58 @@ fix-skeptic: `staticcheck` and `deadcode`.
 Two points the fix-skeptic left (reported, neither blocks): the user guide (userguide.md:207) still says the cap "bounds the memory
 of a read", although a bounded read allocates about 4 times the cap (70 MB against 16 MiB); and mutation-hardening.md said L2-53
 was held with no fix written, which this update corrects. See "Residuals the fix-skeptics left" above.
+
+## Pass L3b: live multi-process validation
+
+Date 2026-11-03, against the tree at `a63bd6b` with the four L3b fixes on top (`136577c`, `53fcb36`, `d88c9c1`, `ba30fee`). The pass ran the multi-process harness (`hack/topology`) and dedicated drivers on macOS, on a
+Linux box (ext4 and eight other filesystem configurations, one real power cut and crash-state replays) and in Apple containers; the record is [live-integration.md](live-integration.md). It produced 12 items: four were fixed
+(L3b-4, L3b-3, L3b-6, L3b-14, each FIXED-VERIFIED), three were refuted, three were decided in round 1 and left unchanged, and **two are held below for the owner**, neither of which has a fix written.
+
+## L3b-7: a second writer under another uid gets a bare permission error, not `ErrLocked` (low)
+
+**Claim.** On a log created by one uid, a second writer or a writer-lock verb under a different uid fails with `open .../quill.lock: permission denied` (EACCES), not `ErrLocked`. Verified on Linux ext4: log
+created with umask 000 and `Perm` 0666, writer live, `sudo -u nobody quill append`, `prune`, `roll` and `recover` all print the permission error and exit 1; as the owner they print `locked by another holder`.
+`stat`, `check`, `read` and `register` as the other uid work. Nothing was modified after the refusal. Cause: `takeWriterLock` opens `quill.lock` with `O_RDWR|O_CREATE` (lock_unix.go:42) and returns the error
+unwrapped, and the lock file is always 0600 (decision 51). `ErrLocked` is added only after a flock conflict. The documents say `ErrLocked` without this case: doc.go:10, userguide.md:249 (`no: ErrLocked` for
+`append`, `roll`, `prune`, `recover`); only the `archive` verb documents the combined error (userguide.md:343).
+
+**Why held.** Either fix is visible: wrapping the error changes what `errors.Is(err, ErrLocked)` returns for another uid (an exported error class, and the exit text of four CLI verbs), and documenting it changes the
+wording of the `ErrLocked` contract. The behaviour itself is deliberate (decision 51: a reader-only user must not be able to take the writer's lock), nothing is damaged, and the configuration (a writer under a second uid on
+a log it did not create) is unusual. CONFIRMED by 2 of 2 skeptics (by reading the code; the auditor's Linux run is the only observation).
+
+**Recommended answer.** Document it, and leave the error a plain permission error that names `quill.lock`: add to the `ErrLocked` row of userguide.md:249 and to doc.go:10 that a writer under a different account
+than the log's creator gets a permission error on `quill.lock` and not `ErrLocked`, and that a script detecting a live writer must treat both as "not this account's log or a writer may be live". Reason (inferred): for
+`Open` an unreadable 0600 lock owned by another account almost always means someone else's log, and `ErrLocked` would say "a writer is live" when none may be; `archive` can treat it as live because it only refuses. The
+runner-up is to wrap it as `archive` does, so the error matches both `ErrLocked` and `fs.ErrPermission`; that gives callers one test and the CLI the "this verb needs its lock" message, at the cost of the
+misleading reading. 
+
+**Fix written.** None. The auditor's proposal is the text above or the wrap; no code was drafted.
+
+## L3b-8: a completely full filesystem makes every writable open of an existing log fail with ENOSPC (medium)
+
+**Claim.** With exactly zero free bytes for the unprivileged user, `Open` of an existing log fails with ENOSPC, and so do the CLI verbs `prune`, `recover`, `roll` and `append`. `Open` fails before the writer's
+retention, `MinFreeBytes` and `MaxBytes` sweeps can run, so the features meant to free space cannot run, and the log stays unopenable until something outside quill frees a block. The same condition inside a running writer
+is retried by design (decision 60 d); the restart path has no equivalent. Cause: `load` sets `l.pendingPublish = true` unconditionally (load.go:456) and returns the error of `publishLocked()`; the flush then rewrites
+`quill.tail` through a temp file, fsync and rename even when the marker on disk already equals the recovered state (flush.go:179-181), and that temp file needs a free block. By contrast a failed `quill.policy` write at `Open`
+is tolerated and retried (log.go:448 and the policy writer).
+
+Verified reproduction (a skeptic, Linux, 8 MiB tmpfs; the auditor also on a 16 MiB ext4 image): open with 64 KiB segments, `MinFreeBytes` 2 MiB, append 3,072 records of 1 KiB, close (head 3,072, 49 segments); fill the rest
+until `df` shows 0 available; `Open` fails with `write .../.tmp-...: no space left on device` (exit 3 in the program), `quill prune` and `quill recover` exit 1 with the same error; truncate the filler by one 4 KiB block and `Open`
+succeeds, and within 3 s the `MinFreeBytes` sweep takes the log from 49 to 17 segments (3,191,681 to 1,063,936 bytes). The harness hit it on its own in the full-disk scenario on xfs, f2fs and overlayfs ("Open after the
+run: open .../.tmp-...: no space left on device"), and passed on ext4, btrfs and tmpfs only because the writer had not quite filled the disk when the verifier ran. CONFIRMED by 2 of 2 skeptics.
+
+**Why held.** The fix changes what `Open` does on a full disk: it would succeed where it now fails, with the marker possibly not republished and `Err()` reporting the pending publish, which a caller that treats a
+successful `Open` as "the log is fully published" would notice. It also touches the recovery path of `Open` (decisions 39, 60 d and 81), whose republish was made unconditional on purpose (the comment at load.go:451-455:
+an empty log's marker is the zero value and `MarkerAge` read 0). Narrow precondition: free space of exactly zero for the unprivileged user (one free block avoids it; on ext4 the root-reserved blocks make it rarer),
+an operator can free space outside quill, and no document promises that `Open` works on a full disk. Medium because it defeats the stated self-recovery on a full disk (scope.md guarantee 11, `MinFreeBytes`; the
+CHANGELOG entry that a prune pass must not be skipped exactly when the disk is full; userguide.md:48-60), and it is the end state of the one resource a long-running deployment does exhaust.
+
+**Recommended answer.** Fix it, in two steps and in this order. (1) When the recovered marker equals the one on disk and the data is durable, skip the rewrite at `Open`; this alone makes the reproduced case work, since
+a clean restart on a full disk then touches no new block. Keep the rewrite for the empty-log case that the comment names (set `markerAt` without a write, or write once at creation) so `MarkerAge` stays right. (2) When
+the republish is needed (parse-forward recovery moved the head, decision 39) and fails, treat it as a failed publish at flush: keep `pendingPublish` set, report it through `Err()` and the logger, return the log, and let
+the flush and prune paths retry (decision 60 d) so the sweeps that free space can run. Step 2 is inferred to be safe because the data is already durable and the marker is a lower bound (decision 39); it is the part to
+review hardest, since a reader of a stale marker sees an older head until the retry lands. The runner-up is step 1 alone, which closes the reproduced case and the harness failures and leaves a parse-forward recovery on a
+full disk refusing; the other runner-up is documenting that `Open` needs one free block, which keeps the code and states the limit.
+
+**Fix written.** None. The auditor's proposed test: an `fsx.Sim` that injects ENOSPC on the marker temp-file create at `Open`, requiring `Open` to succeed, the sweep to run, and the marker to be published once space
+returns.
