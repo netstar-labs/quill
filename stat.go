@@ -174,7 +174,8 @@ type CheckResult struct {
 	Problems  []Problem
 }
 
-// Check examines a log without a lock: every sealed segment whole, the active segment up
+// Check examines a log without a lock: every sealed segment whole (one with no frames is
+// damage, as it is to Open; only the active segment may be empty), the active segment up
 // to the marker, holes, the consumers/ directory and its files, the policy and the clock (decisions 44, 66). It
 // reads every byte, so it costs what a cold start costs, and like a cold start it verifies the
 // segments in parallel.
@@ -265,6 +266,11 @@ func (r *Reader) Check() (CheckResult, error) {
 			continue
 		}
 		if info.frames == 0 {
+			// Only the active segment may be empty; a sealed one is corruption, as Open
+			// finds it (decision 43).
+			if id < tl.Seg {
+				fatal(Problem{Kind: "segment", Path: path, Detail: "a sealed segment with no frames"})
+			}
 			continue
 		}
 		if !haveFirst {

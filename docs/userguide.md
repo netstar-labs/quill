@@ -359,7 +359,9 @@ refuses `Commit`, and gives up `ReadWait` and `Follow` when they wait, with `Err
 honest `fsync` (ext4, xfs, btrfs, APFS). Not supported: NFS, SMB, FUSE; bind mounts and overlay
 filesystems at the operator's risk. Linux and macOS only.
 
-**Checking.** `quill check` verifies every sealed segment whole and the active one up to the
+**Checking.** `quill check` verifies every sealed segment whole (a sealed segment with no frames, for
+example one emptied by a tmp cleaner or a bad restore, is damage and makes it UNHEALTHY; only the
+active segment may be empty) and the active one up to the
 marker, finds holes, unparseable consumer files (or a `consumers/` directory that cannot be listed) and clock anomalies, warns of a consumer ahead of the head or behind the first retained sequence, and reports UNBOUNDED
 when neither cap is set. Exit 3 means UNHEALTHY. `check` takes no lock, so a sealed segment that
 retention deletes while it scans is skipped, not reported; one already missing from the listing is a hole.

@@ -366,6 +366,44 @@ func TestCheckReportsAnOversizeSegmentFileAsRefusedNotDamaged(t *testing.T) {
 	}
 }
 
+// A sealed segment truncated to zero bytes is corruption (decision 43): check says so and
+// exits 3, where it once reported the log healthy. The oldest and a middle position both count.
+func TestCheckReportsAnEmptySealedSegmentWithExitThree(t *testing.T) {
+	for _, victim := range []string{"0000000000.log", "0000000001.log"} {
+		t.Run(victim, func(t *testing.T) {
+			// 120 records in three segments of 40; the third is the active one.
+			dir := filepath.Join(t.TempDir(), "orders")
+			l, err := quill.Open(quill.Config{Dir: dir, Retention: -1, FlushInterval: time.Hour})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < 120; i++ {
+				if _, err := l.Append([]byte("record")); err != nil {
+					t.Fatal(err)
+				}
+				if i == 39 || i == 79 {
+					if err := l.Roll(); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if err := l.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if code, out, _ := exec(t, "", "check", "-dir", dir); code != exitOK {
+				t.Fatalf("before the damage: exit %d: %s", code, out)
+			}
+			if err := os.Truncate(filepath.Join(dir, victim), 0); err != nil {
+				t.Fatal(err)
+			}
+			code, out, _ := exec(t, "", "check", "-dir", dir)
+			if code != exitUnhealthy || !strings.Contains(out, "UNHEALTHY") || !strings.Contains(out, victim) || !strings.Contains(out, "a sealed segment with no frames") {
+				t.Fatalf("exit %d: %s", code, out)
+			}
+		})
+	}
+}
+
 func TestCheckReportsUnhealthyWithExitThreeAndFlagsTheClock(t *testing.T) {
 	// T9 and T21, the CLI parts.
 	dir := newLog(t, 5, func(i int) []byte { return []byte("r") })
