@@ -79,7 +79,8 @@ type Config struct {
 	//     limited by the clock guard (the bulk-expiry warnings). Each is written again by every pass
 	//     that finds the condition again;
 	//   - about a deletion and the free-space floor, from a prune pass and also from every seal (an
-	//     Append, Flush or Roll that rotates to a new segment, or the flusher's flush, runs the caps,
+	//     Roll, or any flush that rotates to a new segment (an Append's inline flush, Flush, Sync, Close or
+	//     the flusher's), runs the caps,
 	//     MaxBytes, MinFreeBytes and MaxRecords, at the seal; a Prune whose age rotation seals runs
 	//     them at the seal and again in the pass): Info for each segment deleted, Warn instead when it
 	//     held damage; Warn for a segment already gone from the directory; Warn naming each consumer
@@ -87,8 +88,9 @@ type Config struct {
 	//     be read, Warn when it is below the floor with nothing left to delete and Info when it is
 	//     back above. The "cannot read free space" Warn is written by every pass and every seal whose
 	//     statfs fails: six failing passes or seals write six Warns. Only the below-floor Warn and
-	//     the back-above Info are one record per transition, and a deleted or already-gone segment
-	//     is one record when it goes;
+	//     the back-above Info are one record per transition, and a deletion is one record when it
+	//     happens (plus a Warn for each consumer it passes; a segment already gone gives its Warn and
+	//     then the same deletion record, so two);
 	//   - one Warn when a flush write, a marker publish, a rotation or a prune unlink starts to fail and
 	//     one Info when it recovers (never one per retry; Stat has the current state);
 	//   - one Warn when quill.policy cannot be written and one Info when a retry succeeds (the retries
