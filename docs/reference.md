@@ -10,7 +10,7 @@
 | `ls` | none | list the logs under a parent directory, with bytes, segments, retention and caps from quill.policy |
 | `stat` | none | print a log's head, first retained sequence, segments, bytes, records, holes and marker age |
 | `read` | none | print records from an offset (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap) |
-| `cat` | none | print every retained record from the start of the log; a damaged oldest segment is reported as a gap |
+| `cat` | none | print the retained records from the start of the log, or from -from or -since; a damaged oldest segment is reported as a gap |
 | `tail` | none | print the last records, and keep following with -follow |
 | `append` | log | append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock |
 | `consumers` | none | list the consumers: offset, lag, protection |
@@ -59,11 +59,11 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 | `-from` | `0` | the first sequence to print (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap) |
 | `-json` | `false` | newline-delimited JSON: seq, at, time, len, payload or payload_b64 |
 | `-limit` | `0` | stop after this many records (0: no limit) |
-| `-since` | `—` | start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h) |
+| `-since` | `—` | start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h); wins over -from |
 
 ## `quill cat`
 
-Print every retained record from the start of the log; a damaged oldest segment is reported as a gap.
+Print the retained records from the start of the log, or from -from or -since; a damaged oldest segment is reported as a gap.
 
 Lock: none (runs beside a live writer, sees records up to quill.tail).
 
@@ -74,7 +74,7 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 | `-from` | `0` | the first sequence to print (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap) |
 | `-json` | `false` | newline-delimited JSON: seq, at, time, len, payload or payload_b64 |
 | `-limit` | `0` | stop after this many records (0: no limit) |
-| `-since` | `—` | start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h) |
+| `-since` | `—` | start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h); wins over -from |
 
 ## `quill tail`
 
@@ -87,11 +87,11 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 | `-b64` | `false` | print every payload as base64 |
 | `-dir` | `—` | the log directory |
 | `-follow` | `false` | keep printing new records until interrupted |
-| `-from` | `0` | the first sequence to print (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap) |
+| `-from` | `0` | the first sequence to print (default: the last -n records; -n is ignored when -from or -since is given) |
 | `-json` | `false` | newline-delimited JSON: seq, at, time, len, payload or payload_b64 |
 | `-limit` | `0` | stop after this many records (0: no limit) |
 | `-n` | `10` | how many of the last records |
-| `-since` | `—` | start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h) |
+| `-since` | `—` | start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h); wins over -from |
 
 ## `quill append`
 

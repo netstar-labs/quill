@@ -67,11 +67,11 @@ func init() {
 			run:   cmdStat},
 		{name: "read", summary: "print records from an offset (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap)", lock: "none",
 			flags: readFlags, run: cmdRead},
-		{name: "cat", summary: "print every retained record from the start of the log; a damaged oldest segment is reported as a gap", lock: "none",
+		{name: "cat", summary: "print the retained records from the start of the log, or from -from or -since; a damaged oldest segment is reported as a gap", lock: "none",
 			flags: readFlags, run: cmdRead},
 		{name: "tail", summary: "print the last records, and keep following with -follow", lock: "none",
 			flags: func(fs *flag.FlagSet, c *cli) {
-				readFlags(fs, c)
+				readFlagsFrom(fs, c, "the first sequence to print (default: the last -n records; -n is ignored when -from or -since is given)")
 				c.n = 10
 				fs.Var((*decimalFlag)(&c.n), "n", "how many of the last records")
 				fs.BoolVar(&c.follow, "follow", false, "keep printing new records until interrupted")
@@ -126,9 +126,14 @@ func init() {
 }
 
 func readFlags(fs *flag.FlagSet, c *cli) {
-	fs.Var((*decimalFlag)(&c.from), "from", "the first sequence to print (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap)")
+	readFlagsFrom(fs, c, "the first sequence to print (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap)")
+}
+
+// readFlagsFrom is readFlags with the verb's own -from text, for a verb whose default start differs.
+func readFlagsFrom(fs *flag.FlagSet, c *cli, fromDoc string) {
+	fs.Var((*decimalFlag)(&c.from), "from", fromDoc)
 	fs.Var((*decimalFlag)(&c.limit), "limit", "stop after this many records (0: no limit)")
-	fs.StringVar(&c.since, "since", "", "start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h)")
+	fs.StringVar(&c.since, "since", "", "start at the first record at or after this time (RFC 3339, @unix, or a duration ago such as 2h); wins over -from")
 	fs.BoolVar(&c.json, "json", false, "newline-delimited JSON: seq, at, time, len, payload or payload_b64")
 	fs.BoolVar(&c.b64, "b64", false, "print every payload as base64")
 }
