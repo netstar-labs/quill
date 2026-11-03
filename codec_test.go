@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"math/rand/v2"
+	"strings"
 	"testing"
 )
 
@@ -118,5 +119,61 @@ func TestDecodeFrameRefusesEveryDamage(t *testing.T) {
 	}
 	if _, _, err := decodeFrame(nil); !errors.Is(err, errTornFrame) {
 		t.Fatalf("empty: %v", err)
+	}
+}
+
+// forgedFrame wraps body as a frame with the right length prefix and the right CRC, so the
+// only thing wrong with it is the body: it passes everything decodeFrame checks before
+// decodeBody.
+func forgedFrame(body []byte) []byte {
+	frame := binary.AppendUvarint(nil, uint64(len(body)))
+	frame = append(frame, body...)
+	return binary.BigEndian.AppendUint32(frame, crcChecksum(body))
+}
+
+// A frame whose length and CRC are right but whose body is not three canonical varints and
+// exactly the declared payload is damage, never a panic: decodeBody is the only guard between
+// a hand-forged segment file and a slice out of range, and each of its checks is pinned here
+// by a body that only that check refuses (format.md: minimal varints, no slack).
+func TestACRCValidFrameWithAMalformedBodyIsBadNotAPanic(t *testing.T) {
+	overflow := append(bytes.Repeat([]byte{0xff}, 10), 0x01)
+	cases := []struct {
+		name string
+		body []byte
+	}{
+		{"empty", nil},
+		{"seq only", []byte{5}},
+		{"padded seq", []byte{0x85, 0x00, 9, 2, 'a', 'b'}},
+		{"overflowing seq", append(append([]byte{}, overflow...), 9, 2, 'a', 'b')},
+		{"seq with no at", []byte{5}},
+		{"padded at", []byte{5, 0x89, 0x00, 2, 'a', 'b'}},
+		{"overflowing at", append(append([]byte{5}, overflow...), 2, 'a', 'b')},
+		{"overflowing at, nothing after", append([]byte{5}, overflow...)},
+		{"seq and at with no payload length", []byte{5, 9}},
+		{"padded payload length", []byte{5, 9, 0x82, 0x00, 'a', 'b'}},
+		{"overflowing payload length", append([]byte{5, 9}, overflow...)},
+		{"payload length past the body", []byte{5, 9, 3, 'a', 'b'}},
+		{"slack after the payload", []byte{5, 9, 2, 'a', 'b', 'c'}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			frame := forgedFrame(c.body)
+			if _, _, err := decodeFrame(frame); !errors.Is(err, errBadFrame) {
+				t.Fatalf("decodeFrame: %v, want bad frame", err)
+			}
+			if _, err := verify(frame); err == nil || !strings.Contains(err.Error(), "bad frame") {
+				t.Fatalf("verifySegment: %v, want a bad frame", err)
+			}
+			info, cut, err := recover_(frame, 0)
+			if err != nil || !cut || info.frames != 0 || info.end != 0 || !errors.Is(info.stop, errBadFrame) {
+				t.Fatalf("recoverSegment: %+v cut=%v err=%v, want no frames, cut at 0, stopped on a bad frame", info, cut, err)
+			}
+		})
+	}
+	// The control: the same forging with a well-formed body is accepted, so the cases above
+	// are refused for their bodies and not for the way the frame was made.
+	good := forgedFrame([]byte{5, 9, 2, 'a', 'b'})
+	if rec, n, err := decodeFrame(good); err != nil || n != len(good) || rec.Seq != 5 || rec.At != 9 || string(rec.Payload) != "ab" {
+		t.Fatalf("control: %+v %d %v", rec, n, err)
 	}
 }

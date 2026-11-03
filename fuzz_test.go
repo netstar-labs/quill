@@ -2,6 +2,7 @@ package quill
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -13,7 +14,28 @@ func FuzzDecodeFrame(f *testing.F) {
 	f.Add(appendFrame(nil, &rec))
 	f.Add([]byte{0xff, 0x00, 0x01})
 	f.Add([]byte{})
+	// Bodies for the second path below: one whose at is padded, one whose at overflows.
+	f.Add([]byte{5, 0x89, 0x00, 2, 'a', 'b'})
+	f.Add(append([]byte{5}, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01, 2, 'a', 'b'))
 	f.Fuzz(func(t *testing.T, data []byte) {
+		// The bytes as a body in a frame with the right length and CRC, which a raw input
+		// reaches only by guessing a 32-bit checksum: whatever it is, no panic, and either a
+		// record that is canonical or a bad frame.
+		if len(data) <= maxFrameBody {
+			frame := forgedFrame(data)
+			brec, bn, berr := decodeFrame(frame)
+			switch {
+			case berr == nil:
+				if bn != len(frame) || len(brec.Payload) > len(data) {
+					t.Fatalf("body accepted with n=%d for a %d-byte frame", bn, len(frame))
+				}
+				if !bytes.Equal(appendFrame(nil, &brec), frame) {
+					t.Fatalf("body accepted but not canonical: %x", data)
+				}
+			case !errors.Is(berr, errBadFrame):
+				t.Fatalf("a CRC-valid body gave %v, want a record or a bad frame", berr)
+			}
+		}
 		rec, n, err := decodeFrame(data)
 		if err != nil {
 			if n != 0 {
