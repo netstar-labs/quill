@@ -45,7 +45,7 @@ its sequence numbers are reassigned to the next records. Three ways to pay for d
 | `Config.SyncAppends` | Every `Append` returns durable; on an error it still returns the sequence it assigned | The simplest durable writer |
 
 A flush costs an fsync of the segment and the marker's temp file: milliseconds on Linux,
-about 20 ms on macOS (`F_FULLFSYNC`). Batch when you can.
+about 10 ms on macOS (`F_FULLFSYNC`, measured on the build machine). Batch when you can.
 
 **When a write fails** (decisions 37, 60). A short write or `ENOSPC` truncates the file back
 to the durable offset and keeps the records buffered; the next flush retries from the same

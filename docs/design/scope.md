@@ -370,7 +370,7 @@ within one kernel is the same filesystem and the lock stays exclusive. Overlay f
 risk. The stage 2 live runs saw the double writer on virtiofs and did not exercise NFS, SMB or FUSE
 ([live-integration](../audits/live-integration.md), L3b-11). On
 macOS `File.Sync` issues `F_FULLFSYNC` (**verified** in the Go source), which is why a durable flush costs about
-20 ms there against milliseconds on Linux. Directories are created 0700 and files 0600 by default, so a reader
+10 ms there (the build machine's baselines) against milliseconds on Linux. Directories are created 0700 and files 0600 by default, so a reader
 in another user account needs a group arrangement; a process that only reads needs read access, and one that
 holds a consumer needs write access to `consumers/`. Consumer files created through a `Reader` or the CLI, and an
 `Archive` destination, take the log's mode (read from `quill.tail`), so the writer can read what a consumer in the
@@ -432,7 +432,7 @@ Quill changes shape, not speed. Phase 4 records a baseline for each benchmark �
 flush per call, read from the start, read near the tail, read of sealed segments, `ReadWait`, cold start, and
 two new ones (several logs flushing in parallel, a `Reader` following a live writer) — on one machine, six
 runs, in `docs/audits/benchmark-baselines.md`. A later release may not regress one beyond run-to-run noise.
-The recorded baselines on the build machine: `Read(limit 100)` at about 23–39 µs depending on the segment,
+The recorded baselines on the build machine: `Read(limit 100)` at about 21–36 µs depending on the segment,
 a full `ScanAll` at about 21 M records/s over 400 K warm records, and a `Reader` draining a backlog at about
 16 M records/s. The marker write and fsync on every flush, which the reference did not have, is about half
 of a flush's 10 ms on macOS; the baselines state that cost. Read cost does not grow with the backlog of sealed segments the way a scan would: segments below the offset are skipped without
