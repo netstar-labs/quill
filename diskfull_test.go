@@ -1,6 +1,7 @@
 package quill
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"syscall"
@@ -249,5 +250,70 @@ func TestFreeBytesReadsTheRealFilesystem(t *testing.T) {
 	}
 	if _, err := freeBytes(t.TempDir() + "/missing"); err == nil {
 		t.Fatal("freeBytes on a missing directory returned no error")
+	}
+}
+
+// The caps run at every seal, whichever call made it (decision 24, Stage 2 audit A7-6): a Flush,
+// a Sync or SyncAppends (both flushed by the flusher goroutine), and the final flush of Close
+// each delete the oldest segment under MaxBytes, MinFreeBytes and MaxRecords with no Prune call at
+// all (the log is opened with NoMaintenance and nothing here calls Prune).
+func TestTheCapsRunAtASealMadeByFlushSyncSyncAppendsOrClose(t *testing.T) {
+	caps := map[string]func(*Config){
+		"MaxBytes":   func(c *Config) { c.MaxBytes = 120 }, // the least Open accepts: twice SegmentBytes
+		"MaxRecords": func(c *Config) { c.MaxRecords = 4 },
+		// Ten bytes short of the floor, so each seal deletes the segment it has just sealed.
+		"MinFreeBytes": func(c *Config) { c.MinFreeBytes = 5000; c.statfs = (&statfsSeam{free: 4990}).statfs },
+	}
+	// Each round puts four records into a segment of SegmentBytes 60 and seals it, except Close,
+	// which has one buffer of twelve records to flush and so seals once, at Close.
+	seals := map[string]struct {
+		cfg   func(*Config)
+		round func(t *testing.T, l *Log)
+	}{
+		"Flush": {nil, func(t *testing.T, l *Log) {
+			appendN(t, l, 4)
+			mustFlush(t, l)
+		}},
+		"Sync": {nil, func(t *testing.T, l *Log) {
+			_, last := appendN(t, l, 4)
+			if err := l.Sync(context.Background(), last); err != nil {
+				t.Fatalf("sync: %v", err)
+			}
+		}},
+		"SyncAppends": {func(c *Config) { c.SyncAppends = true }, func(t *testing.T, l *Log) {
+			appendN(t, l, 4)
+		}},
+		"Close": {nil, nil},
+	}
+	for sealName, seal := range seals {
+		for capName, setCap := range caps {
+			t.Run(sealName+"/"+capName, func(t *testing.T) {
+				s, _, l := retentionLog(t, func(c *Config) {
+					setCap(c)
+					if seal.cfg != nil {
+						seal.cfg(c)
+					}
+				})
+				first := segmentFiles(t, s, "/log")
+				if len(first) != 1 {
+					t.Fatalf("segments before the seals: %v", first)
+				}
+				if seal.round == nil {
+					appendN(t, l, 12)
+					if err := l.Close(); err != nil {
+						t.Fatalf("close: %v", err)
+					}
+				} else {
+					defer l.Close()
+					for i := 0; i < 3; i++ {
+						seal.round(t, l)
+					}
+				}
+				ids := segmentFiles(t, s, "/log")
+				if len(ids) == 0 || ids[0] == first[0] {
+					t.Fatalf("segments %v after the seals: the oldest (%d) was not deleted, so the caps did not run at the seal", ids, first[0])
+				}
+			})
+		}
 	}
 }
