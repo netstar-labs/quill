@@ -3,6 +3,7 @@ package quill
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/netstar-labs/quill/internal/fsx"
@@ -40,11 +41,13 @@ func TestCheckTreatsASealedSegmentDeletedAfterTheListingAsRetentionNotDamage(t *
 	t.Run("middle, with its predecessors removed by the same sweep", func(t *testing.T) {
 		s, r, victim, _ := vanishingLog(t)
 		segs := segmentPaths(t, s)
+		var once sync.Once
 		s.Inject = func(op fsx.Op, name string) error {
 			if op == fsx.OpOpen && name == victim {
-				s.Inject = nil
-				_ = s.Remove(segs[0])
-				_ = s.Remove(victim)
+				once.Do(func() {
+					_ = s.Remove(segs[0])
+					_ = s.Remove(victim)
+				})
 			}
 			return nil
 		}

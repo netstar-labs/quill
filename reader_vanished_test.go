@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"sync"
 	"testing"
 	"time"
 
@@ -39,17 +40,27 @@ func vanishingLog(t *testing.T) (*fsx.Sim, *Reader, string, int64) {
 }
 
 // removeOnOpen deletes path from the simulator as the skip+1'th open of it begins, which is
-// after the reader listed the directory and before it has the file.
+// after the reader listed the directory and before it has the file. Check calls the hook from
+// several goroutines, so the hook keeps its state under a mutex and never assigns s.Inject,
+// which the simulator reads while it runs.
 func removeOnOpen(s *fsx.Sim, path string, skip int) {
+	var mu sync.Mutex
+	fired := false
 	s.Inject = func(op fsx.Op, name string) error {
-		if op == fsx.OpOpen && name == path {
+		if op != fsx.OpOpen || name != path {
+			return nil
+		}
+		mu.Lock()
+		if fired || skip > 0 {
 			if skip > 0 {
 				skip--
-				return nil
 			}
-			s.Inject = nil
-			_ = s.Remove(path)
+			mu.Unlock()
+			return nil
 		}
+		fired = true
+		mu.Unlock()
+		_ = s.Remove(path)
 		return nil
 	}
 }

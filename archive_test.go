@@ -605,3 +605,96 @@ func TestArchiveRemovesStaleTempFilesFromTheDestinationAfterAKilledRun(t *testin
 		t.Fatalf("segments after the re-run: %v", ids)
 	}
 }
+
+// The destination's names are made durable before the _archive offset moves (decisions 40, 65
+// and 85): the offset is what lets retention delete a sealed segment, so a power loss that
+// kept the offset and lost the destination's rename would lose the segment from both places.
+// Inject sees a rename's old path, the temp file, so renames are matched by their directory.
+func TestArchiveSyncsTheDestinationDirectoryAfterItsMarkerAndBeforeCommittingTheOffset(t *testing.T) {
+	s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
+	defer l.Close()
+	fillSegments(t, l, clk, 3)
+	var ops []string
+	s.Inject = func(op fsx.Op, name string) error {
+		switch {
+		case op == fsx.OpRename && filepath.Dir(name) == "/arch":
+			ops = append(ops, "arch-rename")
+		case op == fsx.OpSyncDir && name == "/arch":
+			ops = append(ops, "arch-syncdir")
+		case op == fsx.OpRename && filepath.Dir(name) == "/log/consumers":
+			ops = append(ops, "offset-commit")
+		}
+		return nil
+	}
+	err := archive(s, "/log", "/arch")
+	s.Inject = nil
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := func(what string) int {
+		for i := len(ops) - 1; i >= 0; i-- {
+			if ops[i] == what {
+				return i
+			}
+		}
+		t.Fatalf("no %s in %v", what, ops)
+		return -1
+	}
+	marker, sync, commit := last("arch-rename"), last("arch-syncdir"), last("offset-commit")
+	if !(marker < sync && sync < commit) {
+		t.Fatalf("the last destination rename, the last destination directory sync and the offset commit are at %d, %d, %d of %v, want them in that order", marker, sync, commit, ops)
+	}
+}
+
+// A failed sync of the destination directory after the marker is written returns its error and
+// leaves the _archive offset where it was, so the next run copies again from there.
+func TestArchiveFailingTheFinalDestinationDirectorySyncReturnsItAndLeavesTheOffsetUncommitted(t *testing.T) {
+	s, clk, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
+	defer l.Close()
+	fillSegments(t, l, clk, 3)
+	offset := func() uint64 {
+		t.Helper()
+		list, err := l.Consumers()
+		if err != nil || len(list) != 1 || list[0].Name != archiveConsumer {
+			t.Fatalf("consumers %+v, %v", list, err)
+		}
+		return list[0].Offset
+	}
+	// archiveDest syncs /arch once before any copy, so the fault goes on the second sync.
+	syncs := 0
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpSyncDir && name == "/arch" {
+			if syncs++; syncs == 2 {
+				return syscall.EIO
+			}
+		}
+		return nil
+	}
+	err := archive(s, "/log", "/arch")
+	s.Inject = nil
+	if !errors.Is(err, syscall.EIO) {
+		t.Fatalf("archive with a failing directory sync: %v", err)
+	}
+	if syncs != 2 {
+		t.Fatalf("the destination directory was synced %d times, want the fault on the second and no later sync", syncs)
+	}
+	// The fault fell after the segments and the marker were written, not before them.
+	if ids := segmentFiles(t, s, "/arch"); len(ids) != 3 {
+		t.Fatalf("destination holds %v at the fault, want all 3 segments", ids)
+	}
+	if b := fileBytes(t, s, "/arch/"+tailName); len(b) == 0 {
+		t.Fatal("the marker was not written before the fault")
+	}
+	if got := offset(); got != 1 {
+		t.Fatalf("_archive offset %d after the failed sync, want 1 (uncommitted)", got)
+	}
+	if err := archive(s, "/log", "/arch"); err != nil {
+		t.Fatalf("rerun: %v", err)
+	}
+	if got := offset(); got != 13 {
+		t.Fatalf("_archive offset %d after the rerun, want 13", got)
+	}
+	if ids := segmentFiles(t, s, "/arch"); len(ids) != 3 {
+		t.Fatalf("after the rerun: %v", ids)
+	}
+}
