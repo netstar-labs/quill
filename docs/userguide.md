@@ -92,7 +92,7 @@ for rec, err := range l.Follow(ctx, offset) { ... }              // and then wai
 ```
 
 Reads return records with `Seq >= offset` in order. Where records are unavailable they return
-a `*quill.GapError{From, To}`: `From` is the first unavailable sequence (the offset asked for when nothing was delivered before the gap; otherwise, for a `Scan`, `ScanAll`, `Reader.Scan` or `Consumer.Scan` that delivered records first, the sequence after the last record delivered), `To` the last missing sequence, so a consumer resumes with `Commit(To+1)`.
+a `*quill.GapError{From, To}`: `From` is the first unavailable sequence (the offset asked for when nothing was delivered before the gap; otherwise, for a `Scan`, `ScanAll`, `Reader.Scan`, `Consumer.Scan`, `Records` or `Follow` that delivered records first, the sequence after the last record delivered), `To` the last missing sequence, so a consumer resumes with `Commit(To+1)`.
 Two causes: retention deleted them (the offset is below `Stat().First`), or a hole in the
 middle (a damaged or deleted segment, including one a retention sweep deleted while a reader was
 opening it). A damaged oldest segment is a hole from 1, not expiry: `ScanAll`, a scan from offset 0, `quill read`
