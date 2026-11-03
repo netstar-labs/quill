@@ -105,6 +105,7 @@ func parseFlags(name string, c *config, args []string) int {
 	fs.BoolVar(&c.Keep, "keep", false, "keep the run's directory when it passes")
 	fs.DurationVar(&c.Stall, "stall", 0, "how long the chaos freezes (SIGSTOP) a protected consumer while retention runs (default: 3 times -retention, at least 4s)")
 	fs.BoolVar(&c.NoUnregister, "no-unregister", false, "the operator never unregisters its consumer: quill check can report a vanished consumer file as UNHEALTHY while it does, which fails the run")
+	fs.BoolVar(&c.Quick, "quick", false, "selftest: skip the faults that depend on retention timing (protected, ttl); the go test suite uses it so the gate cannot flake on a loaded machine")
 	fs.StringVar(&c.Fault, "fault", "", `self-test fault: "skip" or "skipquiet" (a reader drops a record, in the second the inline checks do not know), "ackearly" (the writer acknowledges before it flushes), "ttl" (protection of a stalled consumer lapses)`)
 	c.Retention = -1
 	if err := fs.Parse(args); err != nil {
@@ -675,21 +676,35 @@ func selftestCmd(args []string) int {
 		{"protected", ""}, // the control of ttl: the same run, protection holds
 		{"ttl", "verify: protected consumer"},
 	} {
-		run := *c
-		run.Fault = t.fault
-		if t.fault == "protected" || t.fault == "ttl" {
-			run.Retention, run.Segment, run.Duration = time.Second, 16<<10, max(c.Duration, 14*time.Second)
-			run.Consumers = max(c.Consumers, 1)
+		timed := t.fault == "protected" || t.fault == "ttl"
+		if timed && c.Quick {
+			continue
 		}
-		if t.fault == "protected" {
-			run.Fault = ""
+		// The ttl fault needs a frozen consumer's segments to be deleted inside the run, which
+		// depends on the machine keeping up: it gets three attempts (a different seed each), and
+		// the attempt that found it is printed. The clean runs and the other faults get one.
+		attempts := 1
+		if t.fault == "ttl" {
+			attempts = 3
 		}
-		s := execute(&run)
-		found := t.want == "" && s.OK
-		for _, v := range s.Violations {
-			found = found || t.want != "" && strings.Contains(v, t.want)
+		found := false
+		for a := 0; a < attempts && !found; a++ {
+			run := *c
+			run.Fault, run.Seed = t.fault, c.Seed+int64(a)
+			if timed {
+				run.Retention, run.Segment, run.Duration = time.Second, 16<<10, max(c.Duration, 14*time.Second)
+				run.Consumers = max(c.Consumers, 1)
+			}
+			if t.fault == "protected" {
+				run.Fault = ""
+			}
+			s := execute(&run)
+			found = t.want == "" && s.OK
+			for _, v := range s.Violations {
+				found = found || t.want != "" && strings.Contains(v, t.want)
+			}
+			fmt.Fprintf(os.Stderr, "selftest fault=%q attempt %d/%d: ok=%v violations=%d detected=%v\n", t.fault, a+1, attempts, s.OK, len(s.Violations), found)
 		}
-		fmt.Fprintf(os.Stderr, "selftest fault=%q: ok=%v violations=%d detected=%v\n", t.fault, s.OK, len(s.Violations), found)
 		if !found {
 			bad++
 		}

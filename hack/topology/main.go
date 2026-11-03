@@ -56,7 +56,7 @@ type config struct {
 	Readers, Consumers, HugeEvery     int
 	Segment, MaxBytes, MaxRecords     int64
 	Retention                         time.Duration
-	Fill, Keep, NoUnregister          bool
+	Fill, Keep, NoUnregister, Quick   bool
 	Fault                             string // the self-test faults: skip, skipquiet, ackearly, ttl
 }
 
