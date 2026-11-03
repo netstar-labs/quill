@@ -24,6 +24,12 @@ Only the latest release is supported; quill versions are `v0.y.z`, and a fix shi
   through a symbolic link to a directory (a deployment that links its data directory); planting
   one needs write access to a parent of the log directory, so the permissions of that parent are
   part of the boundary described below.
+  The rule covers the final component of each state file's path; a symbolic link at an earlier
+  component, such as a `consumers/` directory replaced by one, is followed (`register` then creates
+  files in the target, and `recover` or `Open` removes its `.tmp-*` files older than an hour). A
+  log directory or `consumers/` that an untrusted party can replace with a symlink is outside the
+  threat model, as write access to the log directory is (Stage 2 audit, owner-approved
+  2026-11-03, A3-7).
 - **Silent corruption.** Every frame carries a CRC; damage is reported as a gap and never served.
 
 ## What it does not defend against
