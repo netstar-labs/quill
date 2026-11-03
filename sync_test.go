@@ -3,6 +3,7 @@ package quill
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +15,18 @@ import (
 // T18: Sync.
 
 func TestManyProducersSyncingConcurrentlyShareFsyncs(t *testing.T) {
+	producersShareFsyncs(t)
+}
+
+// One CPU is a supported deployment (a one-CPU container limit sets GOMAXPROCS to 1), and the gate
+// runs at the default only, so the one-proc case is pinned here.
+func TestManyProducersSyncingConcurrentlyShareFsyncsOnOneProc(t *testing.T) {
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	producersShareFsyncs(t)
+}
+
+func producersShareFsyncs(t *testing.T) {
+	t.Helper()
 	s := fsx.NewSim()
 	l := openSim(t, s, func(c *Config) { c.FlushInterval = time.Hour })
 	defer l.Close()

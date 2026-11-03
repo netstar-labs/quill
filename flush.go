@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"runtime"
 	"time"
 
 	"github.com/netstar-labs/quill/internal/fsx"
@@ -342,6 +343,10 @@ func (l *Log) flusher() {
 			return
 		case <-t.C:
 		case <-l.flushReq:
+			// Let the producers already runnable append and ask too: at GOMAXPROCS 1 the Sync that
+			// woke this goroutine would otherwise hand it the processor at once, and every flush
+			// would carry one record.
+			runtime.Gosched()
 		case <-pruneC:
 			now := l.cfg.clock()
 			cv := l.consumers(now)
