@@ -60,6 +60,17 @@ A3-28). No CRITICAL and no HIGH item. 11 MEDIUM and 18 LOW, as rated by the audi
   ed518a2). It is counted separately in the table below: no skeptic re-ran on the last commit. The record is in
   [stage2-owner-decisions.md](stage2-owner-decisions.md), sections "A3-10" and "A3-20". The rest of this file is as recorded
   on 2026-10-31 except the two Disposition paragraphs and the two table rows below.
+- **Update 2026-11-03 (pass A3r).** The owner took the recommended answer for the round-1 decisions raised again, and
+  approved A3-24 and the wording of A3-7 later the same day. Seven items changed disposition; each has a dated
+  "Update 2026-11-03" paragraph under its Disposition and a new commit in its table row: A3-3 (116726b), A3-23 (18145b9),
+  A3-24 (d15ac45, the escape set only), A3-29 (d916114, documentation), A3-31 (1cb2c93, documentation), A3-32 (d09e975,
+  documentation plus one pinning test) and A3-7 (b765290, one sentence in decision 51 and SECURITY.md, no code). All seven
+  were FIXED-VERIFIED by a fix-skeptic (45 lens verdicts, all pass: 7 each for A3-3, A3-23 and A3-24, 6 each for A3-29,
+  A3-31, A3-32 and A3-7; reported by the skeptics). The verdict labels and the count tables above are as recorded on
+  2026-10-31 and were not rewritten: read the verdict column as the verdict at audit time and the disposition column as
+  current. Not changed and not approved: the A3-7 code hardening, the A3-24 `time` range check and A3-26 (all three held, see
+  [stage2-owner-decisions.md](stage2-owner-decisions.md), "Held after pass A3r"). The decisions A3-4, A3-9 and A3-11 were
+  confirmed unchanged on the same day (recorded in that file only, not here).
 
 ## Coverage
 
@@ -150,10 +161,10 @@ the round-1 items.
 | A3-5 | medium | security | CONFIRMED | held for the owner | a read-only process can flock `quill.lock` when Perm grants read, blocking writer Open |
 | A3-14 | medium | security | CONFIRMED | held for the owner | `archive -to` writes into and overwrites files in any directory with no `quill.format` |
 | A3-26 | medium | bug | REFUTED | not changed | unlinking `quill.lock` under a live writer lets a second writer open and overwrite |
-| A3-3 | medium | security | prior-deliberate | round 1 | file and directory names are printed unescaped by `ls`, `consumers` and `check` |
+| A3-3 | medium | security | prior-deliberate | round 1; changed 116726b (2026-11-03, owner-approved, FIXED-VERIFIED) | file and directory names are printed unescaped by `ls`, `consumers` and `check` |
 | A3-4 | medium | bug | prior-refuted | round 1 | any non-consumer file in `consumers/` makes retention protect everything |
 | A3-6 | medium | bug | prior-deliberate | round 1 | Archive keeps a same-size destination segment without verifying it |
-| A3-29 | medium | gap | prior-deliberate | round 1 | no detection of filesystems where flock is not coherent; names missing from the docs |
+| A3-29 | medium | gap | prior-deliberate | round 1; documented d916114 (2026-11-03, owner-approved, FIXED-VERIFIED) | no detection of filesystems where flock is not coherent; names missing from the docs |
 | A3-8 | low | bug | CONFIRMED | fixed bb646c0 | `quill.tail` accepts a segment id the ten-digit file names cannot hold |
 | A3-10 | low | gap | CONFIRMED | fixed badb254, 18662b6, ed518a2 (2026-11-02; no skeptic re-run on the last, see stage2-owner-decisions.md) | a damaged oldest segment is skipped silently by a default-start read |
 | A3-12 | low | doc | CONFIRMED | fixed 1f896c7 | segments and directories go through the umask; decision 51 said "exact" |
@@ -165,13 +176,13 @@ the round-1 items.
 | A3-33 | low | hygiene | CONFIRMED | fixed 837c860 | a relative Dir stays relative, so a later chdir moves the log |
 | A3-18 | low | degradation | CONFIRMED | held for the owner | a Reader's read cost scales with the log, not the request |
 | A3-19 | low | perf | PLAUSIBLE | held for the owner | the first-frame probe reads and CRC-checks the whole first frame, up to 64 MiB |
-| A3-7 | low | security | REFUTED | not changed | a symlinked `consumers/` directory is followed |
-| A3-24 | low | security | REFUTED | not changed | `-json` passes bidi and format controls raw; the time field is unchecked |
+| A3-7 | low | security | REFUTED | not changed in code; wording only b765290 (2026-11-03, owner-approved, FIXED-VERIFIED) | a symlinked `consumers/` directory is followed |
+| A3-24 | low | security | REFUTED | escape set changed d15ac45 (2026-11-03, owner-approved, FIXED-VERIFIED); time field not changed | `-json` passes bidi and format controls raw; the time field is unchecked |
 | A3-9 | low | hygiene | prior-deliberate | round 1 | a Reader takes the mode of its files from `quill.tail`, and chmods exactly |
 | A3-11 | low | gap | prior-deliberate | round 1 | `quill prune` acts on `quill.policy` as trusted configuration |
-| A3-23 | low | degradation | prior-refuted | round 1 | offline verbs create a log at a mistyped `-dir` |
-| A3-31 | low | degradation | prior-deliberate | round 1 | a forward clock step makes every protected consumer stale under ConsumerTTL |
-| A3-32 | low | degradation | prior-deliberate | round 1 | MinFreeBytes lets another process's disk use drive deletion of this log's history |
+| A3-23 | low | degradation | prior-refuted | round 1; changed 18145b9 (2026-11-03, owner-approved, FIXED-VERIFIED) | offline verbs create a log at a mistyped `-dir` |
+| A3-31 | low | degradation | prior-deliberate | round 1; documented 1cb2c93 (2026-11-03, owner-approved, FIXED-VERIFIED) | a forward clock step makes every protected consumer stale under ConsumerTTL |
+| A3-32 | low | degradation | prior-deliberate | round 1; documented d09e975 (2026-11-03, owner-approved, FIXED-VERIFIED) | MinFreeBytes lets another process's disk use drive deletion of this log's history |
 
 ### MEDIUM
 
@@ -503,6 +514,18 @@ raw ESC bytes (`cat -v` shows `^[[31m`).
 `printer.appendQuoted` does; skip or flag names that fail `validConsumerName`) is recorded here for the owner; no fix was
 written.
 
+**Update 2026-11-03 (owner-approved; fixed in 116726b, fix-skeptic FIXED-VERIFIED, 7 of 7 lenses, reported).** The owner
+took the recommended answer and the round-1 decision is changed. In text output `ls`, `consumers`, `check` and error
+messages pass every string derived from the disk through one helper, `safeText`: a string that is valid UTF-8 with every
+rune printable prints unchanged, anything else is quoted by the existing payload escaper `appendQuoted`. `appendQuoted` also
+writes a byte that is not valid UTF-8 as `\xNN` (it used to print U+FFFD); payloads reach it only after `utf8.Valid`, so
+payload output is unchanged. `-json` is unchanged. The fix-skeptic (reported) ran the built binary on macOS and, on
+linux/arm64 in an alpine container, with names holding a newline, ESC, bidi controls and invalid UTF-8: all printed
+quoted, no raw control byte and no forged line. Not done, as the approved text asked only for quoting: the auditor's other
+half (skip or flag names that fail `validConsumerName`) is the A3-4 question and stays with that item. Non-blocking notes
+from the skeptic: the "stray segment-like file" in the new test is ignored by `check`, so that part of the test asserts
+nothing; the Linux x86-64 harness was absent, so Linux evidence is arm64.
+
 #### A3-4 (merges A3-28): any non-consumer file in `consumers/` makes retention protect everything (medium, bug)
 
 **Claim.** Any non-consumer file in `consumers/` (`.DS_Store`, an editor backup, an attacker's file) is treated as an
@@ -600,6 +623,17 @@ with `unshare -rm` and `mount --bind`: the second Open returned ErrLocked.
 **Disposition.** Round-1 decision stands; the documentation proposal (name virtiofs, 9p and Docker-Desktop-style host
 mounts, state that the failure is a silent double writer, correct the bind-mount sentence) is recorded; the optional
 `fstatfs` warning through Config.Logger is not written.
+
+**Update 2026-11-03 (owner-approved; documented in d916114, fix-skeptic FIXED-VERIFIED, 6 of 6 lenses, reported).** The
+owner took the recommended answer: keep the behaviour, no detection, name the filesystems. The README, userguide, scope.md,
+the godoc of Open, Config.Dir and the package, SECURITY.md, decisions 51 and 62 and the CHANGELOG now say that the
+single-writer lock and a Reader's view need a local filesystem (ext4, xfs, btrfs, APFS) written by one host or kernel;
+that NFS, SMB/CIFS, FUSE (sshfs, s3fs) and directories shared between kernels (virtiofs, 9p, a container bind mount of a
+host directory) are unsupported and are not detected; and that two writers there can both believe they hold the lock. The
+"bind mounts at the operator's risk" sentence is corrected: a same-kernel bind mount stays exclusive (the positive control
+in the reproduction above). The `fstatfs` warning stays unwritten. The 9p entry is listed as unsupported without a
+measurement, and NFS, SMB and FUSE were not exercised (live-integration.md); the text says they are a documented limit, not
+a measurement.
 
 ### LOW
 
@@ -1046,6 +1080,15 @@ failed with ELOOP (rc 1) but had already left `victim/notes` and `victim/notes.l
 proposal (open `consumers/` once with `O_DIRECTORY|O_NOFOLLOW`, or `Lstat` it in `create()` and every consumer operation; otherwise document the
 intermediate-component behaviour in decision 51) is noted in stage2-owner-decisions.md, "Not held, but worth a line".
 
+**Update 2026-11-03 (owner-approved later that day, wording only; b765290, fix-skeptic FIXED-VERIFIED, 6 of 6 lenses,
+reported).** Decision 51 and SECURITY.md's "Symlink substitution" paragraph now say that the rule covers the final
+component of each state file's path, and that a log directory (and its `consumers/` subdirectory) that an untrusted party
+can replace with a symlink is outside the threat model, as write access to the log directory is. A dated note and a
+CHANGELOG line carry it. No code changed; the hardening (open `consumers/` with `O_DIRECTORY|O_NOFOLLOW`) is not approved
+and is held (stage2-owner-decisions.md, "Held after pass A3r"). The fix-skeptic re-ran the reproduction above (a symlinked
+`consumers/`, `register` then `recover`) with the built binary on macOS and in a linux/arm64 container and saw what the
+text states (reported).
+
 #### A3-24: `-json` passes bidi and format controls raw; the time field is unchecked (low, security)
 
 **Claim.** JSON output passes Unicode format and bidi controls (U+202A-202E, U+2066-2069, U+200B-200F, U+FEFF) through raw in the `payload` string, while text
@@ -1074,6 +1117,18 @@ reasonable, since bidi controls were in scope for this pass. How a real bidi-awa
 
 **Disposition.** Deliberately not changed (see the verdict). The auditor's proposal (escape U+200B-U+200F, U+202A-U+202E, U+2060-U+2069, U+FEFF and U+061C as
 `\uXXXX`, still lossless; print `time` as null or omit it outside 0..253402300799) is noted in stage2-owner-decisions.md, "Not held, but worth a line".
+
+**Update 2026-11-03 (owner-approved later that day, escape set only; fixed in d15ac45, fix-skeptic FIXED-VERIFIED, 7 of 7
+lenses, reported).** `-json` now escapes every Unicode format character (category Cf, 170 code points, which is the proposed
+list and the rest of Cf; all of them are rejected by `strconv.IsPrint`, pinned by a test) as `\uXXXX`, with a surrogate
+pair above U+FFFF, so text and JSON output agree on that set. The decoded value of every payload is unchanged and a
+plain payload prints byte-identically; only the raw bytes of a payload holding those code points change. Other
+non-printable code points (U+00A0, private use, unassigned) stay raw in JSON, as the owner did not approve escaping them.
+Decision 35 carries the dated note. The `time` field is not range-checked: that part was not approved and is held
+(stage2-owner-decisions.md, "Held after pass A3r"). The fix-skeptic wrote a log with every non-surrogate code point and ran
+`quill cat -json` before and after: decoded payloads identical, exactly 170 characters changed from raw to escaped, no raw
+Cf left (reported). Residual noted by the skeptic: row B5 of the boundary table above still describes the audited tree
+("JSON escapes controls, DEL, C1, U+2028/9"); it is the 2026-10-31 text and was left as recorded.
 
 #### A3-9: a Reader takes the mode of its files from `quill.tail` (low, hygiene)
 
@@ -1149,6 +1204,21 @@ non-log directory they refuse but leave an empty `quill.lock` behind.
 **Disposition.** Round-1 decision stands. The auditor's proposal (recover, prune and roll fail with ErrNoLog unless `quill.format` exists, and take the lock after `create()`'s directory check) is
 recorded; no fix was written.
 
+**Update 2026-11-03 (owner-approved; changed in 18145b9, fix-skeptic FIXED-VERIFIED, 7 of 7 lenses, reported).** The owner
+took the recommended answer, narrowed by a check the recorder ran against c768634: `ls`, `stat`, `check`, `read`,
+`consumers` and `prune` already exited 1 and created nothing at a directory that is not a log, and `archive` was fixed by
+A3-14; `roll` and `recover` still created a log and exited 0 (the recorder's check, reported). The fix-skeptic's run of the
+parent binary found one more: `prune` with a policy flag (for example `-retention`) also created the log and succeeded,
+while a bare `prune` refused. Now `roll`, `recover` and `prune` check for `quill.format` in `-dir` before opening the log; if it is missing they print
+`quill: not a log: <abs dir> has no quill.format` (the text the other verbs use, quoted per A3-3), exit 1 and create
+nothing, not even the directory or `quill.lock`. A usage error still exits 2 first. `append` creating the log on first use
+is intended and unchanged (decision 62; the userguide now says so). `commit`, `register`, `unregister` and `archive`
+already refused and are unchanged; `append` at a populated directory that is not a log still refuses and still leaves an
+empty `quill.lock`, listed as out of scope in the commit. The check is an `Lstat` of `quill.format`, not `OpenReader`, so
+`recover` still repairs a log whose `quill.tail` was lost. The fix-skeptic ran every writable verb against a missing, an
+empty, a regular-file and a populated non-log directory with the parent and the fixed binary, and on linux/arm64 in a
+container (reported). Decision 53 carries the dated note; the CHANGELOG has a "Changed:" line.
+
 #### A3-31: a forward clock step makes every protected consumer stale under ConsumerTTL (low, degradation)
 
 **Claim.** With ConsumerTTL set, a forward wall-clock step by another party makes every protected consumer "stale" at the next prune pass, so its unread segments are deleted at the clock guard's
@@ -1171,6 +1241,18 @@ over ten passes, final first=401 head=400 dropped=20. A real `date -s` was not u
 
 **Disposition.** Round-1 decision stands. The auditor's proposal (say in the clock paragraph that ConsumerTTL staleness is also clock-derived; optionally ignore stale when `now` is more than a day past the
 newest record's `At`) is recorded; no fix was written.
+
+**Update 2026-11-03 (owner-approved; documented in 1cb2c93, fix-skeptic FIXED-VERIFIED, 6 of 6 lenses, reported).** The
+owner took the recommended answer: keep the behaviour, document it. The Config.ConsumerTTL godoc, userguide, scope.md
+("A wrong clock", the config table, guarantee 12), architecture.md, decisions 44 and 45 (dated notes) and the CHANGELOG now
+say that a protected consumer is stale when the age of its offset file's modification time and the age of its record's `At`
+are both at least ConsumerTTL against the writer's clock, so a clock step, a restore that resets mtimes, a copy that does not
+keep them or a filesystem with wrong timestamps can make a live consumer look stale or a dead one look live. A future-stamped
+file or record has a negative age and is never stale. The clock guard (a quarter of sealed segments, rounded up, per pass)
+limits only the age sweep and is lifted by `-force`; staleness itself has no guard. One deviation from the approved text,
+found by the fixer and confirmed by the fix-skeptic from retention.go and decision 57: the text said "Protect makes a
+consumer exempt from the TTL". That is backwards. ConsumerTTL applies to protected consumers only, and an unprotected
+consumer holds nothing back. The documentation states the code's rule, and the CHANGELOG says so. No code changed.
 
 #### A3-32: MinFreeBytes lets another process's disk use drive deletion of this log's history (low, degradation)
 
@@ -1195,6 +1277,16 @@ bound under a fake that holds free at 0; a real full disk was not run.
 
 **Disposition.** Round-1 decision stands. The auditor's proposal (re-measure `statfs` after each unlink or batch; say in scope.md that a neighbour's usage is paid for with this log's history, including protected and
 unarchived segments) is recorded; no fix was written.
+
+**Update 2026-11-03 (owner-approved; documented in d09e975, fix-skeptic FIXED-VERIFIED, 6 of 6 lenses, reported).** The
+owner took the recommended answer: keep the behaviour (including the single `statfs` and the estimate), document it. The
+MinFreeBytes, ProtectedConsumers and Consumer.Protect godoc, doc.go, userguide, scope.md (config table, "Disk safety",
+guarantee 11), architecture.md, decisions 25 and 57 (dated notes) and the CHANGELOG now state the rule for each cap: the age
+sweep stops at the first segment a protected consumer has not passed, while MaxBytes, MaxRecords and the MinFreeBytes floor
+override protection; below the floor the writer deletes the oldest sealed segments even if a protected consumer has not read
+them, so the consumer can lose records, and the Warn naming the consumer is how that is seen. A new test,
+`TestMinFreeBytesDeletesSegmentsAProtectedConsumerHasNotRead`, pins it through the existing `statfs` seam; the fix-skeptic
+showed it fails when the MinFreeBytes deletion loop is disabled (reported). No production code changed.
 
 ## What was checked and found sound
 
