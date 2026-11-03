@@ -317,7 +317,8 @@ func (r *Reader) Check() (CheckResult, error) {
 // earlier than its predecessor. The first record's predecessor is in another segment, so
 // its anomalies are the caller's to find from the info.
 func verifyBounded(f io.ReaderAt, size int64, path string, future int64) (segInfo, []Problem, error) {
-	w := &window{r: f, size: size, chunk: windowChunk}
+	w, release := verifyWindow(f, size)
+	defer release()
 	var clock []Problem
 	var prevAt int64
 	haveFirst := false

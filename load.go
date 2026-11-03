@@ -215,12 +215,33 @@ func walk(w *window, start int64, prev uint64, havePrev bool, fn func(rec Record
 	return info, nil
 }
 
+// verifyBufs holds the read buffers of verifySegment and verifyBounded, which run once per
+// segment and, on Open and Check, in several goroutines at once: a log of many mid-size
+// segments would otherwise allocate and zero a fresh buffer for each. A buffer holds no
+// state between uses (the segInfo a walk returns copies what it keeps), so any of them
+// serves any segment. A zero-capacity buffer grows once to what the first segment needs,
+// so a small log does not pay for a megabyte.
+var verifyBufs = sync.Pool{New: func() any { return new([]byte) }}
+
+// verifyWindow returns a whole-segment window over the first size bytes of r, reading into a
+// pooled buffer, and the function that returns the buffer to the pool. The window, and
+// anything it handed out, must not be used after release is called.
+func verifyWindow(r io.ReaderAt, size int64) (w *window, release func()) {
+	bufp := verifyBufs.Get().(*[]byte)
+	w = &window{r: r, size: size, buf: (*bufp)[:0], chunk: windowChunk}
+	return w, func() {
+		*bufp = w.buf[:0]
+		verifyBufs.Put(bufp)
+	}
+}
+
 // verifySegment checks a sealed segment whole: every byte is durable, so every frame must be
 // intact and contiguous, the last must end exactly at size, and there must be at least one.
 // Anything else is a *SegmentError (decision 39, decision 43) carrying path, which names the
 // segment for the caller's message.
 func verifySegment(r io.ReaderAt, size int64, path string) (segInfo, error) {
-	w := &window{r: r, size: size, chunk: windowChunk}
+	w, release := verifyWindow(r, size)
+	defer release()
 	info, err := walk(w, 0, 0, false, nil)
 	if err != nil {
 		if !isFrameError(err) {
