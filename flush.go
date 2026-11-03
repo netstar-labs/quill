@@ -128,6 +128,9 @@ func (l *Log) fail(op string, err error) {
 		return
 	}
 	l.failed = fmt.Errorf("%w: %w", ErrFailed, err)
+	// A failed log does not retry, so an earlier write failure is no longer "flushes are failing":
+	// FlushFailing stays false (Stats). Every reader of flushErr checks failed first.
+	l.flushErr = nil
 	l.logf(slog.LevelError, "log failed: it accepts no more writes and every later call returns ErrFailed", "op", op, "error", err)
 	l.broadcastLocked()
 }

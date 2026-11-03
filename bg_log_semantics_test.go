@@ -1,6 +1,7 @@
 package quill
 
 import (
+	"errors"
 	"syscall"
 	"testing"
 	"time"
@@ -225,5 +226,43 @@ func TestAnIdlePrunePassAfterAFailedUnlinkLogsRecoveryAndClearsErrWithoutRetryin
 	}
 	if _, err := s.Lstat("/log/" + segmentName(0)); err != nil {
 		t.Fatalf("the segment whose unlink failed is gone: %v", err)
+	}
+}
+
+// FlushFailing stays false once the log has failed, as Stats documents, even when an earlier
+// write failure had set it: a write error, then a fatal data fsync error (Stage 2 audit L1-14).
+func TestFlushFailingIsFalseOnceTheLogHasFailedAfterAnEarlierWriteFailure(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	defer l.Close()
+	appendN(t, l, 2)
+	mustFlush(t, l)
+	appendN(t, l, 1)
+	s.Inject = func(o fsx.Op, name string) error {
+		if o == fsx.OpWrite {
+			return errENOSPC
+		}
+		return nil
+	}
+	if err := l.Flush(); !errors.Is(err, errENOSPC) {
+		t.Fatalf("flush with a failing write: %v", err)
+	}
+	if st, _ := l.Stat(); !st.FlushFailing || st.BufferedRecords != 1 {
+		t.Fatalf("after the write failure: %+v", st)
+	}
+	s.Inject = func(o fsx.Op, name string) error {
+		if o == fsx.OpSync {
+			return syscall.EIO
+		}
+		return nil
+	}
+	if err := l.Flush(); !errors.Is(err, ErrFailed) {
+		t.Fatalf("flush with a failing fsync: want ErrFailed, got %v", err)
+	}
+	if !errors.Is(l.Err(), ErrFailed) {
+		t.Fatalf("Err %v: want ErrFailed", l.Err())
+	}
+	if st, _ := l.Stat(); st.FlushFailing {
+		t.Fatalf("FlushFailing is true on a failed log: %+v", st)
 	}
 }
