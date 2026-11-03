@@ -297,7 +297,7 @@ New tests quill must add. The phase in brackets is the first at which the test c
   corruption; torn tails at every position.
 - **T3 Failed writes** (phase 2). With the simulator injecting a short write and `ENOSPC`: the file is truncated back,
   the retry starts at the durable offset, and no partial frame remains. With an fsync failure on the data file or the
-  directory: every later call returns `ErrFailed`, a reopen recovers a consistent log, and a record whose `Sync`
+  directory: every later valid `Append` and `Flush`, and every `Sync` of a sequence not already durable, returns `ErrFailed`, a reopen recovers a consistent log, and a record whose `Sync`
   returned an error may or may not be present. With the marker's temp-file write or rename failing after the data
   fsync: the data is **not** truncated or rewritten, no sequence is duplicated, the next flush republishes, and a
   failure creating the next segment keeps appending to the current one.
