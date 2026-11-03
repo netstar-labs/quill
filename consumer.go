@@ -285,7 +285,8 @@ type ConsumerInfo struct {
 	Err       error // the file could not be read or parsed; such a consumer protects everything
 }
 
-// list reads every consumer file. A lock file or a temp file is not a consumer.
+// list reads every consumer file. A lock file or a temp file is not a consumer, and neither is a
+// file that is gone by the time it is read: its consumer was unregistered after the listing.
 func (st *consumerStore) list() ([]ConsumerInfo, error) {
 	names, err := st.fs.ReadDir(filepath.Join(st.dir, consumersDir))
 	if err != nil {
@@ -298,6 +299,9 @@ func (st *consumerStore) list() ([]ConsumerInfo, error) {
 		}
 		info := ConsumerInfo{Name: n}
 		data, err := readState(st.fs, st.path(n))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue // unregistered after the listing: an ordinary event, not damage (decision 41)
+		}
 		if err == nil {
 			var state consumerState
 			if state, err = decodeConsumer(data); err == nil {
