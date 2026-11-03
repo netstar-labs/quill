@@ -56,7 +56,8 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `doc.go` | Package comment: the rules to know |
 | `errors.go` | The exported errors |
 | `codec.go` | The frame: encode, decode, CRC |
-| `log.go` | `Log`, `Config`, defaults, validation, `Open` (the creation protocol), `Close` |
+| `config.go` | `Config`, its defaults and validation, consumer-name rules |
+| `log.go` | `Log`, `Open` (the creation protocol), `Close` |
 | `load.go` | Segment verification, parse-forward recovery, the directory scan |
 | `holes.go` | `contiguity`: turns the ordered good segments into holes and the first overlap |
 | `append.go` | `Append`, `AppendBatch`, the buffer and its bounds |
