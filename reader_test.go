@@ -763,3 +763,60 @@ func TestAReaderReadsSealedSegmentsWhoseFirstFrameIsAroundAndAboveTheProbeSize(t
 		}
 	}
 }
+
+// A waiter parked past the head wakes for exactly one new record. It must not want a second
+// one to arrive first: the wake condition is head >= offset, not head > offset, on the Reader's
+// poll and on the iterators' wait for the next sequence (decision 63).
+func TestSingleRecordWakesReadWaitAndFollowOnReaderAndLog(t *testing.T) {
+	for _, kind := range []string{"reader-readwait", "reader-follow", "log-follow", "log-readwait"} {
+		t.Run(kind, func(t *testing.T) {
+			s := fsx.NewSim()
+			l := openSim(t, s, func(c *Config) { c.SegmentBytes = 1 << 20 })
+			defer l.Close()
+			appendN(t, l, 1)
+			mustFlush(t, l)
+			r := openReaderSim(t, s)
+			defer r.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			got := make(chan Record, 1)
+			go func() {
+				switch kind {
+				case "reader-readwait":
+					if recs, err := r.ReadWait(ctx, 2, 10); err == nil && len(recs) > 0 {
+						got <- recs[0]
+					}
+				case "reader-follow":
+					for rec, err := range r.Follow(ctx, 2) {
+						if err == nil {
+							got <- rec
+						}
+						return
+					}
+				case "log-readwait":
+					if recs, err := l.ReadWait(ctx, 2, 10); err == nil && len(recs) > 0 {
+						got <- recs[0]
+					}
+				case "log-follow":
+					for rec, err := range l.Follow(ctx, 2) {
+						if err == nil {
+							got <- rec
+						}
+						return
+					}
+				}
+			}()
+			time.Sleep(30 * time.Millisecond) // let the waiter park past the head
+			appendN(t, l, 1)                  // exactly one record: seq 2
+			mustFlush(t, l)
+			select {
+			case rec := <-got:
+				if rec.Seq != 2 {
+					t.Fatalf("got seq %d, want 2", rec.Seq)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("a single new record was not delivered: the wait wants one more record first")
+			}
+		})
+	}
+}
