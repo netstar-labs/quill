@@ -250,6 +250,18 @@ func TestNothingAfterTheFirstBadFrameIsTrustedWhateverItContains(t *testing.T) {
 	if err != nil || !cut || info.end != int64(len(head)) {
 		t.Fatalf("wrong sequence: %+v %v %v", info, cut, err)
 	}
+	// The same, placed exactly at a non-empty marker: the tail walk must start from the
+	// durable prefix's last sequence, so a gap (9), a repeat (3) and a regression (2) are
+	// all cut at the marker although each frame is intact and later frames follow it.
+	durable := frameEnds(t, head)[2]
+	for _, seq := range []uint64{9, 3, 2} {
+		data = appendFrame(bytes.Clone(head), &Record{Seq: seq, At: 0, Payload: []byte("x")})
+		data = append(data, image(seq+1, 3, 0, smallPayload)...)
+		info, cut, err = recover_(data, durable)
+		if err != nil || !cut || info.end != durable || info.frames != 3 || info.last.Seq != 3 {
+			t.Fatalf("wrong sequence %d at the marker: %+v %v %v", seq, info, cut, err)
+		}
+	}
 	// A stale marker below acknowledged records keeps all of them.
 	data = image(1, 50, 0, smallPayload)
 	info, cut, err = recover_(data, 0)
