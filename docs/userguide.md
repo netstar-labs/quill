@@ -149,7 +149,7 @@ first segment holding a record at or above the slowest protected consumer's offs
 (never the active one) whether or not a protected consumer has read them: `MaxBytes` while the
 log's segment bytes exceed it, `MaxRecords` while more than that many records are retained, and
 `MinFreeBytes` while the filesystem is below the floor, which the writer estimates from one `statfs`
-read plus the size of each segment it deletes. So a protected consumer can lose records, and
+read plus the size of each segment the pass deletes (the age sweep's and `MaxBytes`'s included). So a protected consumer can lose records, and
 `MinFreeBytes` is the cap to expect it from on a shared disk: another process's disk use can take the
 filesystem below the floor, and the writer then deletes this log's oldest sealed segments, protected
 or not. `Stat().Dropped` counts segments deleted under a

@@ -63,3 +63,47 @@ func TestMinFreeBytesDeletesSegmentsAProtectedConsumerHasNotRead(t *testing.T) {
 		t.Fatalf("no Warn names the consumer that lost records: %q", lc.msgs)
 	}
 }
+
+// The MinFreeBytes estimate counts every segment the pass deletes (Stage 2 audit A7-1): the
+// sealed segments the age sweep already chose free their size too, so a reading just below the
+// floor that those segments make up for deletes nothing more, and a larger shortfall deletes
+// only as many further segments as it still needs.
+func TestMinFreeBytesCreditsTheSegmentsTheAgeSweepAlreadyDeletes(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		shortfall func(expired uint64) uint64 // the floor minus the statfs reading, from the bytes the expired two free
+		deleted   int                         // sealed segments gone, of five; the oldest two are expired
+	}{
+		{"one byte short", func(uint64) uint64 { return 1 }, 2},
+		{"exactly what the expired two free", func(expired uint64) uint64 { return expired }, 2},
+		{"one byte more than the expired two free", func(expired uint64) uint64 { return expired + 1 }, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sf := &statfsSeam{}
+			s, clk, l := retentionLog(t, func(c *Config) {
+				c.statfs = sf.statfs
+			})
+			defer l.Close()
+			fillSegments(t, l, clk, 5)
+			clk.Advance(time.Hour - 3*time.Minute - 30*time.Second) // now minute 61.5: minutes 0 and 1 are at least an hour old, minute 2 is not
+			// The floor is set after the fill so that no seal ran it: one pass, one reading.
+			l.mu.Lock()
+			expired := uint64(l.sealed[0].size + l.sealed[1].size)
+			floor := 10 * expired
+			l.cfg.MinFreeBytes = int64(floor)
+			l.mu.Unlock()
+			sf.free = floor - tc.shortfall(expired)
+			if err := l.Prune(true); err != nil {
+				t.Fatal(err)
+			}
+			// Sealed segments have ids 0..4 and the active one 5: the first id left is the count deleted.
+			ids := segmentFiles(t, s, "/log")
+			if got := int(ids[0]); got != tc.deleted {
+				t.Fatalf("deleted %d sealed segments, want %d (left %v)", got, tc.deleted, ids)
+			}
+			if st, _ := l.Stat(); st.FreeBytesAtLastPass != sf.free {
+				t.Fatalf("FreeBytesAtLastPass %d, want the statfs reading %d", st.FreeBytesAtLastPass, sf.free)
+			}
+		})
+	}
+}

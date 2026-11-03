@@ -274,6 +274,11 @@ func (l *Log) capsLocked(n int) int {
 			l.setBg(bgDisk, statErr)
 		} else {
 			l.freeAtPass = free
+			// The estimate is the reading plus the size of each segment this pass deletes,
+			// the ones the age sweep and MaxBytes already chose included (audit A7-1).
+			for _, s := range l.sealed[:n] {
+				free += uint64(s.size)
+			}
 			for free < uint64(l.cfg.MinFreeBytes) && n < len(l.sealed) {
 				free += uint64(l.sealed[n].size)
 				n++
