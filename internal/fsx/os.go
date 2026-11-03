@@ -63,7 +63,22 @@ func (OS) ReadDir(name string) ([]string, error) {
 }
 
 func (OS) Lstat(name string) (fs.FileInfo, error) { return os.Lstat(name) }
-func (OS) Remove(name string) error               { return os.Remove(name) }
+
+// Remove calls unlink(2) directly. os.Remove falls back to rmdir(2), which would remove an
+// empty directory; unlink(2) refuses one (EISDIR on Linux, EPERM on macOS), as the FS
+// contract and Sim require. The error is wrapped as os.Remove wraps it, and EINTR is retried.
+func (OS) Remove(name string) error {
+	for {
+		err := syscall.Unlink(name)
+		if err == syscall.EINTR {
+			continue
+		}
+		if err != nil {
+			return &fs.PathError{Op: "remove", Path: name, Err: err}
+		}
+		return nil
+	}
+}
 
 // Rename calls rename(2) directly. os.Rename first Lstats the destination to refuse a
 // directory, which costs a FileInfo and a path copy on every flush; rename(2) already

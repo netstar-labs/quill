@@ -46,3 +46,33 @@ func TestOSRename(t *testing.T) {
 		t.Fatalf("source lost after the refused rename: %v", err)
 	}
 }
+
+// FS.Remove unlinks a file and never a directory, as Sim does: an empty directory stays,
+// a missing name is fs.ErrNotExist, and the error is an *fs.PathError naming the call.
+func TestOSRemove(t *testing.T) {
+	dir := t.TempDir()
+	f, d := filepath.Join(dir, "f"), filepath.Join(dir, "d")
+	if err := os.WriteFile(f, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(d, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := (OS{}).Remove(f); err != nil {
+		t.Fatalf("remove a file: %v", err)
+	}
+	if _, err := os.Lstat(f); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("file after remove: %v, want ErrNotExist", err)
+	}
+	err := (OS{}).Remove(f)
+	var pe *fs.PathError
+	if !errors.As(err, &pe) || pe.Op != "remove" || pe.Path != f || !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("missing name: %v, want a remove *fs.PathError wrapping ErrNotExist", err)
+	}
+	if err := (OS{}).Remove(d); err == nil {
+		t.Fatal("remove of an empty directory succeeded; the contract says never a directory")
+	}
+	if fi, err := os.Lstat(d); err != nil || !fi.IsDir() {
+		t.Fatalf("directory after refused remove: %v, %v; want it intact", fi, err)
+	}
+}
