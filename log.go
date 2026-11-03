@@ -501,8 +501,10 @@ func (l *Log) mkdirAll(dir string) error {
 }
 
 // create decides whether the directory is a new log and, if so, creates it; it also finishes
-// an interrupted creation: whichever of consumers/, the first segment and quill.tail is
-// missing is created, when the log holds no segments and no non-zero marker. The lock is held.
+// an interrupted creation. consumers/ is created if it is missing, whatever else the log holds;
+// the first segment is created only when the log holds no segments and no non-zero marker;
+// quill.tail is created only when no segment holds a byte, and a marker-less log with a
+// segment that does is ErrCorrupt (decision 62). The lock is held.
 func (l *Log) create() error {
 	names, err := l.fs.ReadDir(l.dir)
 	if err != nil {
