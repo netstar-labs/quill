@@ -316,7 +316,7 @@ segments until someone calls `DeleteConsumer` (**reported**, its user guide). Qu
 record at its offset (or of the first retained record when a cap already deleted it, decision 82) are at least as old as the
 TTL (an age equal to the TTL counts, in whole seconds for the record); the prune pass reads that one frame and keeps no state between passes (decision 45). Each
 `Commit` writes a new file and creating a handle writes one, so the modification time is the last commit or
-creation (**inferred** from temp-and-rename, to be tested); `cp` and `rsync` reset it. A stale consumer stops protecting
+creation (**inferred** from temp-and-rename; **tested** by `TestConsumerFilesAreWrittenAtomicallyAndCommitsLeaveTheirMtime`, which asserts that a commit leaves a file whose modification time is not before the call and a creation one not more than a second before it); `cp` and `rsync` reset it. A stale consumer stops protecting
 segments, is counted in `Stat().StaleConsumers` and logged at every prune pass while stale, and keeps its file, so it
 resumes from its offset if it returns and its data still exists. A consumer that is caught up is never
 stale, because it pins nothing. The command line shows the same state without a writer's memory (Stage 2
