@@ -26,7 +26,7 @@ import (
 // sequence or a segment is missing between two it copies, or the destination's quill.tail
 // names a last record below the first segment it copies, which is how a loss shows after the
 // consumer was removed and recreated at the first retained sequence (at 1 when a damaged oldest
-// segment left a gap below it; Stage 2 audit, A5-29).
+// segment left a gap below it).
 // Later runs have nothing to copy and return nil; `quill check` on the destination keeps
 // reporting the hole. It refuses, before
 // writing to it, a destination that is the source log itself and a destination whose

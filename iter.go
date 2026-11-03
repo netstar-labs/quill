@@ -35,14 +35,16 @@ func (r *Reader) Follow(ctx context.Context, offset uint64) iter.Seq2[Record, er
 	return records(ctx, r, offset, true)
 }
 
-// Records yields the records from the consumer's committed offset to the current end. It
-// never commits: the caller commits explicitly.
+// Records yields the records from the consumer's committed offset to the current end. The
+// offset is read when Records is called, not when the iterator is ranged. It never commits:
+// the caller commits explicitly.
 func (c *Consumer) Records(ctx context.Context) iter.Seq2[Record, error] {
 	return records(ctx, c.src, c.Offset(), false)
 }
 
-// Follow yields the records from the consumer's committed offset and then waits for more
-// until the context ends. It never commits. For a consumer taken from a Log that has failed
+// Follow yields the records from the consumer's committed offset, read when Follow is called
+// and not when the iterator is ranged, and then waits for more until the context ends. It
+// never commits. For a consumer taken from a Log that has failed
 // (ErrFailed) it yields the failure at the head, as Log.Follow does; a consumer taken from a
 // Reader cannot see the writer's failure.
 func (c *Consumer) Follow(ctx context.Context) iter.Seq2[Record, error] {

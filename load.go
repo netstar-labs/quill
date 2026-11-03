@@ -13,8 +13,9 @@ import (
 	"github.com/netstar-labs/quill/internal/fsx"
 )
 
-// This file verifies and recovers one segment (decision 39). The directory scan, hole
-// detection and the truncation of a recovered tail are phase 2 and live here too.
+// This file verifies and recovers one segment (decision 39). The directory scan and the
+// truncation of a recovered tail live here too; the holes and the first overlap are built by
+// contiguity in holes.go (decision 102), which Log.load calls.
 
 // maxSegmentFileBytes is the largest segment file a reader opens (guarantee 7).
 const maxSegmentFileBytes = 1536 << 20

@@ -40,7 +40,7 @@ type probeFailure struct {
 
 // consumers reads the consumer files for a prune pass and decides which protected consumers
 // are stale under ConsumerTTL (decision 45): behind, with an offset file older than the
-// TTL, and the record at the offset older than the TTL. It takes no lock.
+// TTL, and the record at the offset older than the TTL. It takes l.mu only briefly (Head and Read do), so call it without l.mu held.
 func (l *Log) consumers(now time.Time) consumerView {
 	var cv consumerView
 	st := l.consumerStore()

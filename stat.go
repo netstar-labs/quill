@@ -40,8 +40,10 @@ type Stats struct {
 	FreeBytesAtLastPass uint64
 	// BufferedRecords and BufferedBytes are what Append has acknowledged and no flush has made
 	// durable yet: they are held in memory, invisible to readers, and lost if the process dies
-	// (BufferedBytes is their encoded size). They grow only to MaxBufferBytes while flushes
-	// fail. Only Log.Stat knows them; a Reader reports 0.
+	// (BufferedBytes is their encoded size). While flushes fail they grow only to MaxBufferBytes,
+	// except that an append (a record or a batch) into an empty buffer is always taken, up to
+	// MaxPayloadBytes for a record or MaxBatchBytes for a batch, so they can pass it by that one
+	// append. Only Log.Stat knows them; a Reader reports 0.
 	BufferedRecords int
 	BufferedBytes   int
 	// FlushFailing is true while the last flush that tried to write failed and the records

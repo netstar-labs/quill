@@ -319,7 +319,7 @@ func (st *consumerStore) remove(name string) error {
 	return st.fs.Remove(st.path(name))
 }
 
-// consumerMtime returns a consumer file's modification time, for ConsumerTTL.
+// mtime returns a consumer file's modification time, for ConsumerTTL.
 func (st *consumerStore) mtime(name string) (time.Time, error) {
 	info, err := st.fs.Lstat(st.path(name))
 	if err != nil {
