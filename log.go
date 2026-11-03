@@ -71,23 +71,44 @@ type Config struct {
 	// the first retained sequence (at 1 when a damaged oldest segment is a hole from 1). A
 	// file already protected is left alone, so a running consumer does not block a restart.
 	ProtectedConsumers []string
-	// Logger receives retention deletions, stale consumers, a warning naming each consumer whose
-	// offset a deleted segment passes, bulk-expiry warnings and failures, one Warn when a flush
-	// write, a marker publish, a rotation or a prune unlink starts to fail and one Info when it
-	// recovers (never one per retry; Stat has the current state), one Error when the log
-	// becomes failed (ErrFailed; with the cause and the operation, written once),
-	// and a warning from Open when it cuts the newest segment past the marker (with the segment,
-	// the offset, the bytes cut and whether the first rejected frame was incomplete or damaged), and a
-	// warning from Open for each consumer whose offset is above Head + 1 (a log restored to an older state; with
-	// the consumer, the offset and the head).
+	// Logger receives every record the log writes, all through one handler. They are:
+	//   - about a condition a prune pass (Prune, or the flusher's background pass) finds: Warn for each
+	//     stale consumer, for a consumer file that cannot be read (the age sweep then keeps every
+	//     segment) and for a staleness probe that fails; Warn when age rotation is skipped because
+	//     the flush failed; Warn when the age sweep stops at a segment stamped in the future or is
+	//     limited by the clock guard (the bulk-expiry warnings). Each is written again by every pass
+	//     that finds the condition again;
+	//   - about a deletion and the free-space floor, from a prune pass and also from every seal (an
+	//     Append, Flush or Roll that rotates to a new segment, or the flusher's flush, runs the caps,
+	//     MaxBytes, MinFreeBytes and MaxRecords, at the seal; a Prune whose age rotation seals runs
+	//     them at the seal and again in the pass): Info for each segment deleted, Warn instead when it
+	//     held damage; Warn for a segment already gone from the directory; Warn naming each consumer
+	//     whose offset a deleted segment passes; and for MinFreeBytes, Warn when the free space cannot
+	//     be read, Warn when it is below the floor with nothing left to delete and Info when it is
+	//     back above. The "cannot read free space" Warn is written by every pass and every seal whose
+	//     statfs fails: six failing passes or seals write six Warns. Only the below-floor Warn and
+	//     the back-above Info are one record per transition, and a deleted or already-gone segment
+	//     is one record when it goes;
+	//   - one Warn when a flush write, a marker publish, a rotation or a prune unlink starts to fail and
+	//     one Info when it recovers (never one per retry; Stat has the current state);
+	//   - one Warn when quill.policy cannot be written and one Info when a retry succeeds (the retries
+	//     run at each flush and prune pass);
+	//   - one Error when the log becomes failed (ErrFailed; with the cause and the operation, written
+	//     once);
+	//   - from Open: a Warn when it cuts the newest segment past the marker (with the segment, the
+	//     offset, the bytes cut and whether the first rejected frame was incomplete or damaged), a Warn
+	//     when it cannot tighten quill.lock, a Warn for each consumer whose offset is above Head + 1 (a
+	//     log restored to an older state; with the consumer, the offset and the head), and the policy
+	//     Warn above if its first write fails.
+	//
 	// Its handler, Enabled included, runs synchronously with the log's lock held, on the
 	// goroutine that made the record (an Append, Flush, Roll, Prune or Close call, or the
 	// log's flusher). It must therefore neither call the Log, which deadlocks it, nor block,
 	// which stalls every Append, Read, Sync and the flusher (a handler that writes straight to a
 	// pipe or socket blocks when the reader does), nor take a lock that a caller of the Log may
-	// hold while calling it: hand the record to another goroutine and return. The warnings Open
-	// itself gives (cutting the newest segment, tightening quill.lock, a policy write, an ahead consumer) run on the
-	// caller's goroutine before Open returns, before there is a Log, so with no lock held.
+	// hold while calling it: hand the record to another goroutine and return. This holds for every
+	// record above except those Open gives itself, which run on the caller's goroutine before Open
+	// returns, before there is a Log, with no lock held.
 	Logger *slog.Logger
 	// Perm is the file mode (0600); directories get the matching execute bits (0700). State
 	// files (quill.format, quill.tail, quill.policy, consumer offsets) are exactly Perm. The
