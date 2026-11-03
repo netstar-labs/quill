@@ -124,6 +124,10 @@ err = c.Close()
   `consumers/<name>.lock`; a second open of the same name, in any process, fails with
   `ErrLocked`. Names are `[a-z0-9_-]`, 1 to 200 characters; a leading underscore is reserved,
   except `_archive`, the archiver's own consumer, which `Consumer`, `DeleteConsumer` and the CLI accept.
+- `Close` releases the consumer's lock and nothing more. `Read`, `ReadWait`, `Scan`, `Records` and `Follow` ignore it:
+  they read through the `Log` or `Reader` the consumer came from and keep working, and a blocked `ReadWait` or `Follow`
+  is not woken (it ends when its context is done or the `Log` or `Reader` closes). On a closed consumer only `Commit`,
+  `SeekToTime` (which commits) and a second `Close` return `ErrClosed`. To stop a waiting consumer, cancel its context.
 - **Commit once per batch, not per record**: each commit is a file write and an fsync.
 - Delivery is at-least-once: commit after processing. Commit before processing for
   at-most-once. Exactly-once needs processing that is idempotent on `Seq`.

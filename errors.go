@@ -20,7 +20,9 @@ var (
 	ErrPayloadTooLarge = errors.New("quill: payload too large")
 	// ErrSeqExhausted reports that the log has used every sequence number.
 	ErrSeqExhausted = errors.New("quill: sequence numbers exhausted")
-	// ErrClosed reports a call on a closed Log, Reader or Consumer, or a Sync waiter cut off by Close.
+	// ErrClosed reports a call on a closed Log or Reader, or a Sync waiter cut off by Close. On a
+	// closed Consumer only Commit, SeekToTime (which commits) and a second Close return it: the
+	// read methods read through the Log or Reader and ignore Consumer.Close.
 	ErrClosed = errors.New("quill: closed")
 	// ErrInvalidName reports a consumer name outside [a-z0-9_-], 1 to 200 characters, or one with
 	// a leading underscore, which is reserved (except the archiver's "_archive").

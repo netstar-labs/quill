@@ -36,6 +36,11 @@ type ConsumerOptions struct {
 
 // Consumer is a named offset: the next sequence to read, stored in consumers/{name} and
 // written only by the process holding consumers/{name}.lock (decisions 9, 36, 41).
+//
+// Close releases the lock and nothing more. Read, ReadWait, Scan, Records and Follow ignore it:
+// they read through the Log or Reader the consumer was taken from, keep working after Close,
+// and a blocked ReadWait or Follow is not woken by it. On a closed Consumer only Commit,
+// SeekToTime (which commits) and a second Close return ErrClosed.
 type Consumer struct {
 	store *consumerStore
 	src   source
@@ -247,10 +252,11 @@ func (c *Consumer) Lag() (uint64, error) {
 // after records is left for the next call); ReadWait and Scan follow.
 func (c *Consumer) Read(limit int) ([]Record, error) { return readFrom(c.src, c.Offset(), limit) }
 
-// ReadWait is Read, blocking until a record is available, ctx is done or the handle closes.
-// On a consumer taken from a Log that has failed (ErrFailed) it still returns the records that
-// exist, but at the head it returns the failure instead of waiting. A consumer taken from a
-// Reader cannot see the writer's failure and keeps waiting.
+// ReadWait is Read, blocking until a record is available, ctx is done, or the underlying Log or
+// Reader closes. Closing the Consumer does not end it. On a consumer taken from a Log that has
+// failed (ErrFailed) it still returns the records that exist, but at the head it returns the
+// failure instead of waiting. A consumer taken from a Reader cannot see the writer's failure and
+// keeps waiting.
 func (c *Consumer) ReadWait(ctx context.Context, limit int) ([]Record, error) {
 	return readWait(ctx, c.src, c.Offset(), limit)
 }
