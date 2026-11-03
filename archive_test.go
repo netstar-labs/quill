@@ -323,6 +323,88 @@ func TestArchiveAfterTheConsumerIsRecreatedReportsTheRecordsTheDestinationLacks(
 	}
 }
 
+// oneRecordSegments appends n records, each flushed and sealed in a segment of its own, so
+// the loss of one segment file loses exactly one record.
+func oneRecordSegments(t *testing.T, l *Log, n int) {
+	t.Helper()
+	for i := 0; i < n; i++ {
+		appendN(t, l, 1)
+		mustFlush(t, l)
+		if err := l.Roll(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// A source whose oldest segments retention already deleted is not a source with a hole: a new
+// destination has no record the archive lacks, and the archive consumer starts at the first
+// retained sequence (decisions 41, 67, 68). The first archive must return nil, not a gap.
+func TestArchiveOfARetentionTrimmedSourceIntoANewDestinationReportsNoGap(t *testing.T) {
+	s, clk, l := retentionLog(t, nil)
+	defer l.Close()
+	fillSegments(t, l, clk, 6) // segments 0..5, records 1..24
+	clk.Advance(time.Hour - 3*time.Minute - 30*time.Second)
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	if ids := segmentFiles(t, s, "/log"); len(ids) == 0 || ids[0] != 3 {
+		t.Fatalf("segments %v, want the oldest three trimmed", ids)
+	}
+	if err := archive(s, "/log", "/arch"); err != nil {
+		t.Fatalf("first archive of a trimmed log: %v", err)
+	}
+	ar, err := OpenReader("/arch", ReaderOptions{fs: s})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ar.Close()
+	st, err := ar.Stat()
+	if err != nil || st.First != 13 || st.Head != 24 || len(st.Holes) != 0 {
+		t.Fatalf("%+v %v", st, err)
+	}
+}
+
+// A hole of exactly one record between two copied segments is a gap like any other.
+func TestArchiveReportsAHoleOfOneRecordBetweenCopiedSegments(t *testing.T) {
+	s, _, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
+	defer l.Close()
+	oneRecordSegments(t, l, 5) // segments 0..4, records 1..5
+	if err := s.Remove("/log/" + segmentName(2)); err != nil {
+		t.Fatal(err)
+	}
+	if err := archive(s, "/log", "/arch"); !isGap(err, 3, 3) {
+		t.Fatalf("%v", err)
+	}
+}
+
+// A single record lost between the destination's last record and the first segment the next
+// run copies is found from the destination's quill.tail even after the consumer was recreated.
+func TestArchiveReportsOneRecordLostBeforeTheFirstSegmentItCopies(t *testing.T) {
+	s, _, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
+	defer l.Close()
+	oneRecordSegments(t, l, 3) // segments 0..2, records 1..3
+	if err := archive(s, "/log", "/arch"); err != nil {
+		t.Fatal(err)
+	}
+	oneRecordSegments(t, l, 3) // segments 3..5, records 4..6, never archived
+	for id := 0; id <= 3; id++ {
+		if err := s.Remove("/log/" + segmentName(uint64(id))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := OpenReader("/log", ReaderOptions{fs: s})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.DeleteConsumer(archiveConsumer); err != nil {
+		t.Fatal(err)
+	}
+	r.Close()
+	if err := archive(s, "/log", "/arch"); !isGap(err, 4, 4) {
+		t.Fatalf("%v", err)
+	}
+}
+
 func TestTheArchiverIsAProtectedConsumerUntilACapOverridesIt(t *testing.T) {
 	s, clk, l := retentionLog(t, nil)
 	defer l.Close()
