@@ -173,12 +173,14 @@ func (w *window) frameAt(pos int64) (Record, int, error) {
 	return decodeFrame(data)
 }
 
-// walk scans frames from start, calling fn for each one accepted. A frame is accepted when it
-// decodes, its sequence is exactly one more than the previous accepted frame's (the first
-// frame from start must be prev+1 when prev is known, and at least 1 otherwise; nothing follows
-// a frame numbered MaxUint64, where prev+1 would wrap to 0), and fn
-// returns true. It returns the info gathered and, when the scan stopped before size, the
-// error at that point: errTornFrame, errBadFrame, or an I/O error.
+// walk scans frames from start. A frame is accepted when it decodes and its sequence is exactly
+// one more than the previous accepted frame's (the first frame from start must be prev+1 when
+// prev is known, and at least 1 otherwise; nothing follows a frame numbered MaxUint64, where
+// prev+1 would wrap to 0). Each accepted frame is counted into the returned info (frames, last,
+// end) and only then passed to fn, so a frame for which fn returns false is still counted. If fn
+// returns false the walk stops there with a nil error. Otherwise it ends at size (nil error) or
+// at the first frame that is not accepted, with info.end at that frame's start and the error
+// errTornFrame, errBadFrame, or an I/O error.
 func walk(w *window, start int64, prev uint64, havePrev bool, fn func(rec Record, pos int64) bool) (segInfo, error) {
 	info := segInfo{end: start}
 	nextAnchor := start
