@@ -123,6 +123,16 @@ type Config struct {
 	// MaxRecords keeps roughly the newest N records (0: off).
 	MaxRecords int64
 	// ConsumerTTL: a protected consumer behind for this long stops protecting segments (0: off).
+	// It is stale when it is behind and both the age of its offset file and the age of the record
+	// at its offset are at least ConsumerTTL (decision 45). The file's age is the filesystem's
+	// modification time against the writer's clock, so a clock step, a restore that resets mtimes,
+	// a copy that does not preserve them, or a filesystem with coarse or wrong timestamps can make
+	// a live consumer look stale (and lose its protection) or a dead one look live. A stale
+	// consumer only stops protecting: the age sweep still deletes at most a quarter of the sealed
+	// segments per pass (the clock guard, decision 44), and a record or file stamped in the future
+	// is never stale. The check has no guard of its own and no per-consumer exemption (Protect is
+	// what makes a consumer subject to it); to keep protection whatever the clock does, leave
+	// ConsumerTTL at 0.
 	ConsumerTTL time.Duration
 	// NoMaintenance disables the background prune pass and age rotation: for offline tools
 	// that open a log briefly (decision 68). Flushing still runs. Open does not write
