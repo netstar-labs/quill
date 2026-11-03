@@ -559,3 +559,47 @@ func TestReadFromTheDefaultStartReportsADamagedOldestSegment(t *testing.T) {
 		t.Fatalf("read -from %d: exit %d: %q", first, code, out)
 	}
 }
+
+// A log whose oldest records retention deleted is the normal state of a production log, not a
+// hole: read, cat and tail start at the first retained record, tail honours -from and -since,
+// and -n is ignored once either is given (decision 38). Each CLI guard that keeps the start
+// off a sequence below First (a -from of 0, a tail window wider than the retained records,
+// tail's -from or -since test) only matters on a log like this one.
+func TestL2ReadAndTailOnALogWhoseHeadWasTrimmedByRetention(t *testing.T) {
+	dir := rolledLog(t, 8, 10)
+	mustRun(t, "", "prune", "-dir", dir, "-max-records", "30")
+	var head, first uint64
+	out := mustRun(t, "", "stat", "-dir", dir)
+	if _, err := fmt.Sscanf(out, "head %d\nfirst %d\n", &head, &first); err != nil || head != 80 || first < 2 || head-first+1 < 30 || head-first+1 > 40 {
+		t.Fatalf("setup: %v: %s", err, out)
+	}
+	retained := head - first + 1
+	check := func(label string, wantFirst, wantLast uint64, args ...string) {
+		t.Helper()
+		code, out, errOut := exec(t, "", append(args, "-json")...)
+		if code != exitOK {
+			t.Fatalf("%s: exit %d: %s", label, code, errOut)
+		}
+		var got []uint64
+		for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+			var rec struct {
+				Seq uint64 `json:"seq"`
+			}
+			if err := json.Unmarshal([]byte(line), &rec); err != nil {
+				t.Fatalf("%s: not a JSON record: %q: %v", label, line, err)
+			}
+			got = append(got, rec.Seq)
+		}
+		if uint64(len(got)) != wantLast-wantFirst+1 || got[0] != wantFirst || got[len(got)-1] != wantLast {
+			t.Fatalf("%s: got sequences %v, want %d to %d", label, got, wantFirst, wantLast)
+		}
+	}
+	check("read", first, head, "read", "-dir", dir)
+	check("cat", first, head, "cat", "-dir", dir)
+	check("read -from 0", first, head, "read", "-dir", dir, "-from", "0")
+	check("tail -n 100000", first, head, "tail", "-dir", dir, "-n", "100000")
+	check("tail -n wider than retained", first, head, "tail", "-dir", dir, "-n", fmt.Sprint(retained+5))
+	check("tail -n 2", head-1, head, "tail", "-dir", dir, "-n", "2")
+	check("tail -from", first+2, head, "tail", "-dir", dir, "-from", fmt.Sprint(first+2), "-n", "1")
+	check("tail -since", first, head, "tail", "-dir", dir, "-since", "@0", "-n", "1")
+}
