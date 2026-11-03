@@ -403,3 +403,54 @@ func TestRotationRefusesAnIDTheSegmentNamesCannotHold(t *testing.T) {
 		_ = l.Close()
 	}
 }
+
+// The decoders' limits are inclusive: an off of exactly maxSegmentFileBytes and a maxseg of
+// exactly 9999999999 (the largest ten-digit name) are accepted, one more is refused. An input
+// with no final newline is declined by the fast path, so the slow path's own comparisons are
+// tested as well as the fast path's.
+func TestTailDecodersAcceptTheInclusiveLimitsAndRefuseOneMore(t *testing.T) {
+	if int64(maxSegmentFileBytes) != 1610612736 {
+		t.Fatalf("maxSegmentFileBytes is %d: the literals below are stale", int64(maxSegmentFileBytes))
+	}
+	if segmentName(maxSegmentID) != "9999999999.log" {
+		t.Fatalf("maxSegmentID %d is not the largest ten-digit id", uint64(maxSegmentID))
+	}
+	for _, tc := range []struct {
+		in string
+		ok bool
+	}{
+		{`{"seq":3,"seg":0,"off":1610612736,"maxseg":0}`, true},
+		{`{"seq":3,"seg":0,"off":1610612737,"maxseg":0}`, false},
+		{`{"seq":3,"seg":0,"off":1610612736,"maxseg":0}` + "\n", true},
+		{`{"seq":3,"seg":0,"off":1610612737,"maxseg":0}` + "\n", false},
+		{`{"seq":3,"seg":9999999999,"off":39,"maxseg":9999999999}`, true},
+		{`{"seq":3,"seg":9999999999,"off":39,"maxseg":9999999999}` + "\n", true},
+		{`{"seq":3,"seg":0,"off":39,"maxseg":10000000000}`, false},
+	} {
+		_, err := decodeTail([]byte(tc.in))
+		if tc.ok != (err == nil) || (err != nil && !errors.Is(err, errBadState)) {
+			t.Errorf("%q: ok=%v, got %v", tc.in, tc.ok, err)
+		}
+	}
+}
+
+// A state file of exactly maxStateBytes is read; one byte more is refused.
+func TestReadStateAcceptsAFileOfExactlyMaxStateBytes(t *testing.T) {
+	dir := t.TempDir()
+	for _, tc := range []struct {
+		size int
+		ok   bool
+	}{{maxStateBytes, true}, {maxStateBytes + 1, false}} {
+		p := filepath.Join(dir, "state")
+		if err := os.WriteFile(p, make([]byte, tc.size), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		b, err := readState(fsx.OS{}, p)
+		if tc.ok && (err != nil || len(b) != tc.size) {
+			t.Errorf("%d bytes: read %d, %v", tc.size, len(b), err)
+		}
+		if !tc.ok && !errors.Is(err, errBadState) {
+			t.Errorf("%d bytes: %v", tc.size, err)
+		}
+	}
+}

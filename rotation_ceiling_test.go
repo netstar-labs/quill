@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/netstar-labs/quill/internal/fsx"
 )
@@ -117,5 +118,59 @@ func TestAnOversizeIntactSegmentFileIsReportedAsRefusedNotDamagedAtByteZero(t *t
 	}
 	if res.Problems[0].Kind != "segment" || !res.Problems[0].Fatal {
 		t.Fatalf("first problem %+v", res.Problems[0])
+	}
+}
+
+// A segment that a flush could grow to exactly maxSegmentFileBytes is refused, and one byte
+// less is accepted. Each of the three terms of the formula (the buffer bound, and the larger
+// of MaxBatchBytes and MaxPayloadBytes plus the 34-byte frame overhead of decision 69) is
+// tested alone at the edge. validate does arithmetic only, so no 1.5 GiB buffer is allocated.
+func TestConfigRefusesAFlushThatReachesTheFileLimitExactlyAndAcceptsOneByteLess(t *testing.T) {
+	const payload = 1 << 20
+	for _, tc := range []struct {
+		name string
+		mut  func(c *Config, room int)
+	}{
+		{"the batch term", func(c *Config, room int) {
+			c.FlushBytes, c.MaxBufferBytes, c.MaxPayloadBytes = 1, 1, 1
+			c.MaxBatchBytes = room - 1
+		}},
+		{"the payload term", func(c *Config, room int) {
+			c.FlushBytes, c.MaxBatchBytes, c.MaxPayloadBytes = 1, 1, payload
+			c.MaxBufferBytes = room - payload - 34
+		}},
+		{"the buffer term", func(c *Config, room int) {
+			c.MaxBatchBytes, c.MaxPayloadBytes, c.FlushBytes = payload, 1, 1
+			c.MaxBufferBytes = room - payload
+		}},
+	} {
+		for _, short := range []int{0, 1} { // bytes below the limit
+			c := Config{Dir: "/log", SegmentBytes: MaxSegmentBytes}
+			tc.mut(&c, int(maxSegmentFileBytes-MaxSegmentBytes)-short)
+			c = c.withDefaults()
+			if got, want := c.maxActiveBytes(), int64(maxSegmentFileBytes)-int64(short); got != want {
+				t.Fatalf("%s, %d short: maxActiveBytes is %d, want %d (the test's own arithmetic)", tc.name, short, got, want)
+			}
+			err := c.validate()
+			if short == 0 && !errors.Is(err, ErrConfig) {
+				t.Errorf("%s: a flush reaching exactly the file limit: %v, want ErrConfig", tc.name, err)
+			}
+			if short == 1 && err != nil {
+				t.Errorf("%s: a flush one byte under the file limit: %v, want accepted", tc.name, err)
+			}
+		}
+	}
+}
+
+// FlushInterval is valid from 1ms up: the floor is inclusive.
+func TestConfigFlushIntervalOfOneMillisecondIsValidAndBelowIsRefused(t *testing.T) {
+	for _, tc := range []struct {
+		d  time.Duration
+		ok bool
+	}{{time.Millisecond, true}, {time.Millisecond - 1, false}} {
+		err := Config{Dir: "/log", FlushInterval: tc.d}.withDefaults().validate()
+		if tc.ok != (err == nil) || (err != nil && !errors.Is(err, ErrConfig)) {
+			t.Errorf("FlushInterval %v: ok=%v, got %v", tc.d, tc.ok, err)
+		}
 	}
 }

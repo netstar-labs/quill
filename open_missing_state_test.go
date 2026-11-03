@@ -78,3 +78,39 @@ func TestOpenRefusesALogWhoseMarkerOrSegmentsAreGone(t *testing.T) {
 		})
 	}
 }
+
+// "No segment holds a byte" is the whole test of an interrupted creation (decision 62): a
+// segment of one byte already holds data, so the marker's absence is corruption, and an empty
+// segment is the creation the open completes.
+func TestOpenWithoutAMarkerRefusesAOneByteSegmentAndCompletesAnEmptyOne(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		size int
+		ok   bool
+	}{{"an empty segment", 0, true}, {"a one-byte segment", 1, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "log")
+			l := openDir(t, dir, nil)
+			if err := l.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(filepath.Join(dir, tailName)); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, segmentName(0)), make([]byte, tc.size), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			l, err := Open(Config{Dir: dir, Retention: -1})
+			if tc.ok {
+				if err != nil {
+					t.Fatalf("open: %v", err)
+				}
+				l.Close()
+				return
+			}
+			if !errors.Is(err, ErrCorrupt) || !strings.Contains(err.Error(), "segments with frames but no "+tailName) {
+				t.Fatalf("open: %v, want ErrCorrupt containing the missing-marker text", err)
+			}
+		})
+	}
+}
