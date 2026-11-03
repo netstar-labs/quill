@@ -113,3 +113,69 @@ func TestOpenWithAProtectedConsumerAheadOfTheHeadStillFails(t *testing.T) {
 		}
 	}
 }
+
+// A1-80 in the common steady state: the live consumer has read everything (Next is Head + 1,
+// the largest value the lock-free path accepts), and the writer must still restart without
+// its lock.
+func TestOpenWithACaughtUpProtectedConsumerRunningDoesNotNeedItsLock(t *testing.T) {
+	dir := t.TempDir()
+	l := openDir(t, dir, protectedCfg)
+	head, err := l.Append([]byte("a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Flush(); err != nil { // the head a reader sees is the durable one
+		t.Fatal(err)
+	}
+	r, err := OpenReader(dir, ReaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	c, err := r.Consumer("billing", ConsumerOptions{}) // the live consumer process: holds the lock
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := c.Commit(head + 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	l2, err := reopenProtected(dir)
+	if err != nil {
+		t.Fatalf("reopen beside the live, caught-up consumer: %v", err)
+	}
+	defer l2.Close()
+}
+
+// A protected consumer file that names another log (a consumers/ directory copied or
+// restored from elsewhere) is refused with ErrWrongLog, not accepted on the lock-free path,
+// and is left untouched.
+func TestOpenWithAProtectedConsumerFileOfAnotherLogFails(t *testing.T) {
+	other := openDir(t, t.TempDir(), nil)
+	otherID := other.ID()
+	if err := other.Close(); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	l := openDir(t, dir, protectedCfg)
+	if otherID == l.ID() {
+		t.Fatal("two logs share an id")
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "consumers", "billing")
+	want := otherID + " 1 1\n"
+	if err := os.WriteFile(path, []byte(want), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reopenProtected(dir); !errors.Is(err, ErrWrongLog) {
+		t.Fatalf("foreign protected consumer file: %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != want {
+		t.Fatalf("the file was rewritten: %q", got)
+	}
+}
