@@ -19,8 +19,9 @@
 //     file and written only by the process holding that consumer. Commit once per batch.
 //   - Retention deletes whole sealed segments, oldest first, by age and by caps. It does not wait
 //     for a consumer unless that consumer is protected, and the caps win even then.
-//   - Corruption is never served silently: a damaged or missing sealed segment becomes a hole that
-//     reads report as a GapError and Err() names until retention deletes it; damage in the newest segment below the durable
+//   - Corruption is never served silently: a damaged sealed segment becomes a hole that reads
+//     report as a GapError and Err() names until retention deletes it; a missing one is a hole in
+//     Stat().Holes and in reads, not in Err(); damage in the newest segment below the durable
 //     marker, or a marker whose sequence is above the last valid frame, fails Open with ErrCorrupt.
 //
 // The on-disk format is specified in docs/format.md and frozen by golden tests.
