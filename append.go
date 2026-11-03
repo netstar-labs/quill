@@ -9,6 +9,12 @@ import (
 // Append buffers one record and returns its sequence. The record is durable after the next
 // Flush, Sync, or inline flush at FlushBytes; with SyncAppends it is durable when Append
 // returns, and an error then means unknown, not lost.
+//
+// On an error the returned sequence says whether one was assigned: a failure after the record
+// was buffered (the inline flush's fsync failed and the log is failed, or SyncAppends could not
+// make it durable) returns the sequence with the error, and the record may still be on disk
+// after a reopen, so look for it there; a failure before (ErrClosed, a failed log, ErrPayloadTooLarge,
+// ErrSeqExhausted, the buffer or rotation bound) returns 0, and nothing was assigned.
 func (l *Log) Append(payload []byte) (uint64, error) {
 	return l.AppendBatch([][]byte{payload})
 }
@@ -19,6 +25,11 @@ func (l *Log) Append(payload []byte) (uint64, error) {
 // is refused (decision 46) when the sum of len(payload)+34 over its records is over MaxBatchBytes: an
 // upper bound of the encoded size (the sequence is not known yet), so the real size can be much
 // smaller for small payloads. A single record is bounded by MaxPayloadBytes alone.
+//
+// On an error the first return is the first sequence of the batch when sequences were assigned
+// (the inline flush's fsync failed, or SyncAppends could not make the batch durable: the
+// records may still be on disk after a reopen) and 0 when nothing was assigned (ErrClosed, a
+// failed log, a refused batch, ErrPayloadTooLarge, ErrSeqExhausted, the buffer or rotation bound).
 func (l *Log) AppendBatch(payloads [][]byte) (uint64, error) {
 	if len(payloads) == 0 {
 		return 0, fmt.Errorf("%w: empty batch", ErrPayloadTooLarge)
@@ -38,7 +49,7 @@ func (l *Log) AppendBatch(payloads [][]byte) (uint64, error) {
 	first, err := l.appendLocked(payloads, size)
 	l.mu.Unlock()
 	if err != nil {
-		return 0, err
+		return first, err // first is 0 when nothing was assigned
 	}
 	if l.cfg.SyncAppends {
 		if err := l.Sync(context.Background(), first+uint64(len(payloads))-1); err != nil {

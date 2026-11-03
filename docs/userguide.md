@@ -40,7 +40,7 @@ its sequence numbers are reassigned to the next records. Three ways to pay for d
 |---|---|---|
 | Buffered (the default): `Append`; an inline flush at `FlushBytes`, a background flush every `FlushInterval` | One fsync per flush, shared by every record in it | Throughput; a window of `FlushInterval` can be lost |
 | `Append` then `Sync(ctx, seq)` | One fsync per flush, shared by every producer waiting (group commit) | A durable write per call with many producers |
-| `Config.SyncAppends` | Every `Append` returns durable | The simplest durable writer |
+| `Config.SyncAppends` | Every `Append` returns durable; on an error it still returns the sequence it assigned | The simplest durable writer |
 
 A flush costs an fsync of the segment and the marker's temp file: milliseconds on Linux,
 about 20 ms on macOS (`F_FULLFSYNC`). Batch when you can.
@@ -51,7 +51,7 @@ offset, and space exhaustion recovers by itself. An **fsync** error is fatal: ev
 `Append`, `Flush` and `Sync` returns an error wrapping `ErrFailed` until the log is closed and
 reopened, and a `ReadWait` or `Follow` at the head returns it too (a goroutine already waiting is woken to return it; records that exist stay readable), because a retried fsync can report success for data that never reached the disk. The moment the log fails it writes one `Error` record on `Config.Logger`, "log failed: it accepts no more writes and every later call returns ErrFailed", with `error` (the first cause) and `op` (`flush`, `rotation`, `segment delete` or `lock check`); a later failure changes neither `Err()` nor the log, so there is never a second line, and `Err()` returns an error wrapping `ErrFailed`. With no `Logger` there is no line: poll `Err()`. An
 error from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still
-become durable, so a producer that retries must tolerate duplicates. A failure to publish the
+become durable, so a producer that retries must tolerate duplicates. **The sequence beside an error:** `Append` and `AppendBatch` return the sequence they assigned (the first, for a batch) together with the error when they fail after assigning one, that is when the inline flush's fsync fails (the log is then failed, `ErrFailed`) or a `SyncAppends` append cannot make its records durable; the records may be on disk after a reopen, so that is the number to look for. They return 0 when nothing was assigned: `ErrClosed`, a failed log, a refused or empty batch, `ErrPayloadTooLarge`, `ErrSeqExhausted`, and an append refused at the `MaxBufferBytes` or rotation bound. A failure to publish the
 marker or create the next segment after the data fsync is retried at the next flush, reported
 by `Err()` while it lasts, and never rewrites durable data. While flushes fail the buffer is bounded by
 `MaxBufferBytes`; past it, appends fail fast with the flush error. While creating the next

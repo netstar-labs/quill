@@ -177,6 +177,8 @@ func (c *cli) appendRecords(l *quill.Log, args []string) (last uint64, durable b
 	}
 	first, err := l.AppendBatch(payloads)
 	if err != nil {
+		// first may be a sequence that was assigned (decision 42), but no record is known to be
+		// durable, so nothing is printed (decision 100).
 		return 0, false, c.errorf("%v", err)
 	}
 	last = first + uint64(len(payloads)) - 1

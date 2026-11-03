@@ -54,7 +54,7 @@ It is not a message broker: no network protocol, no replication, no consumer gro
 | Call | Purpose |
 |---|---|
 | `Open(Config) (*Log, error)` / `(*Log).Close()` | Open (taking the directory lock) and flush-and-stop; `Close` returns the final flush's error; a read in flight at `Close` finishes, and later calls return `ErrClosed` |
-| `Append(payload)` / `AppendBatch(payloads)` | Buffer records; durable after the next flush. A batch is one lock acquisition and lands in one segment |
+| `Append(payload)` / `AppendBatch(payloads)` | Buffer records; durable after the next flush. A batch is one lock acquisition and lands in one segment. On an error the sequence returned (the first, for a batch) is the one assigned when the failure came after assignment (the inline flush's fsync failed, or `SyncAppends` could not make the records durable) and 0 when nothing was assigned (`ErrClosed`, a failed log, a refused batch, `ErrPayloadTooLarge`, `ErrSeqExhausted`, the buffer or rotation bound) |
 | `Flush()` | Write buffered records, fsync, then publish `quill.tail` |
 | `Read(offset, limit)` | Flushed records with `seq >= offset`, ascending, payloads copied: at most `limit` records; it stops once at least `MaxReadBytes` of payload have been returned (so the total can exceed it by up to one record), but always returns at least one if available. Returns a `*GapError` where records are unavailable (decision 38) |
 | `ReadWait(ctx, offset, limit)` | As `Read`, blocking until more is flushed when caught up; on a failed log it returns `ErrFailed` at the head instead of waiting (records that exist stay readable) |
@@ -246,7 +246,7 @@ to that offset and keeps the records buffered, and space exhaustion recovers by 
 **fsync** error is fatal: the log refuses every later `Append`, `Flush` and `Sync` with `ErrFailed` until it is
 closed and reopened, and a `ReadWait` or `Follow` at the head returns it rather than waiting, because a retried fsync can report success for data that never reached the disk. An error
 from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still become durable, so a
-producer that retries must tolerate duplicates. Failures after the data is durable (creating the next segment,
+producer that retries must tolerate duplicates; the append returns the sequence it assigned beside the error (0 when it assigned none), so the caller knows which records to look for after reopening. Failures after the data is durable (creating the next segment,
 writing the marker) are retried at the next flush and never rewrite the data, and while the next segment keeps failing
 to be created appends are refused at a ceiling under the 1.5 GiB file limit; a directory-fsync error is fatal. An
 `AppendBatch` is not crash-atomic: a prefix of its records may survive.

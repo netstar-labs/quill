@@ -31,7 +31,8 @@ type Config struct {
 	// FlushInterval is the background flush period (250 ms).
 	FlushInterval time.Duration
 	// SyncAppends makes every Append and AppendBatch return only once its records are durable,
-	// as if it called Sync on its last sequence. An error then means unknown, not lost.
+	// as if it called Sync on its last sequence. An error then means unknown, not lost, and the
+	// call returns the first sequence it assigned beside it (0 when it assigned none).
 	SyncAppends bool
 	// MaxBufferBytes applies only while flushes are failing: then an append is accepted only
 	// into an empty buffer or within this limit (16 × FlushBytes). Below FlushBytes is refused,

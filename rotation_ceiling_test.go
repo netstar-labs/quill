@@ -34,8 +34,11 @@ func TestAFailedRotationRefusesAppendsAtTheCeilingAndRecoversWhenItSucceeds(t *t
 	}
 	var refused error
 	for i := 0; i < 200 && refused == nil; i++ {
-		if _, refused = l.Append(payloadFor(l.nextSeqForTest())); refused == nil {
+		var seq uint64
+		if seq, refused = l.Append(payloadFor(l.nextSeqForTest())); refused == nil {
 			_ = l.Flush()
+		} else if seq != 0 {
+			t.Fatalf("a refused append returned sequence %d, want 0 (nothing assigned)", seq)
 		}
 	}
 	if !errors.Is(refused, errENOSPC) {
