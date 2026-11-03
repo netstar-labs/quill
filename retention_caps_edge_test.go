@@ -131,3 +131,53 @@ func TestMinFreeBytesIsMetAtExactlyTheFloor(t *testing.T) {
 		t.Fatalf("append with free space exactly at the floor: %v", err)
 	}
 }
+
+// The byte cap counts the active segment and the record cap keeps no more than its count
+// (Stage 2 audit L2-28). fillSegments leaves the active segment empty and the record-cap test
+// ends at a count where one more record does not matter, so the first test below puts a record
+// in the active segment and the second picks a cap that falls between segment sizes.
+
+func TestMaxBytesCountsTheActiveSegment(t *testing.T) {
+	s, clk, l := retentionLog(t, nil)
+	fillSegments(t, l, clk, 3) // segments 0..2 sealed
+	appendN(t, l, 1)           // one record in the active segment 3
+	mustFlush(t, l)
+	st, err := l.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := st.Bytes
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// The whole set is one byte over the cap, so the oldest sealed segment must go. Counting
+	// only the sealed segments, the set is under the cap by the active segment's bytes.
+	l = openRetention(t, s, clk, func(c *Config) { c.MaxBytes = total - 1 })
+	defer l.Close()
+	if st, _ := l.Stat(); st.Bytes != total || st.Segments != 4 {
+		t.Fatalf("fixture: %+v after reopening, want %d bytes in 4 segments", st, total)
+	}
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	if ids := segmentFiles(t, s, "/log"); len(ids) != 3 || ids[0] != 1 {
+		t.Fatalf("segments %v, want [1 2 3]: the active segment's bytes were not counted against MaxBytes", ids)
+	}
+	if st, _ := l.Stat(); st.Bytes > total-1 {
+		t.Fatalf("%d bytes kept under MaxBytes %d", st.Bytes, total-1)
+	}
+}
+
+func TestMaxRecordsNeverLeavesMoreThanTheCap(t *testing.T) {
+	_, clk, l := retentionLog(t, func(c *Config) { c.MaxRecords = 7 })
+	defer l.Close()
+	fillSegments(t, l, clk, 3) // records 1..12 in segments of 4
+	if err := l.Prune(false); err != nil {
+		t.Fatal(err)
+	}
+	// Two segments hold 8 records, one more than the cap: both of the oldest must go.
+	st, _ := l.Stat()
+	if st.Records > 7 || st.Records != 4 || st.First != 9 {
+		t.Fatalf("%+v: want the newest 4 records, 9..12, under MaxRecords 7", st)
+	}
+}
