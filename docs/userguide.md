@@ -428,6 +428,19 @@ These do not, or have a consequence the text leaves out. A `Warn` is written wit
 | `age sweep limited by the clock guard` (`Warn`; `quill prune` prints it on standard error) | One pass would delete more than a quarter of the sealed segments by age, which a clock that stepped forward does (see "A wrong clock" in §6), so it deleted a quarter and stopped | If the clock is right (a long outage, a restore), `quill prune -force`, or let later passes finish the job; if it is wrong, fix the clock first |
 | `ErrFutureVersion` (`quill: log format is newer than this build`; `quill ls` shows it as a row ending in `error:`) | `quill.format` names a format version this build does not know, because a newer build wrote or upgraded the log | Run a newer build of the library or `quill`. Do not edit `quill.format`. Stop and restart every writer, reader and consumer process on the new build: a handle already open is not stopped by the bump (format.md) |
 
+**Upgrading and rolling back.** The on-disk format is `quill/1` and no release has changed it, so a new binary opens
+the log as it is and the old one can be put back; there is no migration step. To replace the binary, stop the writer,
+replace it and start it again; restart the consumers and readers on the new build too, because the new behaviour applies
+to a process only once it is running it. Before the first release that changes the format, a migration note will say to
+stop every writer, reader and consumer first, since a running writer, and a reader that only calls `Read`, `Scan` or
+`Head`, never re-reads `quill.format` (`Consumer.Commit` and a `Reader`'s waits do, and fail with `ErrFutureVersion`
+after the bump); `docs/format.md` has the rule. Rolling back is the same replacement in reverse, and the same
+holds across v0.1.0 and the current tree: `hack/skew.sh <refA> <refB>` runs each version against a log the other wrote
+and [format-compatibility.md](audits/format-compatibility.md) records the result. The differences between the two
+versions are listed under "Unreleased" in the CHANGELOG, which you should read before upgrading. A build that finds a `quill.format`
+newer than it knows refuses the log with `ErrFutureVersion` (the library, and the `quill` command with exit 1 for a verb that opens
+the log); the fix is a newer binary, never an edit to `quill.format`.
+
 ## 10. Recovery and the manual corruption procedure
 
 A writable open (`Open`, or `quill recover`) performs recovery: it verifies every sealed
