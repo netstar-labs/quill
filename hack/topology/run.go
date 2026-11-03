@@ -147,15 +147,16 @@ func (p *proc) livePid() int {
 	return 0
 }
 
-// signal sends sig to the child. A frozen child never gets to act on SIGTERM, so it is killed,
-// which leaves its committed offset where the freeze put it.
 func (p *proc) isStopped() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.stopped
 }
 
-func (p *proc) signal(sig syscall.Signal, ours bool) {
+// signal sends sig to the child and reports whether it did: a SIGKILL is dropped while the child
+// is not up. A frozen child never gets to act on SIGTERM, so it is killed, which leaves its
+// committed offset where the freeze put it.
+func (p *proc) signal(sig syscall.Signal, ours bool) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.stopped && sig == syscall.SIGTERM {
@@ -163,8 +164,9 @@ func (p *proc) signal(sig syscall.Signal, ours bool) {
 	}
 	if p.cmd != nil && (p.up || sig != syscall.SIGKILL) {
 		p.hit = p.hit || ours
-		_ = p.cmd.Process.Signal(sig)
+		return p.cmd.Process.Signal(sig) == nil
 	}
+	return false
 }
 
 type orch struct {
@@ -313,6 +315,18 @@ func (o *orch) supervise(p *proc) {
 	}
 }
 
+// kill SIGKILLs p, unless a frozen consumer has to stay frozen until the stall ends. It counts
+// the signals sent, not the attempts: restarts_<role> is what remains of them (a kill sent to a
+// child that already died and is not yet reaped counts here, and one restart covers both).
+func (o *orch) kill(p *proc) {
+	if p.isStopped() {
+		return
+	}
+	if p.signal(syscall.SIGKILL, true) { // a child between its exit and "ready" is not signalled
+		o.n.add("kills_"+p.role, 1)
+	}
+}
+
 // chaos acts at random times until the run ends: SIGKILL the writer, a reader or a consumer,
 // start a second writer, or fill the disk.
 func (o *orch) chaos() {
@@ -329,13 +343,7 @@ func (o *orch) chaos() {
 		}
 		return ps[rng.Intn(len(ps))]
 	}
-	kill := func(p *proc) {
-		if p.isStopped() { // a frozen consumer stays frozen until the stall ends
-			return
-		}
-		p.signal(syscall.SIGKILL, true)
-		o.n.add("kills_"+p.role, 1)
-	}
+	kill := o.kill
 	for {
 		select {
 		case <-o.ctx.Done():

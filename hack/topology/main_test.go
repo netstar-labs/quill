@@ -105,3 +105,39 @@ func TestRunWithRetentionAndCaps(t *testing.T) {
 		t.Fatalf("run failed or did nothing: %+v", s)
 	}
 }
+
+// A chaos kill that lands while the child is between its exit and its "ready" line is dropped
+// by signal, and kills_<role> must not count it: the summary's figure is the number of SIGKILLs
+// sent, which restarts_<role> can then be compared with.
+func TestKillCountsOnlySentSignals(t *testing.T) {
+	cmd := exec.Command("sleep", "60")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	o := &orch{n: &counters{m: map[string]int64{}}}
+	p := &proc{role: "writer", cmd: cmd} // started, not yet ready
+
+	o.kill(p)
+	if got := o.n.m["kills_writer"]; got != 0 {
+		t.Fatalf("kills_writer = %d after a kill of a child that is not ready, want 0", got)
+	}
+	if p.hit {
+		t.Fatal("a dropped kill marked the child as hit")
+	}
+
+	p.up = true
+	o.kill(p)
+	if got := o.n.m["kills_writer"]; got != 1 {
+		t.Fatalf("kills_writer = %d after a kill of a ready child, want 1", got)
+	}
+	if err := cmd.Wait(); err == nil {
+		t.Fatal("the ready child was not killed")
+	}
+
+	p.stopped = true
+	o.kill(p)
+	if got := o.n.m["kills_writer"]; got != 1 {
+		t.Fatalf("kills_writer = %d after a kill of a frozen role, want still 1", got)
+	}
+}
