@@ -54,8 +54,12 @@ var (
 // GapError reports that the records at the requested position are unavailable: deleted by
 // retention (an offset below the first retained sequence) or missing or damaged in the
 // middle (a hole). An I/O error met while reading is not a gap: it is returned as that error.
-// From is the requested offset; To is the last missing sequence, so a consumer resumes with
-// Commit(To + 1). Reads never skip a gap silently (decision 38).
+// From is the first unavailable sequence: the requested offset when nothing was delivered
+// before the gap, otherwise the sequence after the last record the scan delivered (Scan,
+// ScanAll, Reader.Scan and Consumer.Scan return the gap at once after delivering records; Read
+// and ReadWait return the records and leave the gap for the next call). To is the last missing
+// sequence, so a consumer resumes with Commit(To + 1). Reads never skip a gap silently
+// (decision 38).
 type GapError struct {
 	From, To uint64
 }

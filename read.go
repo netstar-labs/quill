@@ -231,7 +231,7 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 		if err != nil {
 			var gap *GapError
 			if errors.As(err, &gap) {
-				err = &GapError{From: cur, To: gap.To} // a deleted segment: the gap starts at the request
+				err = &GapError{From: cur, To: gap.To} // a deleted segment: the gap starts at cur, the request or the sequence after the last record delivered
 			}
 			return fail(err)
 		}
