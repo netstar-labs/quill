@@ -1371,3 +1371,202 @@ failure branch does, and decide whether `ls` then exits 1.
   opens before the first writer's next flush; A5-21 leaves a pending marker publish on a full disk blocking every deletion,
   which the skeptic flagged as a possible separate finding and did not test; A5-2 and A5-42 report only to a configured
   Logger in the library.
+
+## Pass L1: verification and optimisation
+
+Date 2026-11-02, against 5a70379. Pass L1 (comment against code, dead code and debt, operational validation on macOS and
+Linux, optimisation) filed 50 items; the full record, with every item's claim, grounds, warrant, backing, rebuttal, votes and
+reproduction, is [verification-optimization.md](verification-optimization.md). 27 items were fixed and verified by a
+fix-skeptic, 4 are recorded as safe cleanups not applied, 5 were refuted and 4 were decided in round 1. The seven items below
+were held because the fix changes a guarantee's wording, an API contract, an exit code, an error text or a memory cost. Three
+more items had a fix written and rejected by the fix-skeptic; they are listed after the held items so that nothing open is
+only in the record. The recommended answers are the recorder's reading of the auditors' proposed fixes and the skeptics'
+notes; they were not approved when written.
+
+| Id | Item | Severity | Verdict | Recommendation |
+|---|---|---|---|---|
+| L1-11 | `check` reports a log healthy when its oldest sealed segment is empty | medium | CONFIRMED | Report it, as `Open` does |
+| L1-12 | `archive` into a new destination copies only a suffix and exits 0 | medium as filed | PLAUSIBLE | Fix the wording now; the refusal is optional |
+| L1-4 | "every later Sync fails" on a failed log is not what the code does | low | CONFIRMED | Reword; the code is right |
+| L1-5 | The sequence returned with an append error is inconsistent and undocumented | low | CONFIRMED | Return `first` on every post-assignment failure |
+| L1-16 | `Consumer.ReadWait` does not return when the consumer closes | low | CONFIRMED | Reword; do not change the code |
+| L1-26 | The `quill append` oversize message states a size that stdin does not have | low | CONFIRMED | Reword the message |
+| L1-51 | `indexStride` 16 KiB is 22-27% faster to read at random positions, 4x the index memory | low | PLAUSIBLE | Keep 64 KiB |
+
+## L1-11: `quill check` reports an empty oldest sealed segment healthy (medium)
+
+**Claim.** `Reader.Check` (and so `quill check`) reports a log HEALTHY when its oldest sealed segment has been truncated to zero
+bytes, while `Open` and the Reader's `Stat` report a hole from 1 and the writer's `Err()` names the file ("a sealed segment with no
+frames"). Check, Open and the Reader disagree about damage, and `check` is the tool operators use to find it. Item:
+[verification-optimization.md](verification-optimization.md), L1-11.
+
+**Reproduction (verified by both skeptics).** A 120-record, 3-segment log with `0000000000.log` truncated to 0 bytes: `Check`
+returns healthy with no problems; the writer's `Stat` shows holes `[{1 120}]`; the Reader's shows holes `[{1 120}]`, first 121. A
+400-record variant gave healthy, first 401, holes `[{1 400}]`; the same file overwritten with garbage made `Check` report a
+"segment" problem.
+
+**Why held.** The fix adds a fatal finding where `check` today exits 0, so it changes an exit code (0 to 3) and the problem set on
+a layout. It is a behaviour change on the diagnostic surface, though the documented behaviour (decision 43, format.md:88: "a sealed
+segment with no frames is corruption"; guarantee 6) is what the fix restores. quill cannot produce an empty sealed file itself
+(`Roll` on an empty segment is a no-op), so it needs outside damage: a tmp cleaner, a bad restore. A hole in the middle is still
+reported (as a hole naming the next file).
+
+**Recommended answer.** Approve. In `Check`, when `id < tl.Seg` and `info.frames == 0`, report a fatal `segment` problem ("a sealed
+segment with no frames", Offset 0, Intact 0), as `verifySegment` does. Only the active segment may be empty. Add a test for the
+oldest and for a middle position. If the owner prefers `check` to be lenient about empty sealed files, say so in decision 43 and
+change no code; the doc text in stat.go (`Check`: "every sealed segment whole") would then be what changes.
+
+**Fix written.** None. The proposed change is the paragraph above.
+
+## L1-12: `quill archive` into a new destination copies only a suffix and exits 0 (medium as filed, PLAUSIBLE)
+
+**Claim.** After the `_archive` consumer has advanced, `Archive` into a new or empty destination copies only records at or above the
+consumer's offset, returns nil (exit 0) and gives no signal that the new destination is incomplete, although the source lost
+nothing. The comment at archive.go:80-82 says a zero destination `Seq` means "the whole source is then the archive's to copy", the
+`Archive` doc says the consumer "has not yet copied to dstDir", and the user guide says to archive into "a new or empty
+directory". The offset belongs to the source log, not to the destination. The same holds for an older destination after a newer
+one consumed the offset. Item: L1-12.
+
+**Reproduction (verified by all three skeptics).** 30 records, `Roll`, `Archive(src, dA)`: nil. 30 more, `Roll`, `Archive(src, dB)`
+with `dB` new: nil. dA: first 1, head 30, healthy. dB: first 31, head 60, `check` HEALTHY exit 0, holes `[]`. The source: first 1,
+head 60. By the CLI: `archive -to dA`, then `archive -to dB`, both exit 0.
+
+**Why held.** The behaviour follows decision 28 (one `_archive` consumer per source) and the exit-3 contract covers records the
+*source* lost, which did not happen here; one skeptic called it the documented design (the third vote found that decision 85 does
+not say so for a zero-`Seq` destination). What is clearly wrong is the comment and the text. Refusing a new destination that is
+behind the consumer would change an exit code and an error and needs an owner decision. The single standing destination, the
+intended deployment, is unaffected, and `quill commit -name _archive -offset N` rewinds the consumer.
+
+**Recommended answer.** Fix the wording now: archive.go:80-82, the `Archive` godoc and the user guide (and scope.md's Archiving
+paragraph) say the offset is per source and a new destination receives only records at or above it. Treat a refusal as optional
+and separate: when the destination is new (`destSeq == 0`) and the source's first retained sequence is below the offset, return
+an error that says the destination is new but the source's `_archive` offset is N, so `archive && notify-ok` cannot succeed on a
+partial archive. It must not be a `GapError` ("records First to N-1 are unavailable"), because those records are available at the
+source.
+
+**Fix written.** None.
+
+## L1-4: "every later Sync fails" on a failed log is not what the code does (low)
+
+**Claim.** `ErrFailed`'s doc (errors.go:31-36), decision 37 and docs/userguide.md:48-50 say that on a failed log "every later Append,
+Flush and Sync fails". `Sync(seq)` for a sequence that became durable before the failure returns nil, and `Sync` of an unassigned
+sequence returns `ErrBadSeq`. scope.md:245 uses the same "every" wording (noted by a skeptic). Item: L1-4.
+
+**Reproduction (auditor, on `fsx.Sim`; the skeptics read the code).** 3 records appended, 1-2 flushed, a data-fsync error injected:
+`Flush` returns "quill: log failed; close and reopen: EIO"; `Sync(ctx,1)` returns nil, `Sync(ctx,3)` returns the `ErrFailed`
+error, `Sync(ctx,99)` returns `ErrBadSeq` (flush.go:285-288, 293-296).
+
+**Why held.** The code is right: decision 42 gives `ErrBadSeq` for an unassigned sequence and "unless its sequence became durable"
+for a waiter, and a durable record is durable. The fix rewrites the wording of an exported error's doc and of decision 37, which
+is guarantee text.
+
+**Recommended answer.** Approve the wording: "every later Append and Flush, and every Sync of a sequence not already durable, fails
+with `ErrFailed`; `Sync` of an unassigned sequence is `ErrBadSeq`". Make the same edit in errors.go, decision 37, the user guide
+and scope.md.
+
+**Fix written.** None; the wording is above.
+
+## L1-5: the sequence returned with an append error is inconsistent and undocumented (low)
+
+**Claim.** `Append` and `AppendBatch` document no return value on the error path, and the code is inconsistent. When an inline
+flush's fsync fails, `appendLocked` returns `(first, ErrFailed)` (append.go:91-97), but `AppendBatch` discards `first` and returns
+`(0, err)` (append.go:38-41); after a `SyncAppends` failure it returns `(first, err)` (append.go:42-46). The sequence is
+consumed and the record may survive a restart, so the caller cannot reconcile the failed append; docs/userguide.md:52-53 says
+producers must tolerate duplicates. Item: L1-5.
+
+**Reproduction (auditor, `fsx.Sim`, `FlushBytes=100`, a data-fsync error injected).** `Append` of 200 bytes returned seq 0 with the fatal
+error while `nextSeq` was 2 and `bufCount` 1; `AppendBatch` also returned 0. Neither skeptic ran it; both traced the straight-line
+code. Record survival after reopen is inferred from format.md:104 and the recovery description, not run.
+
+**Why held.** Either choice is an API contract. Returning `first` changes what callers see on an error path; documenting 0 pins
+a value that today differs between two call sites. The user guide says elsewhere that a rotation-ceiling failure "assigns no
+sequence" (docs/userguide.md:61), so a 0 return reads as "none assigned", which is untrue for the inline-flush case.
+
+**Recommended answer.** Return `first` alongside the error on every failure that happens after sequences were assigned (change
+`AppendBatch` at append.go:41), return 0 only where nothing was assigned (`ErrClosed`, a refused batch, `ErrPayloadTooLarge`), say both
+in the `Append` and `AppendBatch` docs and in `Config.SyncAppends`' text (log.go:33-35), and add a test that pins it. The sequence
+is what lets a caller look for the record after reopening (the same reason the CLI prints it beside an error, decision 100).
+
+**Fix written.** None.
+
+## L1-16: `Consumer.ReadWait` does not return when the consumer closes (low)
+
+**Claim.** consumer.go:249 says `ReadWait` blocks "until a record is available, ctx is done or the handle closes". Closing the
+`Consumer` does not wake or end a blocked `ReadWait`; only `ctx` or the underlying Log or Reader closing does, and `Read`, `Scan`
+and `Records` keep working after `Consumer.Close`. In consumer.go "handle" otherwise means the Consumer, and the sentence looks
+copied from `Reader.ReadWait`, where it means the Reader. A skeptic also noted errors.go:23 says `ErrClosed` covers "a call on a closed
+Log, Reader or Consumer", but only `Commit` and `Close` return it on a closed Consumer. Item: L1-16.
+
+**Reproduction (auditor `TestT4ReadWaitClose`; the skeptics read the code).** A caught-up consumer, `ReadWait` in a goroutine,
+`c.Close()` returns nil, `ReadWait` still blocked 2 s later; afterwards `Read` returns 0 records and nil, and `Records` iterates normally.
+
+**Why held.** The spec does not call for `Close` to end a wait, so the doc is the wrong side by default; but making `Close` wake
+waiters and return `ErrClosed` is a behaviour change to an exported type, and narrowing errors.go:23 changes the stated contract.
+
+**Recommended answer.** Reword consumer.go:249 to "ctx is done or the underlying Log or Reader closes"; say that `Read`, `ReadWait`,
+`Scan`, `Records` and `Follow` ignore `Consumer.Close`; narrow errors.go:23 to match. Do not change the code.
+
+**Fix written.** None.
+
+## L1-26: the `quill append` oversize message states a size that stdin does not have (low)
+
+**Claim.** When `quill append` reads an oversize stdin it prints "quill: payload too large: stdin is a batch of more than 16777216
+bytes, MaxBatchBytes is 16777216". The number is not stdin's size: the limit is applied to the sum of `len(line)+34` per line
+(cmd/quill/write.go:162-168, decision 46), an upper bound on the encoded size. A stdin of about 0.96 MB trips it. Item: L1-26.
+
+**Reproduction (verified by both skeptics).** `yes x | head -n 479349 | quill -dir t3 append` exits 0; with 479,350 lines
+(958,700 bytes on stdin) it prints the message above and exits 1. The same count confirms the append summary's "about 479,000
+one-byte lines".
+
+**Why held.** The CLI's error text is part of its output shape, and a script or test may match it; the threshold itself is intended
+(decision 46) and the code comment at write.go:159-161 is right.
+
+**Recommended answer.** Reword, for example: "stdin would be a batch over MaxBatchBytes (%d); each line is counted as its length plus
+34 bytes". Update any test that pins the old text. No change to the limit.
+
+**Fix written.** None.
+
+## L1-51: a 16 KiB index stride reads faster at random positions for 4x the index memory (low, PLAUSIBLE)
+
+**Claim.** Narrowing `indexStride` (load.go:23, 64 KiB) to 16 KiB makes a 100-record `Read` at a random sealed position or near the
+tail 22-27% faster (macOS `ReadSealed` 37.3-38.3 us to 29.0-29.8 us, Linux 74.3-82.8 to 52.6-59.2 us; reads that start at an anchor are
+unchanged), at 4x the resident index (24 bytes per anchor: about 0.15% of the log's size against 0.037%, about 1.5 GB per TiB of
+retained log, per Log and per Reader that scanned every segment). benchmark-baselines.md:105 already lists it as a follow-up. Item: L1-51.
+
+**Evidence.** Auditor benchmarks on both platforms (reported). Skeptics: one saw about 20-25% on random positions (verified, with
+the full suite passing at 16 KiB); one saw 37.8 to about 32 us on `ReadSealed` and did not reproduce the 22-27%. The `Tail`
+benchmark reads at one fixed offset, so its alignment effect is partly an artefact (32 KiB shows nothing on `Tail`).
+
+**Why held.** It is a tuning trade-off of memory for latency, not a defect; nothing in the spec fixes the stride, but
+docs/architecture.md:42 states "one anchor per 64 KiB".
+
+**Recommended answer.** Keep 64 KiB for the first public release. The gain is 8-17 us on a read that already costs 40-80 us, it
+appears only at random sealed positions, and the cost is a fourfold index per Log and per Reader. If a real workload shows
+random-position reads dominating, take 32 KiB (about half the gain at half the memory), and update architecture.md:42, the
+`load.go` comment and the baselines in the same commit.
+
+**Fix written.** None.
+
+## Open after a rejected fix (not held for an owner decision)
+
+Three items had a fix written whose fix-skeptic rejected it on a stated defect. They are not in the tree (the attempts sit on
+side branches and are not ancestors of the tip). No owner decision is needed beyond letting the corrected fix land; they are
+listed so that nothing open lives only in the record.
+
+- **L1-3: `GapError.From` is "the requested offset" only if nothing was delivered.** Attempt 52be0dd (docs only). Rejected:
+  `Consumer.Scan` also returns the gap immediately after delivering records, so the CHANGELOG sentence that "Read, ReadWait and the
+  consumers' reads leave such a gap for the next call" is false for it, and decisions 101 and 103 list "Scan, ScanAll or
+  Reader.Scan" and omit `Consumer.Scan`. Remaining: name `Consumer.Read` and `Consumer.ReadWait` in that sentence, add
+  `Consumer.Scan` to the lists, add a `Consumer.Scan` test case. The text to land: "`From` is the first unavailable sequence: the
+  requested offset when nothing was delivered before the gap, otherwise the sequence after the last record the scan delivered;
+  `To` is the last missing sequence, so a consumer resumes with `Commit(To+1)`." Behaviour stays as decision 84 says.
+- **L1-10: the `Config.Logger` doc omits records the code writes.** Attempt 8192ca0 (a complete grouped list in log.go, scope.md:122
+  and userguide.md:205). Rejected: it says the MinFreeBytes records are "one record per transition, not per pass", but the "cannot
+  read free space" Warn (retention.go:268) is written on every pass where `statfs` fails (6 identical Warns for 6 passes,
+  reproduced). Remaining: say that Warn is written on every failing pass and keep "one per transition" for the below-floor Warn
+  and the back-above Info; or add a transition guard in code (a behaviour change, so the owner's call).
+- **L1-21: the O(log segments) cost of `OffsetForTime`.** Attempt 9a3f648 (seek.go, scope.md, decisions 59 and 63, CHANGELOG state
+  the cost as O(log segments) comparisons plus one segment scan over a view that costs O(sealed segments) per call and, on a
+  Reader's first call, one open per sealed segment; counting filesystem: 403 opens on the first call, 2 on the second, for 401
+  segments). Rejected: docs/design/build-prompt.md:385 (test T19) still says "cost touches O(log segments) first frames and
+  one segment". Remaining: that one sentence.
