@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -451,6 +453,49 @@ func TestReadStateAcceptsAFileOfExactlyMaxStateBytes(t *testing.T) {
 		}
 		if !tc.ok && !errors.Is(err, errBadState) {
 			t.Errorf("%d bytes: %v", tc.size, err)
+		}
+	}
+}
+
+// Hostile state files the size of the cap are refused, and refusing one in both decoders
+// allocates at most 64 times its size (guarantee 7; about 35 times for the worst shape when
+// measured). The shapes are the ones whose cost grows with the input: nesting, many distinct
+// keys and escapes.
+func TestHostileStateFilesAreRefusedWithBoundedAllocation(t *testing.T) {
+	fill := func(unit string) string { return strings.Repeat(unit, maxStateBytes/len(unit)) }
+	var keys strings.Builder
+	keys.WriteByte('{')
+	for i := 0; keys.Len() < maxStateBytes-32; i++ {
+		keys.WriteString(`"k` + strconv.Itoa(i) + `":0,`)
+	}
+	keys.WriteString(`"z":0}`)
+	shapes := map[string]string{
+		"nested objects":       fill(`{"a":`),
+		"nested arrays":        fill(`[`),
+		"distinct keys":        keys.String(),
+		"malformed escapes":    `{"seq":"` + fill(`\u`) + `"}`,
+		"valid escapes":        `{"seq":"` + fill(`A`) + `"}`,
+		"escaped pairs":        `{"seq":"` + fill(`😀`) + `"}`,
+		"lone surrogates":      `{"seq":"` + fill(`\ud83d`) + `"}`,
+		"long key":             `{"` + fill(`k`) + `":1}`,
+		"many short values":    `{"retention":[` + fill(`1,`) + `0]}`,
+		"many unknown members": fill(`{"x":1},`),
+		"deep array in field":  `{"retention":` + fill(`[`) + `}`,
+	}
+	for name, in := range shapes {
+		if len(in) > maxStateBytes+64 {
+			t.Fatalf("%s: %d bytes is not the size of a state file at the cap", name, len(in))
+		}
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		_, terr := decodeTail([]byte(in))
+		_, pok := decodePolicy([]byte(in))
+		runtime.ReadMemStats(&after)
+		if terr == nil || !errors.Is(terr, errBadState) || pok {
+			t.Errorf("%s: accepted: tail %v, policy %v", name, terr, pok)
+		}
+		if got := after.TotalAlloc - before.TotalAlloc; got > 64*uint64(len(in)) {
+			t.Errorf("%s: %d bytes allocated for a %d byte file (%d times, both decoders), want under 64", name, got, len(in), got/uint64(len(in)))
 		}
 	}
 }

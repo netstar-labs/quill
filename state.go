@@ -405,11 +405,17 @@ func ReadPolicy(dir string) (cfg Config, ok bool) {
 	if !ok {
 		return Config{}, false
 	}
+	return p.config(), true
+}
+
+// config converts a policy decodePolicy accepted to the Config fields it carries. Its
+// durations parsed in decodePolicy, so the parse errors dropped here cannot happen.
+func (p policy) config() Config {
 	dur := func(s string) time.Duration {
 		d, _ := time.ParseDuration(s)
 		return d
 	}
 	return Config{Retention: dur(p.Retention), SegmentBytes: p.SegmentBytes, SegmentMaxAge: dur(p.SegmentMaxAge),
 		MaxBytes: p.MaxBytes, MinFreeBytes: p.MinFreeBytes, MaxRecords: p.MaxRecords, MaxPayloadBytes: int(p.MaxPayloadBytes),
-		ConsumerTTL: dur(p.ConsumerTTL), ProtectedConsumers: p.ProtectedConsumers}, true
+		ConsumerTTL: dur(p.ConsumerTTL), ProtectedConsumers: p.ProtectedConsumers}
 }

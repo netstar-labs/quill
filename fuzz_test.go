@@ -95,9 +95,43 @@ func FuzzDecodeTail(f *testing.F) {
 		if tl.Off > maxSegmentFileBytes {
 			t.Fatalf("accepted off %d above the largest segment", tl.Off)
 		}
+		if tl.Seg > tl.MaxSeg || tl.MaxSeg > maxSegmentID {
+			t.Fatalf("accepted seg %d, maxseg %d: want seg <= maxseg <= %d", tl.Seg, tl.MaxSeg, uint64(maxSegmentID))
+		}
 		again, err := decodeTail(encodeTail(tl))
 		if err != nil || again != tl {
 			t.Fatalf("round trip: %+v %v", again, err)
+		}
+	})
+}
+
+// FuzzTailDiff pins decision 105: decodeTail gives the strict path's verdict, value and error
+// text on every input, and the fast path accepts only the exact bytes encodeTail writes, so
+// it cannot widen what is accepted.
+func FuzzTailDiff(f *testing.F) {
+	f.Add(encodeTail(tail{Seq: 1, Seg: 2, Off: 3, MaxSeg: 4}))
+	f.Add(encodeTail(tail{Seq: 9999999999999999999, Seg: maxSegmentID, Off: maxSegmentFileBytes, MaxSeg: maxSegmentID}))
+	f.Add(encodeTail(tail{}))
+	f.Add([]byte(`{"seq":1,"seg":2,"off":3,"maxseg":4}`))
+	f.Add([]byte(`{ "seq":1,"seg":2,"off":3,"maxseg":4}` + "\n"))
+	f.Add([]byte(`{"seq":01,"seg":2,"off":3,"maxseg":4}` + "\n"))
+	f.Add([]byte(`{"seq":18446744073709551615,"seg":2,"off":3,"maxseg":4}` + "\n"))
+	f.Add([]byte(`{"seq":1,"seg":2,"off":3,"maxseg":4}` + "\n\n"))
+	f.Add([]byte(`{"seq":1,"seg":2,"off":1610612737,"maxseg":4}` + "\n"))
+	f.Add([]byte(`{"seq":1,"seg":5,"off":3,"maxseg":4}` + "\n"))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		got, gerr := decodeTail(data)
+		want, werr := decodeTailSlow(data)
+		if got != want || (gerr == nil) != (werr == nil) || (gerr != nil && gerr.Error() != werr.Error()) {
+			t.Fatalf("decodeTail %+v, %v; strict path %+v, %v", got, gerr, want, werr)
+		}
+		if fast, ok := decodeTailFast(data); ok {
+			if werr != nil || fast != want {
+				t.Fatalf("fast path accepted %q as %+v; strict path %+v, %v", data, fast, want, werr)
+			}
+			if !bytes.Equal(encodeTail(fast), data) {
+				t.Fatalf("fast path accepted %q, which encodeTail would not write", data)
+			}
 		}
 	})
 }
@@ -141,5 +175,10 @@ func FuzzDecodePolicy(f *testing.F) {
 		if _, ok := decodePolicy(encodePolicy(p)); !ok {
 			t.Fatalf("re-encoded policy refused: %+v", p)
 		}
+		// An accepted policy is converted as ReadPolicy does and fed to Config validation:
+		// it may be refused, never panic.
+		cfg := p.config()
+		cfg.Dir = "/nonexistent/fuzz"
+		_ = cfg.withDefaults().validate()
 	})
 }

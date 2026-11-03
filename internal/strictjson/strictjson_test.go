@@ -1,9 +1,13 @@
 package strictjson
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 type tail struct {
@@ -240,14 +244,159 @@ func TestStringValuesAreNeverDuplicateKeys(t *testing.T) {
 	}
 }
 
+// FuzzUnmarshalNeverPanics also holds what Unmarshal accepts to its contract: whatever it
+// accepts into an untyped value is one valid JSON document in valid UTF-8, with no lone
+// surrogate escape and no key repeated under case folding, as acceptedViolation re-checks.
 func FuzzUnmarshalNeverPanics(f *testing.F) {
 	f.Add([]byte(`{"seq":1,"seg":2,"off":3,"maxseg":4}`))
 	f.Add([]byte(`"𐀀"`))
 	f.Add([]byte(`\u`))
+	f.Add([]byte(`{"a":"` + esc("d83d", "de00") + `","b":[{"c":1},{"c":2}],"d":{}}`))
+	f.Add([]byte(`{"a":1,"A":2}`))
+	f.Add([]byte(`{"a":"` + esc("d800") + `"}`))
+	f.Add([]byte(`["` + esc("dc00") + `"]`))
+	f.Add([]byte(`{"a":1} {}`))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		var v tail
 		_ = Unmarshal(data, &v)
 		var s string
 		_ = Unmarshal(data, &s)
+		var a any
+		if Unmarshal(data, &a) == nil {
+			if msg := acceptedViolation(data); msg != "" {
+				t.Fatalf("accepted %q: %s", data, msg)
+			}
+		}
 	})
+}
+
+// acceptedViolation re-checks, by a route that shares no code with Unmarshal, what an input
+// Unmarshal accepted must satisfy. It returns "" when the input does.
+func acceptedViolation(data []byte) string {
+	if !utf8.Valid(data) {
+		return "invalid UTF-8"
+	}
+	if !json.Valid(data) { // exactly one value, nothing after it
+		return "not exactly one valid JSON value"
+	}
+	if msg := surrogateViolation(data); msg != "" {
+		return msg
+	}
+	if _, msg := scanValue(data, skipSpace(data, 0)); msg != "" {
+		return msg
+	}
+	return ""
+}
+
+func skipSpace(b []byte, i int) int {
+	for i < len(b) && (b[i] == ' ' || b[i] == '\t' || b[i] == '\n' || b[i] == '\r') {
+		i++
+	}
+	return i
+}
+
+// surrogateViolation walks the strings of a valid document and checks that every surrogate
+// escape is half of an escaped pair, high first.
+func surrogateViolation(b []byte) string {
+	hex := func(i int) (uint64, bool) {
+		if i+4 > len(b) {
+			return 0, false
+		}
+		v, err := strconv.ParseUint(string(b[i:i+4]), 16, 16)
+		return v, err == nil
+	}
+	inString := false
+	for i := 0; i < len(b); i++ {
+		switch {
+		case !inString:
+			inString = b[i] == '"'
+		case b[i] == '"':
+			inString = false
+		case b[i] == '\\' && b[i+1] != 'u':
+			i++
+		case b[i] == '\\':
+			v, ok := hex(i + 2)
+			if !ok {
+				return fmt.Sprintf("bad \\u escape at %d in a valid document", i)
+			}
+			i += 5 // the last hex digit
+			switch {
+			case v >= 0xDC00 && v <= 0xDFFF:
+				return fmt.Sprintf("lone low surrogate at %d", i-5)
+			case v >= 0xD800 && v <= 0xDBFF:
+				lo, ok := hex(i + 3)
+				if !ok || b[i+1] != '\\' || b[i+2] != 'u' || lo < 0xDC00 || lo > 0xDFFF {
+					return fmt.Sprintf("lone high surrogate at %d", i-5)
+				}
+				i += 6
+			}
+		}
+	}
+	return ""
+}
+
+// scanValue walks one value of a valid document from b[i] and returns the index after it. An
+// object that repeats a key under simple case folding is a violation.
+func scanValue(b []byte, i int) (int, string) {
+	switch b[i] {
+	case '"':
+		return stringEnd(b, i), ""
+	case '[':
+		if i = skipSpace(b, i+1); b[i] == ']' {
+			return i + 1, ""
+		}
+		for {
+			end, msg := scanValue(b, skipSpace(b, i))
+			if msg != "" {
+				return 0, msg
+			}
+			i = skipSpace(b, end) + 1 // the comma or the closing bracket
+			if b[i-1] == ']' {
+				return i, ""
+			}
+		}
+	case '{':
+		var keys []string
+		if i = skipSpace(b, i+1); b[i] == '}' {
+			return i + 1, ""
+		}
+		for {
+			i = skipSpace(b, i)
+			end := stringEnd(b, i)
+			var k string
+			if err := json.Unmarshal(b[i:end], &k); err != nil {
+				return 0, "key does not unquote: " + err.Error()
+			}
+			for _, prev := range keys {
+				if strings.EqualFold(prev, k) {
+					return 0, fmt.Sprintf("duplicate key %q and %q", prev, k)
+				}
+			}
+			keys = append(keys, k)
+			i = skipSpace(b, end) + 1 // the colon
+			vend, msg := scanValue(b, skipSpace(b, i))
+			if msg != "" {
+				return 0, msg
+			}
+			i = skipSpace(b, vend) + 1 // the comma or the closing brace
+			if b[i-1] == '}' {
+				return i, ""
+			}
+		}
+	}
+	// A number, true, false or null ends at a delimiter.
+	for i < len(b) && !strings.ContainsRune(",]} \t\r\n", rune(b[i])) {
+		i++
+	}
+	return i, ""
+}
+
+// stringEnd returns the index after the string that opens at b[i].
+func stringEnd(b []byte, i int) int {
+	for i++; b[i] != '"'; i++ {
+		if b[i] == '\\' {
+			i++
+		}
+	}
+	return i + 1
 }
