@@ -389,7 +389,7 @@ func (l *Log) load() error {
 			holes = append(holes, Hole{From: prevLast + 1, To: tl.Seq})
 			head = tl.Seq
 		}
-	} else if leadBad {
+	} else if leadBad && tl.Seq > 0 { // a marker at 0 promises nothing: no empty hole
 		holes = append(holes, Hole{From: 1, To: tl.Seq})
 	}
 	if hasFrames && head < tl.Seq {
