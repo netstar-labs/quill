@@ -17,7 +17,7 @@ that tried to break the resource bounds and the isolation rules from outside. Fi
 | [defects-log.md](defects-log.md) | each defect found: root cause, fix, regression test |
 | [harness-inventory.md](harness-inventory.md) | every harness and fixture, and what it can and cannot simulate |
 | [untestable-without-x.md](untestable-without-x.md) | what still cannot be tested, with the exact blocker and the artifact that would unblock it |
-| [stage2-owner-decisions.md](stage2-owner-decisions.md) | the one held item, L2-53, with the recommended answer |
+| [stage2-owner-decisions.md](stage2-owner-decisions.md) | L2-53, which was held: the recommended answer, the owner's approval of 2026-11-03 and the fix |
 
 ## Summary
 
@@ -26,8 +26,8 @@ that tried to break the resource bounds and the isolation rules from outside. Fi
 | items | 53 filed after merging 5 duplicates (58 raw ids, L2-1 to L2-58; merged: L2-54 into L2-1, L2-5 into L2-25, L2-7 into L2-17, L2-23 and L2-40 into L2-8). 52 are test gaps and 1 is a bug (L2-53, a resource bound) |
 | by verdict | 47 CONFIRMED, 6 PLAUSIBLE (L2-11, L2-12, L2-55, L2-56, L2-57, L2-58), 0 REFUTED. Three individual votes were REFUTED and are kept with their reason on L2-55, L2-57 and L2-58 |
 | by severity as filed | 7 high, 27 medium, 19 low. One voter on L2-24 would lower its severity to medium |
-| by disposition | 52 fixed, 1 held for the owner (L2-53), 0 deliberately not changed. 0 fix-failed: the ledger records one fix per item and no rejected attempt |
-| fix-skeptic outcomes | 52 of 52 FIXED-VERIFIED, 6 lenses each (test fails without the fix, root cause, behaviour preserved, no new gap, reachable, ladder), 312 lens verdicts, all pass (reported by the skeptics) |
+| by disposition | 52 fixed, 1 held for the owner (L2-53), 0 deliberately not changed. 0 fix-failed: the ledger records one fix per item and no rejected attempt. **Updated 2026-11-03:** the owner approved the recommended answer for L2-53 and it is fixed in 637ed42, FIXED-VERIFIED (7 of 7 lenses pass, reported by the skeptic), so 53 fixed and 0 held. The counts in the other rows are the state when the pass was recorded |
+| fix-skeptic outcomes | 52 of 52 FIXED-VERIFIED, 6 lenses each (test fails without the fix, root cause, behaviour preserved, no new gap, reachable, ladder), 312 lens verdicts, all pass (reported by the skeptics). Added 2026-11-03: L2-53's fix, FIXED-VERIFIED with 7 lenses, all pass, makes 53 of 53 and 319 lens verdicts |
 | finding-skeptic votes | 109: 101 CONFIRMED, 5 PLAUSIBLE, 3 REFUTED (50 items had 2 votes, L2-55, L2-57 and L2-58 had 3) |
 | reproduced by execution | 100 of the 109 votes reported a reproduction; 52 of 53 items had at least one reproducing vote. The exception is L2-57, an absence claim checked by grep only. Tallied by the recorder from the ledger (inferred from it, not re-run) |
 | mutants run | 530 valid mutants over four runs: 177 (write path), 195 (recovery and retention), 141 (reader and CLI), 17 (coverage run). About 24 first drafts that did not compile were rewritten and are not counted |
@@ -700,7 +700,7 @@ One entry per item, in severity order. "Voters" are the two or three skeptics wh
 - **Disposition.** Fixed in `a891274`, FIXED-VERIFIED by a fix-skeptic (6 of 6 lenses pass; reported by the skeptic). Test change only; no production file changed. The commit also edited the T12 row of test-ledger.md. Tests: `FuzzWalkChunks`, `FuzzReaderDir`.
 - **Left open by the fix** (reported by the fix-skeptic). The committed targets do not detect two faults (reported by the fix-skeptic): removing the seq-0 guard in walk (no seed has a CRC-valid seq-0 frame; an example test catches it) and a Reader that stops serving at an anchor (FuzzReaderDir discards r.Read errors, so it checks safety, not liveness).
 
-### L2-53 (medium, CONFIRMED) held for the owner
+### L2-53 (medium, CONFIRMED) held for the owner; approved and fixed 2026-11-03
 - **Claim.** MaxReadBytes bounds payload bytes only, so a single Read(offset, 0), and every Records or Follow batch, can allocate gigabytes when payloads are empty or tiny.
 - **Grounds.** read.go loop condition `maxBytes <= 0 || bytes < maxBytes` and `bytes += len(rec.Payload)`; iter.go passes limit 0 and maxBytes = MaxReadBytes. 4,000,000 empty-payload records: Log.Read(1,0) returned all 4,000,000, TotalAlloc 788 MB. 17,000,000 one-byte records at the default 16 MiB: 16,777,216 records, TotalAlloc 3,892 MB, process max RSS 2.78 GB.
 - **Warrant.** An empty payload adds 0 to a total that must reach the cap, so the record count, and with it the 40-byte Record slice plus per-record clones, is bounded only by the log size; the 16 MiB figure understates the memory about 240-fold for 1-byte records.
@@ -709,6 +709,7 @@ One entry per item, in severity order. "Voters" are the two or three skeptics wh
 - **Verdict.** CONFIRMED. Votes: 2 CONFIRMED. Reproduced by: both voters.
 - **Reproduction.** Auditor program (default Config, real disk, macOS arm64) as above. Voter 1: 1,000,000 nil payloads via AppendBatch, Read(1,0) returned 1,000,000 records, 206 MB. Voter 2: 2,000,000 empty payloads, Read(1,0) and Records() each returned or iterated all 2,000,000 and allocated about 403 MB against a 16 MiB cap. Neither re-ran the 17M case.
 - **Disposition.** Held for the owner, recommended answer in [stage2-owner-decisions.md](stage2-owner-decisions.md), section "L2-53". No fix is written, so there is no fix-skeptic outcome and no regression test yet. No fix written. Held for the owner: see stage2-owner-decisions.md, section L2-53.
+- **Disposition (updated 2026-11-03).** Owner-approved on 2026-11-03: the recommended answer (charge each record `len(payload) + 48` bytes against `MaxReadBytes`; at least one record per call; the cap reworded as a bound on the size of a batch, not on the sum of payloads). Fixed in 637ed42, FIXED-VERIFIED by a fix-skeptic, 7 of 7 lenses pass (test fails without the fix, root cause, behaviour preserved, no new gap, reachable, ladder, independent route; reported by the skeptic). The one accumulation line in `scanSource` now adds `readRecordOverhead` (read.go:125, value 48; the line is read.go:271, both verified in the tree) and every read path reaches it with the cap; `Scan` is unaffected. Tests: `read_overhead_test.go` (:27 and :91) and adapted constants in append_test.go. Reported by the fix-skeptic on 1,000,000 empty records at the default cap: every read form returned 349,526 records per call, `Records` and `Follow` yielded all 1,000,000 in order, and `Read(1,0)` allocated 216 MB before and 70 MB after. The earlier sentence in this item, "No fix is written, so there is no fix-skeptic outcome and no regression test yet", is the state when the pass was recorded. Left by the skeptic: userguide.md:207 still says the cap "bounds the memory of a read" although a bounded read allocates about 4 times the cap; `staticcheck` and `deadcode` not run by the skeptic; the Linux x86-64 box not used (linux/arm64 in an Apple container instead). Details: [stage2-owner-decisions.md](stage2-owner-decisions.md), section "L2-53".
 
 ### L2-9 (low, CONFIRMED)
 - **Claim.** The only code that reads real free space, freeBytes, is executed by no test on either OS (0% on macOS and Linux); MinFreeBytes tests always inject Config.statfs.

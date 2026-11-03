@@ -38,6 +38,28 @@ Merged duplicates: L1-45 into L1-39, L1-37 into L1-22, L1-46 into L1-44.
 | Fix-skeptic | 30 fixes attacked: 27 FIXED-VERIFIED (6 of 6 lenses pass; 7 of 7 for L1-14, L1-15 and L1-48), 3 rejected (L1-3, L1-10, L1-21) |
 | Vote splits worth knowing | L1-10 (CONFIRMED, REFUTED, CONFIRMED, filed PLAUSIBLE), L1-12 (REFUTED, CONFIRMED, CONFIRMED, filed PLAUSIBLE), L1-31 (PLAUSIBLE, REFUTED, PLAUSIBLE), L1-41 (CONFIRMED, REFUTED, REFUTED), L1-47 (CONFIRMED, REFUTED, REFUTED), L1-51 (REFUTED, CONFIRMED, PLAUSIBLE), L1-13 (REFUTED, REFUTED) |
 
+**Update 2026-11-03 (pass L1h).** The owner took the recommended answer on 2026-11-03 for L1-4, L1-5, L1-11, L1-12, L1-16 and
+L1-26 and for L1-51 (keep the 64 KiB stride), and asked for the three rejected fixes (L1-3, L1-10, L1-21) to be finished. The
+state of the 50 items is now:
+
+| Disposition on 2026-11-03 | Items | Count |
+|---|---|---|
+| Fixed, fix-skeptic FIXED-VERIFIED | the 27 above, plus L1-5 (867f4ed), L1-11 (ce47243), L1-12 (be8cb15, wording only), L1-16 (923623c), L1-21 (41297fb) and L1-26 (c2cddb7) | 33 |
+| Fix written, rejected by the fix-skeptic, not in the tree | L1-3 (47df71b), L1-4 (de3cfd4), L1-10 (0a77730) | 3 |
+| Decided, deliberately not changed | L1-51 (owner kept 64 KiB; outside the L1h batch) | 1 |
+| Held for the owner | none | 0 |
+| Recorded, not applied | L1-32, 33, 35, 38 | 4 |
+| Refuted | L1-13, 30, 41, 44, 47 | 5 |
+| Decided in round 1 | L1-17, 34, 36, 42 | 4 |
+
+The pass L1h fix-skeptics (reported): 9 fixes attacked in this pass, 6 FIXED-VERIFIED (L1-5, 11, 12, 16, 21, 26: 39 lens verdicts,
+all pass, 7 lenses for L1-5, 11 and 26 and 6 for the others) and 3 rejected (L1-3, L1-4, L1-10; the objection of each is
+under its item). No new skeptic votes on the findings. The L1-12 optional refusal is not implemented and stays an open optional
+follow-up (see the L1-12 item and [stage2-owner-decisions.md](stage2-owner-decisions.md)). Coverage of the fix-skeptics: see the
+coverage statement for pass L1h in that file; in short, `staticcheck`, `deadcode` and the fuzz step were not run by the fix-skeptics
+of L1-5, 11, 12 and 26, and the Linux x86-64 box was not used by those of L1-5, 11, 12 and 26. The three sections of this file that
+list items "held" and "rejected" below are the record as written on 2026-11-02; each item carries its updated disposition.
+
 What the pass found, in one paragraph. No data-loss or durability defect in the library was reported. Two behaviour bugs
 (L1-14: `FlushFailing` stays true on a failed log; L1-15: an empty `Hole{1,0}` from `Open`), one error-class bug
 (L1-1: an oversize or non-regular state file was not `ErrCorrupt`), all fixed with regression tests. One real
@@ -617,6 +639,7 @@ run on the attempt tree): `Consumer.Scan` also returns the gap immediately after
 call" is false for `Consumer.Scan`; decisions 101 and 103 and the commit message list "Scan, ScanAll or Reader.Scan" and omit
 `Consumer.Scan`; the test covers only `Reader.Scan` and `ScanAll`. Remaining work: correct that sentence to name
 `Consumer.Read` and `Consumer.ReadWait`, add `Consumer.Scan` to the lists, add a `Consumer.Scan` case. See the owner file.
+*Disposition, updated 2026-11-03.* Owner-approved to finish. Attempt 47df71b documents `From` as the first unavailable sequence for every call form, `Records` and `Follow` included, with a test per form, and was REJECTED again: CHANGELOG.md:197 (an Unreleased `Fixed:` entry) still says a Log's `Read`, `Scan`, `ScanAll`, `Records`, `Follow` and consumer reads return a `GapError` "starting at the offset asked for", which is false for the scans after delivered records and for `Records` and `Follow`, and the new test covers the Reader and a Reader-backed consumer only (the recorder read the changelog line on the branch). Open; remaining work and the rebasing note are in [stage2-owner-decisions.md](stage2-owner-decisions.md), "Open after a rejected fix".
 
 **L1-10 (low, PLAUSIBLE; votes CONFIRMED, REFUTED, CONFIRMED).** *Claim.* The `Config.Logger` doc enumerates what is logged but
 omits the MinFreeBytes transitions, "age rotation skipped because the flush failed", the unreadable-consumer-file Warn, the
@@ -629,6 +652,7 @@ says the MinFreeBytes records are "one record per transition, not per pass", but
 (retention.go:268) is written on every pass where `statfs` fails, with no guard; the fix swapped an omission for a false statement
 in three places. Remaining work: say the cannot-read Warn is written on every failing pass and keep "one per transition" only for
 the below-floor Warn and the back-above Info (or add a transition guard in code). See the owner file.
+*Disposition, updated 2026-11-03.* Owner-approved to finish as documentation only (no transition guard in code). Attempt 0a77730 lists every record and says the "cannot read free space" Warn is written on every failing pass and seal, and was REJECTED again: it says a deleted or already-gone segment "is one record when it goes" in four places, but `deleteLocked` logs the Warn "segment was already gone" and then also the deletion record (the skeptic reproduced two records for a segment removed by hand and then pruned; the recorder read the code on the branch, retention.go:345-374). Open; see [stage2-owner-decisions.md](stage2-owner-decisions.md), "Open after a rejected fix".
 
 **L1-21 (low, CONFIRMED, 2 of 2; reproduced by the auditor).** *Claim.* The O(log segments) cost of `OffsetForTime` holds for a
 Log and a warm Reader; a Reader's first call opens about every sealed segment. *Grounds.* seek.go:11-12; scope.md ("O(log
@@ -640,6 +664,7 @@ the cost as O(log segments) comparisons plus one segment scan over a view costin
 Objection (fix-skeptic): docs/design/build-prompt.md:385 (test T19) still reads "cost touches O(log segments) first frames and
 one segment", contradicting the amended text; commit 50201e1 shows the repo updates that file alongside such wording fixes.
 Remaining work: that one sentence. See the owner file.
+*Disposition, updated 2026-11-03.* Owner-approved to finish. Fixed in 41297fb (on `main`), FIXED-VERIFIED by a fix-skeptic, 6 of 6 lenses pass (reported): build-prompt.md:385 (T19) and every other statement of the cost now read O(log segments) comparisons plus one segment scan over a view costing O(sealed segments) per call, and the dated notes on decisions 59 and 63 say "Stage 2 audit, owner-approved 2026-11-03". Docs and comments only; the non-comment lines of seek.go are unchanged. The skeptic did not re-run the 403-opens reproduction.
 
 ### Held for the owner (7)
 
@@ -652,6 +677,7 @@ injected; `Flush`: "log failed; close and reopen: EIO"; `Sync(ctx,1)` nil, `Sync
 `ErrBadSeq`. *Grounds.* flush.go:285-288, 293-295; errors.go:31-36. *Warrant.* The switch tests `l.head >= seq` before
 `l.failed`. *Backing.* Decisions 37, 42 (unless durable). *Rebuttal.* The behaviour is right (those records are durable);
 the wording is wrong. *Disposition.* Held: the reworded guarantee is a spec text change.
+*Disposition, updated 2026-11-03.* Owner-approved (reword; do not change the code). Fix de3cfd4 rewords the claim in errors.go, decision 37, the user guide and scope.md and pins all three `Sync` behaviours on `fsx.Sim`; REJECTED by the fix-skeptic for an unfinished sweep: docs/design/build-prompt.md:300 (T3) and the runtime log message at flush.go:135 with its quotation at docs/userguide.md:53 keep "every later call returns ErrFailed" (the recorder read the lines on the branch). Not on `main`; open. See [stage2-owner-decisions.md](stage2-owner-decisions.md), section L1-4.
 
 **L1-5 (low, CONFIRMED, 2 of 2, neither skeptic ran it; reproduced by the auditor).** *Claim.* `Append` and `AppendBatch` document no error-path return value and the code
 is inconsistent: `appendLocked` returns `(first, ErrFailed)` when an inline flush's fsync fails, `AppendBatch` discards it
@@ -661,6 +687,7 @@ and returns `(0, err)`; after a `SyncAppends` failure it returns `(first, err)`.
 consumed and the record is buffered, but 0 is returned. *Backing.* Decision 42; decision 100 is about the CLI only.
 *Rebuttal.* "0 on error" may mean "no sequence promised"; after a fatal fsync the log is reopened anyway and recovery adopts
 verified frames; survival is inferred from format.md:104, not run. *Disposition.* Held: either choice is an API contract.
+*Disposition, updated 2026-11-03.* Owner-approved (return `first` on every failure after sequences were assigned). Fixed in 867f4ed (on `main`), FIXED-VERIFIED by a fix-skeptic, 7 of 7 lenses pass (reported): `AppendBatch` returns `(first, err)` on an inline-flush failure (append.go:52), 0 only where nothing was assigned; documented; tests in append_error_seq_test.go; red on the parent for the two inline-flush cases (reported). Residual: the text does not warn that an unpersisted record's sequence can be reassigned.
 
 **L1-11 (medium, CONFIRMED, 2 of 2, both reproduced; bug).**
 *Claim.* `Reader.Check` reports HEALTHY when the oldest sealed segment is truncated to zero bytes, though `Open` reports a hole
@@ -675,6 +702,7 @@ next survivor, so a hole at the front is not reported. *Backing.* Guarantee 6, d
 sealed file itself, so it needs outside damage (a tmp cleaner, a bad restore); a middle hole is still reported (as a hole
 naming the next file). *Disposition.* Held: reports a new fatal finding where `Check` today says healthy, an operator-visible
 exit-code change (0 to 3); see the owner file for the recommended answer.
+*Disposition, updated 2026-11-03.* Owner-approved (report it, as `Open` does). Fixed in ce47243 (on `main`), FIXED-VERIFIED by a fix-skeptic, 7 of 7 lenses pass (reported): `Reader.Check` reports a sealed segment with no frames as a fatal `segment` problem (stat.go:272), `quill check` exits 3 where it exited 0; red on the parent for the oldest and the middle position (reported). Residual: the Reader's `Stat` does not report an empty middle or last sealed segment as a hole (a sibling, not filed; see the owner file).
 
 **L1-12 (medium as filed, PLAUSIBLE; votes REFUTED, CONFIRMED, CONFIRMED; all three reproduced).**
 *Claim.* `Archive` into a new or empty destination after the `_archive` consumer has advanced copies only records from the
@@ -687,6 +715,7 @@ consumer offset and gap detection needs the offset below the source's first or a
 commit -name _archive -offset N` rewinds it. The REFUTED voter said decision 85 documents it; the arbiter (third vote) did not
 find that text and sided with a false comment and misleading docs. *Disposition.* Held: the minimum is wording; the real fix
 (refuse or `GapError` for a new destination) is a design change.
+*Disposition, updated 2026-11-03.* Owner-approved, wording only. Fixed in be8cb15 (on `main`), FIXED-VERIFIED by a fix-skeptic, 6 of 6 lenses pass (reported); no code changed, and the test (archive_test.go:370) pins the documented behaviour (it fails under a mutation that copies the whole source). The optional refusal (an error, not a `GapError`, when the destination is new and the source's first retained sequence is below the `_archive` offset) is not implemented and stays an open optional follow-up that needs its own owner decision.
 
 **L1-16 (low, CONFIRMED, 2 of 2; reproduced by the auditor).** *Claim.* `Consumer.ReadWait` is documented to return when "the
 handle closes", but `Consumer.Close` does not wake it. *Grounds.* consumer.go:249, 253-255, 262-271. *Reproduction.*
@@ -696,6 +725,7 @@ Consumer. *Backing.* consumer.go:249 text. *Rebuttal.* "The handle" may mean the
 `Reader.ReadWait`). A secondary mismatch noted by a skeptic: errors.go:23 says `ErrClosed` covers "a call on a closed Log,
 Reader or Consumer", but only `Commit` and `Close` return it on a closed Consumer. *Disposition.* Held: reword, or make
 `Close` wake waiters (a behaviour change).
+*Disposition, updated 2026-11-03.* Owner-approved (reword; do not change the code). Fixed in 923623c (on `main`), FIXED-VERIFIED by a fix-skeptic, 6 of 6 lenses pass (reported): `Consumer.Close` releases only the lock; `Read`, `ReadWait`, `Scan`, `Records` and `Follow` ignore it; on a closed Consumer only `Commit`, `SeekToTime` and a second `Close` return `ErrClosed`; code unchanged, the test (consumer_close_test.go:14) fails under mutation of the closed checks.
 
 **L1-26 (low, CONFIRMED, 2 of 2, both reproduced).** *Claim.* `quill append` on an oversize stdin prints "stdin is a batch of more
 than 16777216 bytes", which is not stdin's size: the limit applies to the sum of `len(line)+34`. *Grounds.* cmd/quill/write.go:162-168;
@@ -704,6 +734,7 @@ payload too large: stdin is a batch of more than 16777216 bytes, MaxBatchBytes i
 byte count of stdin; false for stdin under 1 MB. *Backing.* Decision 46; the code comment at write.go:159-161 is right.
 *Rebuttal.* "Batch" can be read as the encoded batch; the skeptics note the encoded batch is about 7 MB, so that does not
 hold either. *Disposition.* Held: any test or script pinning the message text changes.
+*Disposition, updated 2026-11-03.* Owner-approved (reword the message). Fixed in c2cddb7 (on `main`), FIXED-VERIFIED by a fix-skeptic, 7 of 7 lenses pass (reported): the message is now "stdin would be a batch over MaxBatchBytes (16777216); each line is counted as its length plus 34 bytes" (cmd/quill/write.go:166); limit, error identity and exit code unchanged; red on the parent (reported). The library's own "batch of about N bytes" at append.go:46 is a similar imprecision outside the claim.
 
 **L1-51 (low, PLAUSIBLE; votes REFUTED, CONFIRMED, PLAUSIBLE; one skeptic reproduced a smaller gain; perf).** *Claim.* Narrowing
 `indexStride` from 64 KiB to 16 KiB makes a 100-record `Read` at a random sealed position or near the tail 22-27% faster, at 4x the
@@ -713,6 +744,7 @@ says "one anchor per 64 KiB". *Rebuttal.* Memory is the cost (24 B per anchor; a
 scanned every segment); the Tail benchmark's alignment effect is partly an artefact (32K shows nothing on Tail); one skeptic saw
 37.8 to about 32 us on Sealed, a smaller gain. The full suite passes at 16 KiB (a skeptic ran it). *Disposition.* Held: a
 memory-for-latency trade-off.
+*Disposition, updated 2026-11-03.* Owner-approved on 2026-11-03: keep 64 KiB. Deliberately not changed, no code change; reopen only if a real workload shows random-position reads dominating (then 32 KiB, with architecture.md:42, the `load.go` comment and the baselines updated together).
 
 ### Recorded, not applied (4)
 
