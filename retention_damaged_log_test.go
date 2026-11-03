@@ -2,6 +2,7 @@ package quill
 
 import (
 	"testing"
+	"time"
 
 	"github.com/netstar-labs/quill/internal/fsx"
 )
@@ -37,5 +38,38 @@ func TestRetentionLogsTheDeletionOfADamagedSegmentAsALoss(t *testing.T) {
 	// The undamaged segment deleted by the same pass stays an ordinary line.
 	if !lc.has("level=INFO msg=\"deleted segment\" log=/log segment=/log/" + segmentName(1)) {
 		t.Fatalf("the undamaged segment's deletion is not the ordinary line: %q", lc.msgs)
+	}
+}
+
+// The age sweep never judges a damaged segment by its own age (it has no readable newest
+// record), so it keeps the file until a good segment after it has expired and then deletes
+// both. Without the skip a damaged segment would count as expired at once and be deleted
+// while every good segment is young.
+func TestTheAgeSweepKeepsADamagedSegmentUntilAGoodOneAfterItExpires(t *testing.T) {
+	s := fsx.NewSim()
+	clk := newClock()
+	damagedLog(t, s, clk)
+	l := openRetention(t, s, clk, func(c *Config) { c.SegmentMaxAge = -1 })
+	defer l.Close()
+	if ids := sealedIDs(l); len(ids) != 3 || l.sealed[0].bad == nil || l.sealed[1].bad != nil {
+		t.Fatalf("setup: sealed %v, first bad: %v", ids, l.sealed[0].bad)
+	}
+
+	// Nothing is an hour old: the damaged oldest segment stays.
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	if ids := sealedIDs(l); len(ids) != 3 || ids[0] != 0 {
+		t.Fatalf("damaged segment 0 deleted by age with nothing expired: %v", ids)
+	}
+
+	// Segment 1 (newest record at minute 1) expires, segment 2 (minute 2) does not: the damaged
+	// segment goes with segment 1, and segment 2 stays.
+	clk.Advance(time.Hour - 90*time.Second)
+	if err := l.Prune(true); err != nil {
+		t.Fatal(err)
+	}
+	if ids := sealedIDs(l); len(ids) != 1 || ids[0] != 2 {
+		t.Fatalf("after segment 1 expired the sealed segments are %v, want [2]", ids)
 	}
 }
