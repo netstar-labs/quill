@@ -623,3 +623,24 @@ func TestManualProcedureNeedsTheMarkerRewrittenAfterTruncatingTheNewestSegment(t
 		t.Fatalf("next sequence %d", seq)
 	}
 }
+
+// An ordinary flush does not fsync the directory, so the marker it renames in place may be
+// older after a crash by the flushes since the last directory fsync (decision 40). Close is
+// one of the directory fsync points (decision 65): after it returns, a power loss must leave
+// the marker at the head the writer acknowledged.
+func TestCloseMakesTheMarkerDurable(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	_, last := appendN(t, l, 3)
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s.Crash(nil)
+	data, err := s.Durable("/log/" + tailName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tl, err := decodeTail(data); err != nil || tl.Seq != last {
+		t.Fatalf("durable marker after Close: %+v %v, want Seq %d", tl, err, last)
+	}
+}
