@@ -335,7 +335,8 @@ func encodePolicy(p policy) []byte {
 // decodePolicy parses quill.policy tolerantly: unknown fields are ignored, and any failure
 // returns ok == false with the zero policy. It never fails Open (decision 48). A policy
 // with no retention (`{}`, null, only unknown fields) is a failure too: every writer writes
-// it, an off one as "-1ns", and a missing one would be acted on as 0, the 24 h default.
+// it, an off one as a negative duration ("-1ns" for Retention: -1), and a missing one would
+// be acted on as 0, the 24 h default.
 func decodePolicy(data []byte) (policy, bool) {
 	var p policy
 	if err := json.Unmarshal(bytes.TrimSpace(data), &p); err != nil || p.Retention == "" {
