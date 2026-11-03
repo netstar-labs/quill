@@ -81,7 +81,7 @@ func cmdConsumers(c *cli, args []string) int {
 // stale derives, as the writer's prune pass does (decision 45), whether a protected consumer has
 // stopped protecting segments under ConsumerTTL: it is behind, its offset file's mtime and the
 // record at its offset (the first retained one when a cap already deleted it, decision 82) are
-// both older than the TTL. Nothing about it is stored, so a probe that fails says nothing.
+// both at least as old as the TTL (an age equal to the TTL counts). Nothing about it is stored, so a probe that fails says nothing.
 func (c *cli) stale(r *quill.Reader, ci quill.ConsumerInfo, ttl time.Duration, head uint64, now time.Time) bool {
 	if ttl <= 0 || !ci.Protected || ci.Err != nil || ci.Offset > head {
 		return false

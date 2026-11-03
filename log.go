@@ -20,7 +20,7 @@ type Config struct {
 	// itself or a directory above it; the files inside the log directory never are. A relative
 	// Dir is made absolute at Open, so a later os.Chdir does not move the log.
 	Dir string
-	// Retention: whole sealed segments older than this are deleted. 0 means 24 h; negative
+	// Retention: whole sealed segments at least this old are deleted (an age equal to it counts). 0 means 24 h; negative
 	// disables expiry. Set it longer than the worst delay of any unprotected consumer.
 	Retention time.Duration
 	// PruneInterval is the sweep period: min(Retention, 1 m), at least 1 s; one minute when

@@ -106,7 +106,7 @@ result is a valid offset but may not be the first record at or after `t`. CLI: `
 | Field | Default | Notes |
 |---|---|---|
 | `Dir` | required | The log's directory, created if missing. Its base name is the topic name. A symbolic link to a directory is followed, as `Dir` or above it, by `Open` as by `OpenReader`; a link that leads to anything else is `ErrNoLog`. A relative `Dir` is made absolute at `Open` (and a relative `OpenReader` directory at `OpenReader`), so a later `os.Chdir` does not move the log |
-| `Retention` | `24h` | Whole sealed segments older than this are deleted. `0` means the default; negative disables expiry. **Set it longer than the worst delay of any consumer** |
+| `Retention` | `24h` | Whole sealed segments at least this old are deleted (compared in whole seconds, so a newest record exactly this old is expired). `0` means the default; negative disables expiry. **Set it longer than the worst delay of any consumer** |
 | `PruneInterval` | `min(Retention, 1m)`, ≥ 1 s | Sweep period; one minute when `Retention` is negative |
 | `FlushBytes` / `FlushInterval` | 64 KiB / 250 ms | Buffer size and background flush period |
 | `SyncAppends` | `false` | When true, every `Append` and `AppendBatch` returns only once its records are durable, as if it called `Sync` on its last sequence. A failed flush returns the error to the caller; the records stay buffered and may still become durable, so an error means unknown (decision 37) |
@@ -257,7 +257,7 @@ Consumers matter only when protected, and even then the caps win.
 
 | Goal | Knob | Notes |
 |---|---|---|
-| Forget after N hours (a TTL) | `Retention` | Per log. Segment-granular: a segment goes when its *newest* record is older than the window, so data can outlast it by up to about a segment (up to about twice the window for a quiet log; the reference's guide says so and marks it as inferred). `SegmentMaxAge` seals a quiet log's active segment so the TTL applies |
+| Forget after N hours (a TTL) | `Retention` | Per log. Segment-granular: a segment goes when its *newest* record is at least as old as the window (an age equal to it counts), so data can outlast it by up to about a segment (up to about twice the window for a quiet log; the reference's guide says so and marks it as inferred). `SegmentMaxAge` seals a quiet log's active segment so the TTL applies |
 | Never exceed N bytes | `MaxBytes` | The real rolling guarantee. A time window alone does not bound size: a fast writer fills the disk inside it (the reference's server default does exactly that, **reported**) |
 | Never fill the filesystem | `MinFreeBytes` | Backstop for a shared disk. Measured with `syscall.Statfs` (**verified**: runs on macOS, compiles for linux/amd64 and arm64, and on an ext4 Linux host `freeBytes` equaled `df -B1 --output=avail`). It frees only this log's own bytes, and it reports free space for the whole filesystem, so another application or log can use the room first |
 | Keep the newest N records | `MaxRecords` | For uniform records, where "the last million events" is the natural unit. `MaxBytes` stays the hard disk guarantee |
@@ -302,8 +302,8 @@ with, so offline tools and `quill ls` can show and apply it (decision 29). Offli
 segments until someone calls `DeleteConsumer` (**reported**, its user guide). Quill adds `ConsumerTTL`
 (default off). It matters only for protected consumers. At each prune pass, a protected consumer is
 **stale** when it is **behind** (`offset ≤ Head`) and both its offset file's modification time and the `At` of the
-record at its offset (or of the first retained record when a cap already deleted it, decision 82) are older than the
-TTL; the prune pass reads that one frame and keeps no state between passes (decision 45). Each
+record at its offset (or of the first retained record when a cap already deleted it, decision 82) are at least as old as the
+TTL (an age equal to the TTL counts, in whole seconds for the record); the prune pass reads that one frame and keeps no state between passes (decision 45). Each
 `Commit` writes a new file and creating a handle writes one, so the modification time is the last commit or
 creation (**inferred** from temp-and-rename, to be tested); `cp` and `rsync` reset it. A stale consumer stops protecting
 segments, is counted in `Stat().StaleConsumers` and logged at every prune pass while stale, and keeps its file, so it
