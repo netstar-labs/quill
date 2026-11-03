@@ -32,9 +32,12 @@ var (
 	// ErrNoLog reports a directory that is not a log: no quill.format, or no quill.tail yet.
 	ErrNoLog = errors.New("quill: not a log")
 	// ErrFailed reports a log that hit an fsync error, or whose quill.lock was removed or
-	// replaced under the writer: every later Append, Flush and Sync fails until the log is
-	// closed and reopened (decisions 37, 62). A ReadWait or Follow at the head of a failed log
-	// returns it too, instead of waiting (records that exist stay readable).
+	// replaced under the writer: every later valid Append and Flush on the open log, and every
+	// Sync of a sequence not already durable, fails with it until the log is closed and reopened
+	// (decisions 37, 62); Sync of a sequence that became durable first returns nil, and Sync of an
+	// unassigned sequence is ErrBadSeq. An oversized payload or empty batch is still refused as
+	// ErrPayloadTooLarge, and a call after Close as ErrClosed. A ReadWait or Follow at the head
+	// of a failed log returns it too, instead of waiting (records that exist stay readable).
 	ErrFailed = errors.New("quill: log failed; close and reopen")
 	// ErrWrongLog reports a consumer file whose log id is another log's.
 	ErrWrongLog = errors.New("quill: consumer belongs to another log")

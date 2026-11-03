@@ -243,8 +243,8 @@ buffered, for throughput and so a caller that does not need durability does not 
 
 **When a write fails** (decisions 37, 60). A flush writes at the durable offset; on any write error it truncates back
 to that offset and keeps the records buffered, and space exhaustion recovers by itself when space returns. An
-**fsync** error is fatal: the log refuses every later `Append`, `Flush` and `Sync` with `ErrFailed` until it is
-closed and reopened, and a `ReadWait` or `Follow` at the head returns it rather than waiting, because a retried fsync can report success for data that never reached the disk. An error
+**fsync** error is fatal: the log refuses every later valid `Append` and `Flush` on the open log, and every `Sync` of a sequence not already durable, with `ErrFailed` until it is
+closed and reopened (`Sync` of a sequence that became durable before the failure returns nil; `Sync` of an unassigned sequence is `ErrBadSeq`), and a `ReadWait` or `Follow` at the head returns it rather than waiting, because a retried fsync can report success for data that never reached the disk. An error
 from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still become durable, so a
 producer that retries must tolerate duplicates; the append returns the sequence it assigned beside the error (0 when it assigned none), so the caller knows which records to look for after reopening. Failures after the data is durable (creating the next segment,
 writing the marker) are retried at the next flush and never rewrite the data, and while the next segment keeps failing

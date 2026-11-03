@@ -16,7 +16,7 @@ import (
 // quill.tail, rotating first when the segment is full. It returns the first error met; after a
 // write error the records stay buffered for the next attempt, after an fsync error the log is
 // failed, and after a publish error the records are durable but the marker is stale until the
-// next flush republishes it (decision 60).
+// next flush republishes it (decision 60). On an open failed log Flush returns ErrFailed.
 func (l *Log) Flush() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -284,7 +284,9 @@ func (l *Log) waitChanLocked() chan struct{} {
 // Sync signals the flusher and blocks until seq is durable, sharing one fsync with every other
 // waiter. An error means unknown, not lost: the records may still become durable (decision
 // 42). seq above the last assigned sequence is ErrBadSeq; a waiter pending at Close gets
-// ErrClosed unless its sequence became durable.
+// ErrClosed unless its sequence became durable. On a failed log, Sync of a sequence that became
+// durable before the failure returns nil, and Sync of any other assigned sequence returns an
+// error wrapping ErrFailed.
 func (l *Log) Sync(ctx context.Context, seq uint64) error {
 	l.mu.Lock()
 	if seq >= l.nextSeq {

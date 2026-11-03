@@ -140,8 +140,9 @@ Rules that must hold:
    at the durable offset** (`quill.tail.off`), then fsyncs. Failure classes (decisions 37, 60):
    - a `pwrite` error (short write, `ENOSPC`): truncate back to the durable offset, keep the records buffered, retry
      from the same offset; if the truncate fails the log is failed;
-   - a data `fsync` error: fatal and sticky. The log enters a failed state and every later `Append`, `Flush` and
-     `Sync` returns an error wrapping `ErrFailed` until it is closed and reopened;
+   - a data `fsync` error: fatal and sticky. The log enters a failed state and every later valid `Append` and `Flush` on the open log, and
+     every `Sync` of a sequence not already durable, returns an error wrapping `ErrFailed` until it is closed and reopened
+     (`Sync` of a sequence already durable returns nil; of an unassigned sequence, `ErrBadSeq`);
    - once the data fsync has succeeded the records are durable: release the buffer, let in-process readers see
      them, and never truncate or rewrite that data;
    - a failure creating the next segment or writing or renaming the marker's temp file is retryable: keep appending
