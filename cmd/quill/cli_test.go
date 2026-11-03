@@ -479,7 +479,7 @@ func (l *lockedBuffer) String() string {
 
 func TestTailFollowPrintsAtOnceNotAtExit(t *testing.T) {
 	// A follow that has printed a record and is now waiting must have delivered it to the
-	// writer: output to a pipe or file was held in a 4 KiB buffer until interrupt (A1-42).
+	// writer: output to a pipe or file was held in the printer's buffer until interrupt (A1-42).
 	dir := newLog(t, 1, func(i int) []byte { return []byte("first") })
 	var out, errw lockedBuffer
 	done := make(chan int, 1)

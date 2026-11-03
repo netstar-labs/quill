@@ -26,7 +26,9 @@ type printer struct {
 }
 
 func newPrinter(w io.Writer, jsonMode, b64 bool) *printer {
-	return &printer{w: bufio.NewWriter(w), json: jsonMode, b64: b64}
+	// 64 KiB, not bufio's 4 KiB: a large output costs a sixteenth of the write calls. A
+	// follow flushes after every record (read.go), so an interactive tail does not wait on it.
+	return &printer{w: bufio.NewWriterSize(w, 64<<10), json: jsonMode, b64: b64}
 }
 
 func (p *printer) flush() error { return p.w.Flush() }

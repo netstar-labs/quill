@@ -151,6 +151,42 @@ var (
 	benchBin  = []byte{0xff, 0xfe, 0x00, 0x01, 0x80, 0x90, 0xa0, 0xb0, 0xc0, 0xd0, 0xe0, 0xf0, 0x7f, 0x00, 0x01, 0x02}
 )
 
+// countWriter records the size of every Write it receives.
+type countWriter struct{ sizes []int }
+
+func (c *countWriter) Write(p []byte) (int, error) {
+	c.sizes = append(c.sizes, len(p))
+	return len(p), nil
+}
+
+// The printer holds output in a 64 KiB buffer, so a large output reaches a pipe or file in
+// writes of that size, not 4 KiB ones (L1-53); a flush still delivers what is held.
+func TestPrinterWritesInLargeBlocks(t *testing.T) {
+	var cw countWriter
+	p := newPrinter(&cw, false, false)
+	rec := quill.Record{Seq: 1, At: 1700000000, Payload: bytes.Repeat([]byte("x"), 75)}
+	for i := 0; i < 20000; i++ {
+		if err := p.print(rec); err != nil {
+			t.Fatal(err)
+		}
+		rec.Seq++
+	}
+	if len(cw.sizes) == 0 {
+		t.Fatal("nothing was written")
+	}
+	for _, n := range cw.sizes {
+		if n < 32<<10 {
+			t.Fatalf("a write of %d bytes before the flush; want blocks of at least 32 KiB", n)
+		}
+	}
+	if err := p.flush(); err != nil {
+		t.Fatal(err)
+	}
+	if p.w.Buffered() != 0 {
+		t.Fatalf("%d bytes still held after flush", p.w.Buffered())
+	}
+}
+
 func BenchmarkPrintJSONText(b *testing.B) { benchPrint(b, true, false, benchText) }
 func BenchmarkPrintJSONBin(b *testing.B)  { benchPrint(b, true, false, benchBin) }
 func BenchmarkPrintTextText(b *testing.B) { benchPrint(b, false, false, benchText) }

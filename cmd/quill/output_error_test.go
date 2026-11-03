@@ -17,7 +17,7 @@ type failWriter struct{}
 func (failWriter) Write([]byte) (int, error) { return 0, errors.New("no space left on device") }
 
 // A verb whose output could not be written must not exit 0, however little it printed:
-// the printer buffers 4 KiB, so a small output used to fail only when the buffer was
+// the printer buffers 64 KiB, so a small output used to fail only when the buffer was
 // flushed, and that error was dropped.
 func TestAFailedWriteToStandardOutputIsAnError(t *testing.T) {
 	dir := newLog(t, 3, func(i int) []byte { return []byte("record") })
