@@ -66,3 +66,41 @@ func TestAppendStdinAtMaxBatchBytesIsAccepted(t *testing.T) {
 		t.Fatalf("append: %q, want %s", out, want)
 	}
 }
+
+// The refusal does not claim a size stdin does not have (audit L1-26): the limit is applied to
+// the sum of len(line)+34 per line, so 479,350 one-byte lines (958,700 bytes of stdin, far under
+// MaxBatchBytes) are refused, and the message says how lines are counted. 479,349 lines are
+// accepted.
+func TestAppendStdinRefusalMessageStatesTheAccounting(t *testing.T) {
+	const fits = quill.DefaultMaxBatchBytes / 35 // 479,349 lines of "x\n"
+	if fits != 479349 {
+		t.Fatalf("setup: %d one-byte lines fit, want 479349", fits)
+	}
+	lines := func(n int) string { return strings.Repeat("x\n", n) }
+
+	if out := mustRun(t, lines(fits), "append", "-dir", t.TempDir()); strings.TrimSpace(out) != fmt.Sprint(fits) {
+		t.Fatalf("append of %d one-byte lines: %q, want %d", fits, out, fits)
+	}
+
+	in := lines(fits + 1)
+	if len(in) != 958700 {
+		t.Fatalf("setup: stdin is %d bytes, want 958700", len(in))
+	}
+	code, out, errw := exec(t, in, "append", "-dir", t.TempDir())
+	if code != exitError || out != "" {
+		t.Fatalf("append of %d one-byte lines: exit %d, stdout %q, stderr %q; want exit %d and no output", fits+1, code, out, errw, exitError)
+	}
+	for _, want := range []string{
+		"payload too large",
+		fmt.Sprintf("MaxBatchBytes (%d)", quill.DefaultMaxBatchBytes),
+		"each line is counted as its length plus 34 bytes",
+	} {
+		if !strings.Contains(errw, want) {
+			t.Errorf("stderr %q lacks %q", errw, want)
+		}
+	}
+	// Stdin is 958,700 bytes, so a message saying it is a batch of more than MaxBatchBytes is false.
+	if strings.Contains(errw, "more than") {
+		t.Errorf("stderr %q states a size that stdin (%d bytes) does not have", errw, len(in))
+	}
+}

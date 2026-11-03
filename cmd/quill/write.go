@@ -163,8 +163,8 @@ func (c *cli) appendRecords(l *quill.Log, args []string) (last uint64, durable b
 		for sc.Scan() {
 			size += len(sc.Bytes()) + 34
 			if len(payloads) > 0 && size > quill.DefaultMaxBatchBytes {
-				return 0, false, c.errorf("%v: stdin is a batch of more than %d bytes, MaxBatchBytes is %d",
-					quill.ErrPayloadTooLarge, quill.DefaultMaxBatchBytes, quill.DefaultMaxBatchBytes)
+				return 0, false, c.errorf("%v: stdin would be a batch over MaxBatchBytes (%d); each line is counted as its length plus 34 bytes",
+					quill.ErrPayloadTooLarge, quill.DefaultMaxBatchBytes)
 			}
 			payloads = append(payloads, append([]byte(nil), sc.Bytes()...))
 		}
