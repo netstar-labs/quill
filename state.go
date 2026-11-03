@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/netstar-labs/quill/internal/atomicfile"
@@ -227,7 +228,7 @@ func decodeFormat(data []byte) (logID, error) {
 // loadFormat reads and parses the quill.format at path, the one place the rule is written: a
 // marker newer than this build is ErrFutureVersion, any other damage is ErrCorrupt (decision 6).
 // A read failure, fs.ErrNotExist included, is returned as readState gives it, for the caller to
-// classify.
+// classify; an oversize file or one that is not a regular file is already ErrCorrupt there.
 func loadFormat(fsys fsx.FS, path string) (logID, error) {
 	data, err := readState(fsys, path)
 	if err != nil {
@@ -354,10 +355,15 @@ func decodePolicy(data []byte) (policy, bool) {
 // is damage, not a bigger buffer (guarantee 7).
 const maxStateBytes = 1 << 20
 
-// readState reads a whole state file through the seam, without following a symbolic link.
+// readState reads a whole state file through the seam, without following a symbolic link. A
+// state file that is not a regular file (a symbolic link included) or is over maxStateBytes is
+// damage: the error is both ErrCorrupt and errBadState, as one that does not parse is.
 func readState(fsys fsx.FS, path string) ([]byte, error) {
 	f, err := fsys.OpenFile(path, fsx.O_RDONLY, 0)
 	if err != nil {
+		if errors.Is(err, syscall.ELOOP) { // O_NOFOLLOW met a link, a dangling one too
+			return nil, fmt.Errorf("%w: %w: %s: a symbolic link", ErrCorrupt, errBadState, path)
+		}
 		return nil, err
 	}
 	defer f.Close()
@@ -366,10 +372,10 @@ func readState(fsys fsx.FS, path string) ([]byte, error) {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("%w: %s: not a regular file", errBadState, path)
+		return nil, fmt.Errorf("%w: %w: %s: not a regular file", ErrCorrupt, errBadState, path)
 	}
 	if info.Size() > maxStateBytes {
-		return nil, fmt.Errorf("%w: %s: %d bytes", errBadState, path, info.Size())
+		return nil, fmt.Errorf("%w: %w: %s: %d bytes", ErrCorrupt, errBadState, path, info.Size())
 	}
 	buf := make([]byte, info.Size())
 	n, err := f.ReadAt(buf, 0)

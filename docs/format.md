@@ -74,7 +74,7 @@ quill, decode a real one in `TestFrameGolden` first.
 | Payload | 64 MiB − 32 bytes | The ceiling of `MaxPayloadBytes`; a frame costs at most 32 bytes beyond the payload (a length prefix of at most 4, varints of at most 10, 10 and 4, and the 4-byte CRC), so a legal frame always fits |
 | Segment file | 1.5 GiB | A larger file is refused |
 | `SegmentBytes` | at most 1 GiB, and `SegmentBytes` plus one flush's overshoot under 1.5 GiB | A segment passes it by the flush that seals it; while rotation keeps failing the writer refuses appends at a ceiling under the file limit (decision 60 d) |
-| State file | 1 MiB | A larger one is damage |
+| State file | 1 MiB | A larger one is damage (`ErrCorrupt`), as is one that is not a regular file |
 
 ## Segments
 

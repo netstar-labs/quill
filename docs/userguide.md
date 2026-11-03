@@ -376,7 +376,8 @@ repeated on the next open, so keep the line if you need to know.
 
 `Open` fails with **`ErrCorrupt`** when the newest segment is damaged below `quill.tail.off`,
 when the marker names a sequence above the last valid frame, when two segments overlap, or
-when `quill.tail` or `quill.format` is malformed. A reader meets the same overlap as
+when `quill.tail` or `quill.format` is malformed, over 1 MiB, or not a regular file (a
+directory, a FIFO, a device or a symbolic link). A reader meets the same overlap as
 `ErrCorrupt` once it has scanned the segment that runs into the next, and `quill check`
 reports it as an overlap. Damage in any sealed segment, the newest's
 predecessor included, does not fail `Open`: the segment becomes a hole, `Err()` names it until retention deletes it,
