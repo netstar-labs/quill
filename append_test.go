@@ -336,3 +336,25 @@ func TestWhileFlushesFailAnAppendIsAcceptedOnlyIntoAnEmptyBufferOrWithinMaxBuffe
 		t.Fatalf("head %d", l.Head())
 	}
 }
+
+func TestAnAppendWhoseInlineFlushFailsTheLogReturnsTheFailure(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.FlushBytes = 64 })
+	defer l.Close()
+	s.Inject = func(o fsx.Op, name string) error {
+		if o == fsx.OpSync && name == "/log/"+segmentName(0) {
+			return errors.New("injected_fsync_EIO")
+		}
+		return nil
+	}
+	seq, err := l.Append(bytes.Repeat([]byte("x"), 200)) // crosses FlushBytes, so it flushes inline
+	if !errors.Is(err, ErrFailed) {
+		t.Fatalf("Append whose inline fsync failed: %d, %v; want ErrFailed", seq, err)
+	}
+	if e := l.Err(); !errors.Is(e, ErrFailed) {
+		t.Fatalf("Err: %v, want ErrFailed", e)
+	}
+	if _, err := l.Append([]byte("y")); !errors.Is(err, ErrFailed) {
+		t.Fatalf("later Append: %v, want ErrFailed", err)
+	}
+}
