@@ -6,6 +6,8 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"time"
 )
 
@@ -174,7 +176,8 @@ type CheckResult struct {
 
 // Check examines a log without a lock: every sealed segment whole, the active segment up
 // to the marker, holes, the consumers/ directory and its files, the policy and the clock (decisions 44, 66). It
-// reads every byte, so it costs what a cold start costs.
+// reads every byte, so it costs what a cold start costs, and like a cold start it verifies the
+// segments in parallel.
 func (r *Reader) Check() (CheckResult, error) {
 	res := CheckResult{Healthy: true}
 	fatal := func(p Problem) { p.Fatal = true; res.Healthy = false; res.Problems = append(res.Problems, p) }
@@ -188,18 +191,38 @@ func (r *Reader) Check() (CheckResult, error) {
 		return res, err
 	}
 	future := r.opts.clock().Add(24 * time.Hour).Unix()
+	// Each segment is verified on its own goroutine, as Open does (at most GOMAXPROCS at a
+	// time), and the findings are then merged in segment order, so the report is the one a
+	// serial pass makes. A segment's scan cannot know the At of the record before its first,
+	// so the first record's clock test is made in the merge.
+	var todo []uint64
+	for _, id := range ids {
+		if id <= tl.Seg {
+			todo = append(todo, id)
+		}
+	}
+	outs := make([]checkedSegment, len(todo))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, runtime.GOMAXPROCS(0))
+	for i, id := range todo {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			outs[i] = r.checkSegment(id, tl, future)
+		}()
+	}
+	wg.Wait()
 	var prevAt int64
 	var prevLast, prevID uint64
 	havePrev := false
 	first := tl.Seq + 1 // the first retained sequence: the first good segment's, none retained is head + 1
 	haveFirst := false
-	for _, id := range ids {
-		if id > tl.Seg {
-			continue
-		}
+	for i, id := range todo {
+		o := &outs[i]
 		path := r.path(segmentName(id))
-		f, size, err := openSegment(r.fs, path)
-		if err != nil {
+		if err := o.openErr; err != nil {
 			if id < tl.Seg && errors.Is(err, fs.ErrNotExist) {
 				// Retention deleted a sealed segment after the listing (decision 101). It
 				// deletes oldest first, so what was scanned before it is going too: start
@@ -215,20 +238,24 @@ func (r *Reader) Check() (CheckResult, error) {
 			fatal(Problem{Kind: "segment", Path: path, Detail: err.Error()})
 			continue
 		}
-		bound := size
-		if id == tl.Seg {
-			if size < int64(tl.Off) {
-				fatal(Problem{Kind: "segment", Path: path, Offset: size, Intact: size, Detail: fmt.Sprintf("%d bytes, the marker says %d are durable", size, tl.Off)})
-				_ = f.Close()
-				continue
-			}
-			bound = int64(tl.Off)
+		if o.short != nil {
+			fatal(*o.short)
+			continue
 		}
-		info, err := verifyBounded(f, bound, &prevAt, future, func(seq uint64, at int64, what string) {
-			warn(Problem{Kind: "clock", Path: path, Detail: fmt.Sprintf("record %d at %d %s", seq, at, what)})
-		})
-		_ = f.Close()
-		if err != nil {
+		info := o.info
+		if info.frames > 0 {
+			if info.first.At > future {
+				warn(clockProblem(path, info.first.Seq, info.first.At, "is more than a day in the future"))
+			}
+			if info.first.At < prevAt {
+				warn(clockProblem(path, info.first.Seq, info.first.At, fmt.Sprintf("is earlier than its predecessor at %d", prevAt)))
+			}
+			prevAt = info.last.At // the records before a damaged frame count: they were accepted
+		}
+		for _, p := range o.clock {
+			warn(p)
+		}
+		if err := o.err; err != nil {
 			var se *SegmentError
 			if errors.As(err, &se) {
 				fatal(Problem{Kind: "segment", Path: path, Offset: se.Offset, Intact: se.Intact, Detail: se.Reason})
@@ -286,24 +313,66 @@ func (r *Reader) Check() (CheckResult, error) {
 
 // verifyBounded verifies the first size bytes of a segment as a sealed one would be
 // (contiguous, ending exactly at size; an empty range is fine for the active segment) and
-// reports clock anomalies: a record dated after future, or earlier than its predecessor.
-func verifyBounded(f io.ReaderAt, size int64, prevAt *int64, future int64, clock func(seq uint64, at int64, what string)) (segInfo, error) {
+// reports clock anomalies for every record after the first: one dated after future, or
+// earlier than its predecessor. The first record's predecessor is in another segment, so
+// its anomalies are the caller's to find from the info.
+func verifyBounded(f io.ReaderAt, size int64, path string, future int64) (segInfo, []Problem, error) {
 	w := &window{r: f, size: size, chunk: windowChunk}
+	var clock []Problem
+	var prevAt int64
+	haveFirst := false
 	info, err := walk(w, 0, 0, false, func(rec Record, _ int64) bool {
-		if rec.At > future {
-			clock(rec.Seq, rec.At, "is more than a day in the future")
+		if haveFirst {
+			if rec.At > future {
+				clock = append(clock, clockProblem(path, rec.Seq, rec.At, "is more than a day in the future"))
+			}
+			if rec.At < prevAt {
+				clock = append(clock, clockProblem(path, rec.Seq, rec.At, fmt.Sprintf("is earlier than its predecessor at %d", prevAt)))
+			}
 		}
-		if rec.At < *prevAt {
-			clock(rec.Seq, rec.At, fmt.Sprintf("is earlier than its predecessor at %d", *prevAt))
-		}
-		*prevAt = rec.At
+		prevAt, haveFirst = rec.At, true
 		return true
 	})
 	if err != nil {
 		if !isFrameError(err) {
-			return info, err
+			return info, clock, err
 		}
-		return info, &SegmentError{Offset: info.end, Intact: info.end, Reason: reason(err)}
+		return info, clock, &SegmentError{Offset: info.end, Intact: info.end, Reason: reason(err)}
 	}
-	return info, nil
+	return info, clock, nil
+}
+
+// checkedSegment is what verifying one segment found, before the findings are put in order.
+type checkedSegment struct {
+	openErr error    // the open failed
+	short   *Problem // the active segment is shorter than the marker says
+	info    segInfo
+	err     error     // the verification error
+	clock   []Problem // clock findings for the records after the first
+}
+
+// checkSegment opens and verifies segment id of the log the marker tl describes (the active
+// one only up to the marker). It touches nothing but the segment, so segments may be
+// checked at the same time.
+func (r *Reader) checkSegment(id uint64, tl tail, future int64) checkedSegment {
+	path := r.path(segmentName(id))
+	f, size, err := openSegment(r.fs, path)
+	if err != nil {
+		return checkedSegment{openErr: err}
+	}
+	defer f.Close()
+	bound := size
+	if id == tl.Seg {
+		if size < int64(tl.Off) {
+			return checkedSegment{short: &Problem{Kind: "segment", Path: path, Offset: size, Intact: size, Detail: fmt.Sprintf("%d bytes, the marker says %d are durable", size, tl.Off)}}
+		}
+		bound = int64(tl.Off)
+	}
+	var out checkedSegment
+	out.info, out.clock, out.err = verifyBounded(f, bound, path, future)
+	return out
+}
+
+func clockProblem(path string, seq uint64, at int64, what string) Problem {
+	return Problem{Kind: "clock", Path: path, Detail: fmt.Sprintf("record %d at %d %s", seq, at, what)}
 }
