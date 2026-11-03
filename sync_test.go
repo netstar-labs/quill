@@ -344,3 +344,46 @@ func TestSyncBadSeqReadsLastAssignedUnderLock(t *testing.T) {
 	close(stop)
 	wg.Wait()
 }
+
+// failedFinalFlush returns a closed log whose final flush failed: the record is still buffered,
+// not durable, and the log is not failed. The write failure is cleared before it returns, so a
+// call that wrongly reaches the file system would succeed rather than fail.
+func failedFinalFlush(t *testing.T) (*Log, uint64) {
+	t.Helper()
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpWrite {
+			return errENOSPC
+		}
+		return nil
+	}
+	seq, err := l.Append([]byte("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); !errors.Is(err, errENOSPC) {
+		t.Fatalf("close with a failing write: %v", err)
+	}
+	s.Inject = nil
+	return l, seq
+}
+
+func TestFlushAfterCloseIsErrClosedAndDoesNotWrite(t *testing.T) {
+	l, _ := failedFinalFlush(t)
+	if err := l.Flush(); !errors.Is(err, ErrClosed) {
+		t.Fatalf("flush after close: %v", err)
+	}
+	if h := l.Head(); h != 0 {
+		t.Fatalf("flush after close made sequence %d durable", h)
+	}
+}
+
+func TestSyncAfterCloseOfARecordThatDidNotBecomeDurableIsErrClosedAtOnce(t *testing.T) {
+	l, seq := failedFinalFlush(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := l.Sync(ctx, seq); !errors.Is(err, ErrClosed) {
+		t.Fatalf("sync after close: %v", err)
+	}
+}
