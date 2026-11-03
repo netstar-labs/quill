@@ -480,6 +480,14 @@ two hardening options the auditor wrote (compare the held inode with `Lstat(quil
 the directory descriptor as well, which the auditor probed as exclusive on macOS and Linux) and the one documentation
 sentence are noted in stage2-owner-decisions.md, "Not held, but worth a line".
 
+**Note 2026-11-03 (by hand, reported from the A5-16 commit 6acc23e and `flush.go`, not re-run).** The text above was written
+before A5-16. Since 6acc23e the writer compares the `quill.lock` it holds with the file at that path (one `lstat`) before each
+flush and prune pass (`lockLostLocked`, `flush.go`, `retention.go`); if the file was removed or replaced, the log is failed
+with `ErrFailed` and an `Error` on `Config.Logger`. So the first writer no longer keeps acknowledging records after its lock
+file is removed or replaced. Not closed: a second writer that opens in the window before the first writer's next flush or
+prune pass is not prevented, and records the two acknowledged in that window can still overwrite each other. The disposition
+above (out of the threat model, nothing else changed) stands; the CHANGELOG line for A5-16 says "do not delete `quill.lock`".
+
 #### A3-3 (merges A3-17): file and directory names are printed unescaped (medium, security)
 
 **Claim.** A file or directory name controlled by an untrusted party is printed unescaped by `quill ls`, `quill consumers`
