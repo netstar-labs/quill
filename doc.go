@@ -7,7 +7,9 @@
 // The rules to know:
 //
 //   - One writer per log. Open takes an exclusive lock on the directory; a second writable open
-//     fails with ErrLocked. Readers in other processes use OpenReader and take no lock.
+//     fails with ErrLocked. Readers in other processes use OpenReader and take no lock. The lock
+//     is a flock: it holds on a local filesystem written by one kernel, not over NFS, SMB, FUSE
+//     or a directory shared between VMs or containers, and quill does not detect those (see Open).
 //   - Records are numbered from 1 and sequences are contiguous. Append returns before the record
 //     is durable; Flush, Sync or SyncAppends make it so. After a crash the unflushed suffix is
 //     lost and its numbers are reassigned, so a caller flushes before acknowledging a sequence

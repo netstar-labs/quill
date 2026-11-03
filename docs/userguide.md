@@ -6,7 +6,9 @@ The format itself is in [format.md](format.md); the design in [design/](design/)
 ## 1. The model
 
 A **log** is a directory holding one topic. `quill.Open(Config{Dir: dir})` creates it if
-needed and takes an exclusive lock: that process is the log's one writer until `Close`.
+needed and takes an exclusive lock: that process is the log's one writer until `Close`. The lock is a `flock`, so it
+holds only on a local filesystem written by one kernel: not over NFS, SMB, FUSE or a directory shared between VMs
+(section 9, "Filesystems").
 Records are numbered from 1, contiguously. `Append` buffers a record; `Flush`, `Sync` or the
 background flush makes it durable; only durable records are ever visible. A **consumer** is
 a name plus a committed offset, the next sequence to read, stored in `consumers/<name>` and
@@ -365,9 +367,21 @@ addition to the read of the source segment that is verified on every run; a run 
 **Moving, renaming, deleting a log** are directory operations done while no writer holds it and no reader or consumer has it open. A handle opened before a directory was replaced by another log
 refuses `Commit`, and gives up `ReadWait` and `Follow` when they wait, with `ErrWrongLog`; plain reads do not re-check, so close and reopen.
 
-**Filesystems.** Supported: a local POSIX filesystem with working `flock`, atomic `rename` and
-honest `fsync` (ext4, xfs, btrfs, APFS). Not supported: NFS, SMB, FUSE; bind mounts and overlay
-filesystems at the operator's risk. Linux and macOS only.
+**Filesystems.** Put the log directory on a local POSIX filesystem (ext4, xfs, btrfs, APFS) with exactly one host
+or kernel writing to it. The single-writer guarantee rests on `flock`, and a `Reader`'s view of a live log on atomic `rename` and honest
+`fsync`; network and layered filesystems do not give these coherently. Not supported: NFS; SMB/CIFS; FUSE filesystems
+(sshfs, s3fs and the like); and a directory shared between VMs or containers that run separate kernels (virtiofs, 9p, a
+host directory bind-mounted into a container under Docker Desktop, Lima or Apple's `container`). Quill does not detect
+any of these: it checks no filesystem type. On one of them two writers can both believe they hold the lock, both
+acknowledge records and overwrite each other's, and nothing fails at write time; the damage shows afterwards as a bad frame,
+a marker that disagrees with the segments, and `quill check` reporting UNHEALTHY. The same holds for `quill append`, `roll`,
+`prune` and `recover` run from one kernel against a log whose writer is in another. A bind mount between two paths on one
+kernel is the same local filesystem and stays exclusive (`ErrLocked`); it is the boundary between kernels that breaks the
+lock, not the word "mount". Overlay filesystems are used at the operator's risk; `flock` worked on overlayfs and tmpfs in
+the stage 2 live runs. What those runs did not exercise: NFS, SMB and FUSE filesystems (what is said here about them is the
+documented limit, not a measurement); on virtiofs they saw two writers, between two VMs and between a VM and the macOS host,
+open the same directory without `ErrLocked` and lose acknowledged records
+([live-integration.md](audits/live-integration.md), L3b-11). Linux and macOS only.
 
 **Checking.** `quill check` verifies every sealed segment whole (a sealed segment with no frames, for
 example one emptied by a tmp cleaner or a bad restore, is damage and makes it UNHEALTHY; only the

@@ -31,7 +31,9 @@ Only the latest release is supported; quill versions are `v0.y.z`, and a fix shi
 - A process with write access to the log directory. File permissions (0700 directories, 0600
   files by default) are the boundary.
 - Encryption at rest; payloads are stored as given.
-- Network filesystems, where locks and `fsync` may not mean what quill assumes.
+- Network and shared filesystems (NFS, SMB, FUSE, a directory shared between VMs or containers with separate kernels),
+  where locks and `fsync` may not mean what quill assumes. Quill does not detect them: two writers there can both
+  believe they hold the lock.
 
 The on-disk format is specified in `docs/format.md`; the threat model is refined by the audit
 sequence described in `docs/design/decisions.md`.

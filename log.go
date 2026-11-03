@@ -18,7 +18,8 @@ type Config struct {
 	// Dir is the log's directory, created if missing. Its base name is the topic name. A
 	// symbolic link to a directory is followed, as OpenReader follows one, whether it is Dir
 	// itself or a directory above it; the files inside the log directory never are. A relative
-	// Dir is made absolute at Open, so a later os.Chdir does not move the log.
+	// Dir is made absolute at Open, so a later os.Chdir does not move the log. Dir must be on a
+	// local filesystem (ext4, xfs, btrfs, APFS) written by one host or kernel: see Open.
 	Dir string
 	// Retention: whole sealed segments at least this old are deleted (an age equal to it counts). 0 means 24 h; negative
 	// disables expiry. Set it longer than the worst delay of any unprotected consumer.
@@ -406,6 +407,13 @@ func (l *Log) path(name string) string { return filepath.Join(l.dir, name) }
 
 // Open opens a log for writing, creating it if the directory is new, and takes the
 // directory's lock: this process is the log's one assigned writer (decision 62).
+//
+// The lock is a flock, and a Reader's view rests on rename and fsync, so the directory must
+// be on a local filesystem (ext4, xfs, btrfs, APFS) with one host or kernel writing to it.
+// NFS, SMB/CIFS, FUSE filesystems (sshfs, s3fs and the like) and a directory shared between
+// VMs or containers with separate kernels (virtiofs, 9p) do not provide these coherently.
+// Open does not detect them: on one, two writers can both believe they hold the lock and
+// corrupt the log, and nothing fails at write time.
 func Open(cfg Config) (*Log, error) {
 	cfg = cfg.withDefaults()
 	if err := cfg.validate(); err != nil {

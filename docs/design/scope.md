@@ -353,7 +353,14 @@ not grow with backlog.
 ### Filesystems, permissions and backup (decisions 51, 53)
 
 Supported: a local POSIX filesystem with working `flock`, atomic `rename` and honest `fsync` (ext4, xfs, btrfs,
-APFS). Not supported: NFS, SMB, FUSE; bind mounts and overlay filesystems are used at the operator's risk. On
+APFS), written by exactly one host or kernel. The single-writer guarantee rests on `flock`, and a `Reader`'s view on
+`rename` and `fsync` semantics, which network and layered filesystems do not provide coherently. Not supported: NFS,
+SMB/CIFS, FUSE filesystems (sshfs, s3fs and the like), and a directory shared between VMs or containers with separate
+kernels (virtiofs, 9p, a host directory bind-mounted into a container). Quill does not detect them (no filesystem-type
+check, no `fstatfs`): two writers there can both believe they hold the lock, and nothing fails at write time. A bind mount
+within one kernel is the same filesystem and the lock stays exclusive. Overlay filesystems are used at the operator's
+risk. The stage 2 live runs saw the double writer on virtiofs and did not exercise NFS, SMB or FUSE
+([live-integration](../audits/live-integration.md), L3b-11). On
 macOS `File.Sync` issues `F_FULLFSYNC` (**verified** in the Go source), which is why a durable flush costs about
 20 ms there against milliseconds on Linux. Directories are created 0700 and files 0600 by default, so a reader
 in another user account needs a group arrangement; a process that only reads needs read access, and one that
@@ -378,7 +385,8 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
    numbers of an unflushed suffix are reassigned, so a caller must `Flush` before acknowledging a
    sequence upstream. No consumer or reader can have seen such a number.
 5. **One writer per log, one process per consumer name.** A second writable open, or a second open of the
-   same consumer, fails fast with `ErrLocked`. The lock is the file `quill.lock`: if that file is removed or
+   same consumer, fails fast with `ErrLocked`, on a local filesystem written by one kernel (see "Filesystems": on NFS,
+   SMB, FUSE or a directory shared between kernels the lock is not coherent, and quill does not detect it). The lock is the file `quill.lock`: if that file is removed or
    replaced under a live writer, the writer finds out at its next flush or prune pass and fails with `ErrFailed`
    (decision 62), but a second writer that opened in between is not stopped, so never delete it.
 6. **Corruption is never served silently.** A segment corrupt in the middle fails to load, is never

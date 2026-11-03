@@ -23,6 +23,12 @@ sockets, no dependencies. Closer to "the SQLite of commit logs" than to a lightw
    another process ────────────── OpenReader ──► Reader / Consumer(name) ─── Commit(next)
 ```
 
+**Where the log lives.** The directory must be on a local filesystem (ext4, xfs, btrfs, APFS) with one host or kernel
+writing to it. The single-writer lock is a `flock`, and a reader's view rests on `rename` and `fsync`; NFS, SMB, FUSE
+filesystems (sshfs, s3fs and the like) and a directory shared between VMs or containers with separate kernels (virtiofs,
+9p) do not provide them coherently. Quill does not detect these: two writers there can both believe they hold the lock
+and corrupt the log with no error at write time. See the user guide, "Filesystems".
+
 ## Documents
 
 - **Design** (read first): [scope](docs/design/scope.md) (what is built and the guarantees),
