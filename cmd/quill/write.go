@@ -5,11 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/netstar-labs/quill"
@@ -61,6 +63,24 @@ func (c *cli) openWriter(cfg quill.Config) (*quill.Log, int) {
 		return nil, c.errorf("%v", err)
 	}
 	return l, exitOK
+}
+
+// requireLog refuses a -dir that holds no quill.format, with the message and exit code the read
+// verbs give (decision 53), before anything is opened: Open would create a log there, with every
+// missing parent directory, and a lock file even where it then refuses (A3-23). The verbs that
+// act on an existing log (roll, recover, prune) call it; append does not, because creating the
+// log on first use is its job (decision 62). Only a missing marker is refused here: any other
+// failure is left for Open to report.
+func (c *cli) requireLog() int {
+	_, err := os.Lstat(filepath.Join(c.dir, "quill.format"))
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+		abs, aerr := filepath.Abs(c.dir)
+		if aerr != nil {
+			abs = c.dir
+		}
+		return c.errorf("%v: %s has no quill.format", quill.ErrNoLog, abs)
+	}
+	return exitOK
 }
 
 // lossOnly passes to its handler only the records that say data was lost or a prune pass did less
@@ -195,6 +215,9 @@ func cmdPrune(c *cli, args []string) int {
 	cfg, ok := quill.ReadPolicy(c.dir)
 	explicit := c.retention != "" || c.maxBytes != "" || c.minFree != "" || c.maxRecords != "" || c.ttl != ""
 	if !ok && !explicit {
+		if code := c.requireLog(); code != exitOK {
+			return code
+		}
 		return c.errorf("quill.policy cannot be read; pass the retention flags explicitly")
 	}
 	if !ok {
@@ -223,6 +246,10 @@ func cmdPrune(c *cli, args []string) int {
 			return c.usage("-consumer-ttl: %v", err)
 		}
 	}
+	// After the flags: a usage error still wins with exit 2 on any -dir, as for the other verbs.
+	if code := c.requireLog(); code != exitOK {
+		return code
+	}
 	return c.withWriter(cfg, func(l *quill.Log) int {
 		before, _ := l.Stat()
 		pruneErr := l.Prune(c.force)
@@ -244,6 +271,9 @@ func cmdPrune(c *cli, args []string) int {
 }
 
 func cmdRoll(c *cli, args []string) int {
+	if code := c.requireLog(); code != exitOK {
+		return code
+	}
 	return c.withWriter(quill.Config{Retention: -1}, func(l *quill.Log) int {
 		if err := l.Roll(); err != nil {
 			return c.errorf("%v", err)
@@ -253,6 +283,9 @@ func cmdRoll(c *cli, args []string) int {
 }
 
 func cmdRecover(c *cli, args []string) int {
+	if code := c.requireLog(); code != exitOK {
+		return code
+	}
 	l, code := c.openWriter(quill.Config{Retention: -1})
 	if code != exitOK {
 		return code

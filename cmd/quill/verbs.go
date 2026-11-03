@@ -77,7 +77,7 @@ func init() {
 				fs.Var((*decimalFlag)(&c.n), "n", "how many of the last records")
 				fs.BoolVar(&c.follow, "follow", false, "keep printing new records until interrupted")
 			}, run: cmdTail},
-		{name: "append", summary: "append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock", lock: "log", args: true,
+		{name: "append", summary: "append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock; creates the log if -dir is a new or empty directory", lock: "log", args: true,
 			flags: func(fs *flag.FlagSet, c *cli) {
 				fs.BoolVar(&c.sync, "sync", true, "return only once the records are durable")
 			},
@@ -103,7 +103,7 @@ func init() {
 		{name: "check", summary: "verify every segment, hole, consumer file and the clock; exit 3 when UNHEALTHY", lock: "none",
 			flags: func(fs *flag.FlagSet, c *cli) { fs.BoolVar(&c.json, "json", false, "one JSON object") },
 			run:   cmdCheck},
-		{name: "prune", summary: "run a retention pass now with the policy in quill.policy or the flags; needs the writer's lock", lock: "log",
+		{name: "prune", summary: "run a retention pass now with the policy in quill.policy or the flags; needs the writer's lock; refuses a -dir that is not a log", lock: "log",
 			flags: func(fs *flag.FlagSet, c *cli) {
 				fs.BoolVar(&c.force, "force", false, "lift the clock guard (delete every expired segment in one pass)")
 				fs.StringVar(&c.retention, "retention", "", "age after which a sealed segment is deleted (a duration; negative never)")
@@ -112,12 +112,12 @@ func init() {
 				fs.StringVar(&c.maxRecords, "max-records", "", "keep roughly the newest N records")
 				fs.StringVar(&c.ttl, "consumer-ttl", "", "a protected consumer behind for this long stops protecting")
 			}, run: cmdPrune},
-		{name: "roll", summary: "seal the active segment now; needs the writer's lock", lock: "log",
+		{name: "roll", summary: "seal the active segment now; needs the writer's lock; refuses a -dir that is not a log", lock: "log",
 			run: cmdRoll},
 		{name: "archive", summary: "copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer; exit 3 when the source had lost records", lock: "consumer",
 			flags: func(fs *flag.FlagSet, c *cli) { fs.StringVar(&c.to, "to", "", "the destination directory") },
 			run:   cmdArchive},
-		{name: "recover", summary: "open the log writable, which repairs a torn tail and republishes quill.tail, then close it", lock: "log",
+		{name: "recover", summary: "open the log writable, which repairs a torn tail and republishes quill.tail, then close it; refuses a -dir that is not a log", lock: "log",
 			run: cmdRecover},
 		{name: "help", summary: "print this list, or a verb's flags", lock: "none", noDir: true, args: true, run: cmdHelp},
 		{name: "version", summary: "print the version", lock: "none", noDir: true,

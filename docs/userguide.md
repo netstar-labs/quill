@@ -248,6 +248,8 @@ ahead warns through the logger, naming the segment; `quill check` reports the re
 | `commit`, `register`, `unregister`, `archive` | the consumer's | yes |
 | `append`, `roll`, `prune`, `recover` | the writer's | no: `ErrLocked` |
 
+Of the four, only `append` creates a log: at a `-dir` that does not exist or is empty it makes one, as `Open` does, and takes the first record. `roll`, `prune` and `recover` act on an existing log: at a `-dir` with no `quill.format` (a mistyped path) they print `quill: not a log: <dir> has no quill.format`, exit 1 and create nothing, as the read verbs do.
+
 Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY or `archive` found the source had lost records (the run still copied what exists). `ls` skips a subdirectory that is not a log
 (no `quill.format`) and lists every log it can open; a log it cannot open or read (a damaged or future `quill.format`, no
 permission) gets a row ending in `error: ...`, and `ls` exits 1 after listing the rest, as `stat` and `check` do for that log.

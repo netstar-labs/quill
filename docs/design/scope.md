@@ -168,7 +168,7 @@ beside a live writer without its lock and show only durable records; they print 
 `cat`, `read`, `tail`, `stat`, `ls`, `consumers` and `check` take no lock. Exit codes: 0 ok, 1 error, 2 usage,
 3 `check` found the log UNHEALTHY or `archive` found that the source had lost records the archive never copied
 (it still copied what exists; Stage 2 audit, owner-approved 2026-10-31, A5-29). `append` closes the log before it prints and exits 1 when `Close` fails; under
-`-sync=true`, where the records were already durable, it still prints the last sequence to stdout (decision 100). `roll` and `prune` exit 1 when `Close` fails after a successful pass, with the error on standard error (decision 100). `recover` is `Open` (which performs recovery) followed by `Close`. `register -protect` creates a protected
+`-sync=true`, where the records were already durable, it still prints the last sequence to stdout (decision 100). `roll` and `prune` exit 1 when `Close` fails after a successful pass, with the error on standard error (decision 100). `recover` is `Open` (which performs recovery) followed by `Close`. Only `append` creates a log, at a new or empty `-dir`; `roll`, `prune` and `recover` at a `-dir` with no `quill.format` exit 1 with "not a log" and create nothing, as the read verbs do (Stage 2 audit, owner-approved 2026-11-03, A3-23). `register -protect` creates a protected
 consumer; `read`, `cat` and `tail` take `-since <time>` and `commit` takes `-time <time>` (decision 59).
 `prune` ends its line with `dropped N`, the sealed segments the pass deleted while a consumer's offset was
 below them, and prints on standard error one `Warn` per such consumer and segment that names it (decision 12). A `prune` that did less

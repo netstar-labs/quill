@@ -12,16 +12,16 @@
 | `read` | none | print records from an offset (default the start of the log: the first retained sequence, or 1 when a damaged oldest segment left a gap) |
 | `cat` | none | print the retained records from the start of the log, or from -from or -since; a damaged oldest segment is reported as a gap |
 | `tail` | none | print the last records, and keep following with -follow |
-| `append` | log | append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock |
+| `append` | log | append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock; creates the log if -dir is a new or empty directory |
 | `consumers` | none | list the consumers: offset, lag, protection |
 | `commit` | consumer | set a consumer's offset: -offset <next sequence> or -time <time> |
 | `register` | consumer | create a consumer at the first retained sequence (at 1 when a damaged oldest segment left a gap), or change its protection |
 | `unregister` | consumer | delete a consumer's offset file (its lock file stays) |
 | `check` | none | verify every segment, hole, consumer file and the clock; exit 3 when UNHEALTHY |
-| `prune` | log | run a retention pass now with the policy in quill.policy or the flags; needs the writer's lock |
-| `roll` | log | seal the active segment now; needs the writer's lock |
+| `prune` | log | run a retention pass now with the policy in quill.policy or the flags; needs the writer's lock; refuses a -dir that is not a log |
+| `roll` | log | seal the active segment now; needs the writer's lock; refuses a -dir that is not a log |
 | `archive` | consumer | copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer; exit 3 when the source had lost records |
-| `recover` | log | open the log writable, which repairs a torn tail and republishes quill.tail, then close it |
+| `recover` | log | open the log writable, which repairs a torn tail and republishes quill.tail, then close it; refuses a -dir that is not a log |
 | `help` | none | print this list, or a verb's flags |
 | `version` | none | print the version |
 
@@ -95,7 +95,7 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 
 ## `quill append`
 
-Append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock.
+Append the arguments as records, or each line of stdin, as one batch (MaxBatchBytes applies, about 479,000 one-byte lines); needs the writer's lock; creates the log if -dir is a new or empty directory.
 
 Lock: the writer's lock (fails with ErrLocked beside a live writer).
 
@@ -165,7 +165,7 @@ Lock: none (runs beside a live writer, sees records up to quill.tail).
 
 ## `quill prune`
 
-Run a retention pass now with the policy in quill.policy or the flags; needs the writer's lock.
+Run a retention pass now with the policy in quill.policy or the flags; needs the writer's lock; refuses a -dir that is not a log.
 
 Lock: the writer's lock (fails with ErrLocked beside a live writer).
 
@@ -181,7 +181,7 @@ Lock: the writer's lock (fails with ErrLocked beside a live writer).
 
 ## `quill roll`
 
-Seal the active segment now; needs the writer's lock.
+Seal the active segment now; needs the writer's lock; refuses a -dir that is not a log.
 
 Lock: the writer's lock (fails with ErrLocked beside a live writer).
 
@@ -202,7 +202,7 @@ Lock: the consumer's lock only (runs beside a live writer).
 
 ## `quill recover`
 
-Open the log writable, which repairs a torn tail and republishes quill.tail, then close it.
+Open the log writable, which repairs a torn tail and republishes quill.tail, then close it; refuses a -dir that is not a log.
 
 Lock: the writer's lock (fails with ErrLocked beside a live writer).
 
