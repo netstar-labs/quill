@@ -96,8 +96,9 @@ zero-copy path. The API needs Go 1.23 or later.
 `OffsetForTime(t)` returns (with an error for I/O failure or a damaged segment) the smallest sequence whose `At` is at or after `t`, at whole-second granularity (a
 record stamped in the same second as `t` counts). A time before the first retained record returns the first
 retained sequence and a time after the last returns `Head + 1`, so the result can always be committed:
-`consumer.SeekToTime(t)` is `Commit(OffsetForTime(t))`, which starts a new consumer "from two hours ago". The cost
-is O(log segments) plus one segment. If timestamps are not monotonic (a clock stepped back; `check` flags it) the
+`consumer.SeekToTime(t)` is `Commit(OffsetForTime(t))`, which starts a new consumer "from two hours ago". The search
+compares O(log segments) first-frame times and scans one segment, but it starts from a view of all sealed segments, which costs
+O(sealed segments) on every call; a `Reader`'s first call also opens every sealed segment to read its first frame. If timestamps are not monotonic (a clock stepped back; `check` flags it) the
 result is a valid offset but may not be the first record at or after `t`. CLI: `-since <time>` on `read`, `cat` and
 `tail`, `-time <time>` on `commit`.
 

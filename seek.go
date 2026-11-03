@@ -8,8 +8,11 @@ import (
 
 // Seeking by time (decision 59). OffsetForTime returns the smallest sequence whose At is at
 // or after t, at whole-second granularity, clamped to [first retained, Head + 1] so the
-// result is always a valid Commit argument. The search touches O(log segments) first frames
-// and one segment. With non-monotonic times the result is the position the search lands on:
+// result is always a valid Commit argument. The search compares O(log segments) first-frame
+// times and scans one segment; the times come from the view, which costs O(sealed segments)
+// on every call (a Log copies its cached list of sealed segments, a Reader lists the
+// directory) and, on a Reader's first call, one open per sealed segment to read its first
+// frame (decision 63). With non-monotonic times the result is the position the search lands on:
 // a valid offset, not necessarily the first record at or after t.
 
 // OffsetForTime returns the smallest sequence whose At is at or after t.

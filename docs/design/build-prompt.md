@@ -381,8 +381,9 @@ New tests quill must add. The phase in brackets is the first at which the test c
   continues into the next** (the first of the run is returned); a time before the first retained record returns the
   first retained sequence and a time after the last returns `Head + 1`; it works after retention has deleted a prefix,
   on a `Reader` (bounded by `quill.tail`) and on a `Log`; a damaged chosen segment returns a `GapError`; non-monotonic
-  input never panics and returns an offset in range; `SeekToTime` then `Records` starts at the right record; cost
-  touches O(log segments) first frames and one segment.
+  input never panics and returns an offset in range; `SeekToTime` then `Records` starts at the right record; the
+  search compares O(log segments) first-frame times and scans one segment, over a view that costs O(sealed segments)
+  per call and, on a `Reader`'s first call, one open per sealed segment.
 - **T20 Readable output** (phase 4). `cat -json` over records holding every byte value 0–255, invalid UTF-8, NUL,
   newlines, quotes, a 1 MiB payload and an empty payload: every line is valid JSON on its own, has exactly one of
   `payload` or `payload_b64`, and decoding all lines returns the original bytes and sequences. `-b64` gives

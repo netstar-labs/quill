@@ -92,8 +92,9 @@ func TestOffsetForTimeEqualsALinearScanForEverySecond(t *testing.T) {
 			}
 		}
 	}
-	// SeekToTime then Records starts at the right record, and the cost on a warm reader
-	// touches one segment: a handful of operations, whatever the number of segments.
+	// SeekToTime then Records starts at the right record, and a warm reader's seek costs a
+	// handful of file operations (the directory listing and one segment); the in-memory work
+	// to build the view of the sealed segments is not counted.
 	c, err := l.Consumer("seek", ConsumerOptions{})
 	if err != nil {
 		t.Fatal(err)
