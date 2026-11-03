@@ -136,6 +136,86 @@ func TestConsumersNoteAStaleProtectedConsumer(t *testing.T) {
 	}
 }
 
+// A consumer at Head+1 has read everything: that is the normal state, not an ahead one, in the
+// JSON row and in the table's NOTE. One at Head+2 is ahead (the boundary is exact).
+func TestL2ACaughtUpConsumerIsNotAhead(t *testing.T) {
+	dir := newLog(t, 5, func(i int) []byte { return []byte("record") })
+	mustRun(t, "", "register", "-dir", dir, "-name", "caughtup")
+	mustRun(t, "", "commit", "-dir", dir, "-name", "caughtup", "-offset", "6")
+	aheadConsumer(t, dir, "ahead", "7")
+	rows := consumerRows(t, dir)
+	if _, has := rows["caughtup"]["ahead"]; has {
+		t.Errorf("a consumer at Head+1 is flagged ahead: %v", rows["caughtup"])
+	}
+	if rows["ahead"]["ahead"] != true {
+		t.Errorf("a consumer at Head+2 is not flagged ahead: %v", rows["ahead"])
+	}
+	for _, line := range strings.Split(strings.TrimSpace(mustRun(t, "", "consumers", "-dir", dir)), "\n")[1:] {
+		f := strings.Fields(line)
+		if got := strings.Contains(line, "ahead of the head"); got != (f[0] == "ahead") {
+			t.Errorf("table row %q: ahead note %v", line, got)
+		}
+	}
+}
+
+// A protected consumer below the first retained sequence is probed at the first retained record
+// (decision 82), so it is still found stale; an unprotected one never is.
+func TestL2StaleProbeOfAConsumerBehindTheFirstRetainedSequence(t *testing.T) {
+	// Flush after every append so the cap deletes old segments but leaves records retained: the
+	// stale probe needs a first retained record to read.
+	cfg := quill.Config{Dir: filepath.Join(t.TempDir(), "orders"), Retention: -1, SegmentBytes: 4096,
+		FlushInterval: time.Hour, MaxRecords: 20, ConsumerTTL: time.Nanosecond}
+	l, err := quill.Open(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	dir := cfg.Dir
+	mustRun(t, "", "register", "-dir", dir, "-name", "billing", "-protect")
+	mustRun(t, "", "register", "-dir", dir, "-name", "reports")
+	if l, err = quill.Open(cfg); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 120; i++ {
+		if _, err := l.Append([]byte(strings.Repeat("x", 200))); err != nil {
+			t.Fatal(err)
+		}
+		if err := l.Flush(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var s struct{ First, Records uint64 }
+	if err := json.Unmarshal([]byte(mustRun(t, "", "stat", "-dir", dir, "-json")), &s); err != nil || s.First <= 1 || s.Records == 0 {
+		t.Fatalf("want a log whose cap deleted the oldest records but kept some: %+v %v", s, err)
+	}
+	old := time.Now().Add(-time.Hour)
+	for _, n := range []string{"billing", "reports"} {
+		if err := os.Chtimes(filepath.Join(dir, "consumers", n), old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows := consumerRows(t, dir)
+	if rows["billing"]["behind_first"] != true {
+		t.Fatalf("billing is not behind the first retained sequence: %v", rows["billing"])
+	}
+	if rows["billing"]["stale"] != true {
+		t.Errorf("a stale protected consumer behind the first retained sequence is not flagged: %v", rows["billing"])
+	}
+	if _, has := rows["reports"]["stale"]; has {
+		t.Errorf("an unprotected consumer is flagged stale: %v", rows["reports"])
+	}
+	for _, line := range strings.Split(strings.TrimSpace(mustRun(t, "", "consumers", "-dir", dir)), "\n")[1:] {
+		if strings.HasPrefix(line, "billing") && !strings.Contains(line, "stale") {
+			t.Errorf("table row %q has no stale note", line)
+		}
+	}
+}
+
 // newLogWithTTL has a protected consumer that is behind ("slow"), one that is caught up and one
 // that is unprotected and behind, all with offset files an hour old.
 func newLogWithTTL(t *testing.T, ttl time.Duration) string {
