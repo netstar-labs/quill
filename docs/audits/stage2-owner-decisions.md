@@ -1695,12 +1695,30 @@ rejected again, on a different defect; L1-4, the approved wording fix above, was
 `stage2/L1-4-a2` and `stage2/L1-10-a4`) and each is open, with the remaining work stated. The earlier attempts' text is kept
 below as first written, so the history stays readable.
 
+**Finished by hand (2026-11-03, after the second rejection).** The owner asked for the three to be finished; the workflow's second
+round rejected L1-3, L1-4 and L1-10 each on a documentation residual, so the recorder cherry-picked the last attempt of each onto
+`main` and closed exactly the objection named, the way A3-10 was finished. **No fix-skeptic re-ran on these final states.** What
+backs them is the recorder's own work (verified: each test run with `-race -count=1` in the worktree, and the L1-3 tests
+mutation-checked) and the gate at the landing tip. L1-4 (9c1784d, a4ddc8f): `docs/design/build-prompt.md` T3 now says "every later
+valid `Append` and `Flush`, and every `Sync` of a sequence not already durable"; the runtime text of the failed-log `Error` record
+("every later call returns ErrFailed", flush.go:135) is left as written on purpose, because changing it is a code change nobody
+approved, and decision 37 and CHANGELOG say so; the optional tightening of "unassigned" (`Sync(ctx, 0)` returns nil) was not made.
+L1-3 (0aa9659, 66c7ec3, 2aa5a21): the Unreleased `Fixed:` entry about a `Log`'s reads no longer says "starting at the offset asked
+for"; `Records` and `Follow` are in the From rule in decisions 101 and 103 and the user guide; `TestLogGapFromIsTheFirstUnavailableSequence`
+covers `Log.Scan`, `ScanAll`, `Records` and `Follow` (verified: it and the Reader test fail when the `GapError{From: cur}` at
+read.go:234 is mutated to `from.seq`). L1-10 (041cc34, 8e45aa0): log.go, scope.md, the user guide and the decision 25 and 50 notes
+say a deletion is one record (plus a `Warn` per consumer it passes) and a segment already gone gives its `Warn` and then the same
+deletion record, so two; the seal sources are "a `Roll`, or any flush that rotates" (an `Append`'s inline flush, `Flush`, `Sync`,
+`Close` or the flusher's), read from `publishLocked`; `TestASegmentAlreadyGoneGivesItsWarnAndThenTheDeletionRecord` pins the two
+records. The one thing not checked is the skeptic's inference that a `Sync` or `Close` flush that rotates runs the caps at that
+seal: the recorder read `publishLocked` (flush.go:166-190), which every flush calls, and did not run a test for it.
+
 | Id | Attempt | Fix-skeptic | State on 2026-11-03 |
 |---|---|---|---|
 | L1-21 | 41297fb | FIXED-VERIFIED, 6 of 6 lenses | Fixed, on `main` |
-| L1-3 | 47df71b (earlier attempt 52be0dd) | REJECTED | Open: one changelog entry (below) |
-| L1-10 | 0a77730 (earlier attempt 8192ca0) | REJECTED | Open: the "one record" claim for an already-gone segment (below) |
-| L1-4 | de3cfd4 | REJECTED | Open: the sweep for "every later" (in the L1-4 section) |
+| L1-3 | 47df71b (earlier attempt 52be0dd) | REJECTED twice | Finished by hand 2026-11-03: 0aa9659, 66c7ec3, 2aa5a21; no fix-skeptic re-run |
+| L1-10 | 0a77730 (earlier attempt 8192ca0) | REJECTED twice | Finished by hand 2026-11-03: 041cc34, 8e45aa0; no fix-skeptic re-run |
+| L1-4 | de3cfd4 | REJECTED | Finished by hand 2026-11-03: 9c1784d, a4ddc8f; no fix-skeptic re-run |
 
 - **L1-3: `GapError.From` is "the requested offset" only if nothing was delivered.** Attempt 52be0dd (docs only). Rejected:
   `Consumer.Scan` also returns the gap immediately after delivering records, so the CHANGELOG sentence that "Read, ReadWait and the

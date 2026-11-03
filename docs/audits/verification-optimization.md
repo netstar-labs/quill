@@ -45,7 +45,7 @@ state of the 50 items is now:
 | Disposition on 2026-11-03 | Items | Count |
 |---|---|---|
 | Fixed, fix-skeptic FIXED-VERIFIED | the 27 above, plus L1-5 (867f4ed), L1-11 (ce47243), L1-12 (be8cb15, wording only), L1-16 (923623c), L1-21 (41297fb) and L1-26 (c2cddb7) | 33 |
-| Fix written, rejected by the fix-skeptic, not in the tree | L1-3 (47df71b), L1-4 (de3cfd4), L1-10 (0a77730) | 3 |
+| Fix rejected twice by the fix-skeptic, then finished by hand (see below); no fix-skeptic re-run | L1-3 (0aa9659, 66c7ec3, 2aa5a21), L1-4 (9c1784d, a4ddc8f), L1-10 (041cc34, 8e45aa0) | 3 |
 | Decided, deliberately not changed | L1-51 (owner kept 64 KiB; outside the L1h batch) | 1 |
 | Held for the owner | none | 0 |
 | Recorded, not applied | L1-32, 33, 35, 38 | 4 |
@@ -55,7 +55,7 @@ state of the 50 items is now:
 The pass L1h fix-skeptics (reported): 9 fixes attacked in this pass, 6 FIXED-VERIFIED (L1-5, 11, 12, 16, 21, 26: 39 lens verdicts,
 all pass, 7 lenses for L1-5, 11 and 26 and 6 for the others) and 3 rejected (L1-3, L1-4, L1-10; the objection of each is
 under its item). No new skeptic votes on the findings. The L1-12 optional refusal is not implemented and stays an open optional
-follow-up (see the L1-12 item and [stage2-owner-decisions.md](stage2-owner-decisions.md)). Coverage of the fix-skeptics: see the
+follow-up (see the L1-12 item and [stage2-owner-decisions.md](stage2-owner-decisions.md)). **Finished by hand, 2026-11-03:** L1-3, L1-4 and L1-10 were each rejected a second time by their fix-skeptic, each on a documentation residual (a changelog entry, a design-prompt sentence and a runtime-message note, an "one record" claim). The recorder cherry-picked the last attempt of each onto `main` and closed exactly the named residual, as for A3-10; the commits are the ones listed in the table. Each is docs and tests only (no non-test code line changed; the mutation check of the new L1-3 tests is recorded in stage2-owner-decisions.md). No fix-skeptic ran on these three final states: their gate result and the recorder's own checks are the only verification, and the record says so in the item sections. Coverage of the fix-skeptics: see the
 coverage statement for pass L1h in that file; in short, `staticcheck`, `deadcode` and the fuzz step were not run by the fix-skeptics
 of L1-5, 11, 12 and 26, and the Linux x86-64 box was not used by those of L1-5, 11, 12 and 26. The three sections of this file that
 list items "held" and "rejected" below are the record as written on 2026-11-02; each item carries its updated disposition.
