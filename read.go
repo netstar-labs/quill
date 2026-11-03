@@ -11,9 +11,10 @@ import (
 )
 
 // Read returns flushed records with seq >= offset, ascending, payloads copied: at most limit
-// records (limit <= 0 means no limit), and it stops once at least MaxReadBytes of payload have
-// been returned, so the total can exceed MaxReadBytes by up to one record. It always returns at
-// least one record when one exists. It returns a *GapError where records are unavailable
+// records (limit <= 0 means no limit), and it stops once at least MaxReadBytes have been
+// returned, each record counting its payload plus 48 bytes of overhead, so the batch is bounded
+// in size and not only in payload bytes, and the total can exceed MaxReadBytes by up to one
+// record. It always returns at least one record when one exists. It returns a *GapError where records are unavailable
 // (decision 38) and an empty result when offset is past the head. An error met after at least
 // one record was collected (a gap, an I/O error, corruption of any segment) is not returned with
 // the records: they come back with a nil error and the next call, from where they end, meets it
@@ -113,6 +114,16 @@ func (v *segView) locate(seq uint64) (*segRef, error) {
 	return nil, &GapError{From: seq, To: seq} // between segments with no hole recorded: cannot happen
 }
 
+// readRecordOverhead is what each record delivered counts against MaxReadBytes besides its
+// payload, so that a read of empty or tiny payloads is bounded in memory and not only in
+// payload bytes (L2-53). The in-memory Record is 40 bytes, measured with unsafe.Sizeof on
+// darwin/arm64 (8 for Seq, 8 for At, 24 for the Payload header); 48 is that plus 8 of
+// margin (the figure the owner chose, not a measured one). It is a bound on the size of a batch, not an
+// exact account: a Read allocates about 200 bytes per record in all (the slice grows by
+// append, so its garbage counts), measured with -benchmem as 215 MB for a 1,000,000-record log
+// of empty payloads before the charge and 70 MB after, with 349,526 records per call.
+const readRecordOverhead = 48
+
 // maxExpect bounds the slice a Read reserves up front, in records: a larger result grows by
 // append past it.
 const maxExpect = 4096
@@ -155,8 +166,9 @@ func readWait(ctx context.Context, src source, offset uint64, limit int) ([]Reco
 }
 
 // scanSource drives every read: at most limit records (0: no limit), stopping once at least
-// maxBytes of payload (0: no bound) have been delivered, so the last record may carry the total
-// past maxBytes, and always at least one. copyPayloads makes each payload its own allocation.
+// maxBytes (0: no bound) have been delivered, each record counting len(payload) +
+// readRecordOverhead, so the last record may carry the total past maxBytes, and always at
+// least one. copyPayloads makes each payload its own allocation.
 // An error that goes through fail (a gap, an I/O error, corruption of a segment) met after
 // records were delivered is returned at once when gapAfter is set (Scan: the callback already
 // has the records) and otherwise left for the next call (Read: the records are the result,
@@ -256,7 +268,7 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 				expect(int(min(n, maxExpect)))
 			}
 			count++
-			bytes += len(rec.Payload)
+			bytes += len(rec.Payload) + readRecordOverhead
 			cur = rec.Seq + 1
 			next = cursor{seq: cur, segID: s.id, pos: pos + int64(frameLen(&rec)), valid: true}
 			if !fn(rec) {

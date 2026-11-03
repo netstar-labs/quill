@@ -19,8 +19,10 @@ import (
 type ReaderOptions struct {
 	// PollInterval is how often ReadWait and Follow re-read quill.tail (50 ms).
 	PollInterval time.Duration
-	// MaxReadBytes is the payload bytes after which one Read stops: it returns at least one record,
-	// and the last record may carry the total past this bound (16 MiB).
+	// MaxReadBytes is the size after which one Read stops: each record counts its payload plus 48
+	// bytes of overhead, so it bounds the size of a batch and not the sum of the payloads. A Read
+	// returns at least one record, and the last record may carry the total past this bound (16 MiB;
+	// at the default, about 349,000 empty records or 342,000 one-byte ones per call).
 	MaxReadBytes int
 
 	fs    fsx.FS

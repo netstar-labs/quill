@@ -11,7 +11,7 @@ extractions and wording only (see the summary in mutation-hardening.md).
 
 | Id | Item | What | Where | Status |
 |---|---|---|---|---|
-| D1 | L2-53 | `MaxReadBytes` bounds payload bytes only, so a read of tiny records is unbounded in memory | production, `read.go` and `iter.go` | held for the owner; no fix written |
+| D1 | L2-53 | `MaxReadBytes` bounds payload bytes only, so a read of tiny records is unbounded in memory | production, `read.go` and `iter.go` | owner-approved 2026-11-03; fixed (charge 48 bytes per record) |
 | D2 | L2-2 | a data race in two test hooks made the `-race` gate red | `check_vanished_test.go`, `reader_vanished_test.go` | fixed in `5037042` |
 | D3 | L2-8 | a wall-clock assertion and sleep-based synchronisation made the gate flaky and the mutation runs unreliable | `consumer_protect_test.go`, `sync_test.go` | fixed in `743a5c5` |
 | D4 | L2-39 | strictjson tests that named surrogate and UTF-8 checks could not fail for that reason | `internal/strictjson/strictjson_test.go` | fixed in `6f26176` |
@@ -33,9 +33,9 @@ not the memory a read takes.
 can pass a limit. `Records`, `Follow` and the consumers' iterators have no limit parameter; their batch size is the iterator's own choice, and it is the byte cap that is supposed to bound it
 (iter.go header, decision 58). A log of counters or heartbeats is an ordinary workload, not only a hostile one.
 
-**Fix.** None written. The owner decides; the recommended answer, which charges a per-record overhead against the cap, is in [stage2-owner-decisions.md](stage2-owner-decisions.md), section "L2-53".
+**Fix.** Owner-approved 2026-11-03 and written: `scanSource` charges each record `len(payload) + 48` bytes (`readRecordOverhead` in `read.go`) against `MaxReadBytes`, which `Read`, `Records` and `Follow` all pass. The recommended answer is in [stage2-owner-decisions.md](stage2-owner-decisions.md), section "L2-53".
 
-**Regression test (not yet written; proposed by the auditor).** 1,000,000 empty-payload records, default `MaxReadBytes`: assert `len(Read(1,0))` is far below 1,000,000 and that `Records` batches are bounded.
+**Regression test (written; `read_overhead_test.go`, red before the fix).** 1,000,000 empty-payload records, default `MaxReadBytes`: assert `len(Read(1,0))` is far below 1,000,000 and that `Records` batches are bounded.
 If the owner prefers to document the behaviour instead, no test is needed and the doc wording changes.
 
 ## D2. A data race in the vanished-segment test hooks (found while fixing L2-2)

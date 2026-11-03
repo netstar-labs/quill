@@ -195,7 +195,7 @@ func TestMaxReadBytesReturnsAtLeastOneRecordAndLimitCountsAcrossSegments(t *test
 
 func TestReadStopsOnceMaxReadBytesIsReachedSoTheLastRecordMayPassIt(t *testing.T) {
 	s := fsx.NewSim()
-	l := openSim(t, s, func(c *Config) { c.MaxReadBytes = 16 })
+	l := openSim(t, s, func(c *Config) { c.MaxReadBytes = 100 })
 	defer l.Close()
 	for _, n := range []int{10, 10, 10} {
 		if _, err := l.Append(make([]byte, n)); err != nil {
@@ -208,13 +208,14 @@ func TestReadStopsOnceMaxReadBytesIsReachedSoTheLastRecordMayPassIt(t *testing.T
 	for _, r := range recs {
 		total += len(r.Payload)
 	}
-	// The second record is admitted because 10 < 16, and it carries the total to 20; the third is not.
+	// Each record counts its 10 payload bytes plus 48 of overhead: the second is admitted because 58 < 100,
+	// and it carries the total to 116; the third is not. The payload bytes returned are 20.
 	if err != nil || len(recs) != 2 || total != 20 {
 		t.Fatalf("%v %d bytes %v", seqsOf(recs), total, err)
 	}
 }
 
-// The documented rule is "stops once at least MaxReadBytes of payload have been returned": a total
+// The documented rule is "stops once at least MaxReadBytes have been returned", payload plus 48 bytes per record: a total
 // that lands exactly on the bound ends the read, it does not admit one more record.
 func TestMaxReadBytesReachedExactlyStopsTheRead(t *testing.T) {
 	for _, tc := range []struct {
@@ -226,7 +227,7 @@ func TestMaxReadBytesReachedExactlyStopsTheRead(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := fsx.NewSim()
-			l := openSim(t, s, func(c *Config) { c.MaxReadBytes = 20; c.SegmentBytes = tc.segmentBytes })
+			l := openSim(t, s, func(c *Config) { c.MaxReadBytes = 2 * (10 + 48); c.SegmentBytes = tc.segmentBytes })
 			defer l.Close()
 			for i := 0; i < 5; i++ {
 				if _, err := l.Append(make([]byte, 10)); err != nil {

@@ -1624,4 +1624,4 @@ tens of megabytes (inferred from the measured 232 bytes per record; it stays a s
 second runner-up is to leave `Read` as documented and give only the iterators a record-count bound of their own (iter.go passes no limit today), plus a sentence in the `Read` doc that `limit` 0 bounds payload bytes only; that changes nothing a caller can see except the iterators' internal batch size. If the owner
 prefers not to change behaviour at all, document that `MaxReadBytes` does not bound the record count and recommend `limit`.
 
-**Fix written.** None. The proposed test, to add with whichever answer is chosen: 1,000,000 empty-payload records, default `MaxReadBytes`; `len(Read(1,0))` far below 1,000,000, and `Records` batches bounded. See [defects-log.md](defects-log.md), D1.
+**Fix written.** Owner-approved 2026-11-03 (the recommended answer) and written: see [defects-log.md](defects-log.md), D1, and `read_overhead_test.go`. The test as proposed: 1,000,000 empty-payload records, default `MaxReadBytes`; `len(Read(1,0))` far below 1,000,000, and `Records` batches bounded. See [defects-log.md](defects-log.md), D1.

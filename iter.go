@@ -9,7 +9,9 @@ import (
 // does the same and then waits for more until the context ends. Payloads are copies, valid
 // after the loop moves on. An error is yielded once and ends the sequence; a *GapError is
 // resumed by iterating again from To + 1. Breaking out of the loop releases every buffer and
-// descriptor: each batch is read, copied and released before it is yielded.
+// descriptor: each batch is read, copied and released before it is yielded, and a batch is bounded
+// by MaxReadBytes (each record counts its payload plus 48 bytes of overhead), so a log of empty
+// records is read in several batches, never all at once.
 
 // Records yields the records with seq >= offset up to the current head, in order.
 func (l *Log) Records(ctx context.Context, offset uint64) iter.Seq2[Record, error] {
