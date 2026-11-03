@@ -812,3 +812,47 @@ func TestAFailedRotationIsRetriedByTheNextFlushEvenWithNothingToWrite(t *testing
 		t.Fatalf("the failed rotation was not retried by an empty flush: segments %v", ids)
 	}
 }
+
+// Dropped counts segments, not consumers: a segment deleted under two lagging consumers is
+// one drop, and a consumer whose next record to read is the segment's last one still loses
+// that record, so it counts (decision 12).
+func TestDroppedCountsEachDeletedSegmentOnceAndCountsAConsumerAtItsLastRecord(t *testing.T) {
+	dropped := func(t *testing.T, commits map[string]uint64) uint64 {
+		t.Helper()
+		_, clk, l := retentionLog(t, nil)
+		defer l.Close()
+		fillSegments(t, l, clk, 3) // segments 0..2 sealed: records 1..4, 5..8, 9..12
+		for name, at := range commits {
+			c, err := l.Consumer(name, ConsumerOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			if at > 1 {
+				if err := c.Commit(at); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		clk.Advance(2 * time.Hour)
+		if err := l.Prune(true); err != nil {
+			t.Fatal(err)
+		}
+		st, _ := l.Stat()
+		if st.First != 13 {
+			t.Fatalf("the three expired segments were not all deleted: %+v", st)
+		}
+		return st.Dropped
+	}
+	if got := dropped(t, map[string]uint64{"a": 1, "b": 1}); got != 3 {
+		t.Fatalf("two consumers at 1 under three deleted segments: Dropped %d, want 3", got)
+	}
+	// Next to read is record 4, the last of segment 0: it has not read it, so the segment counts.
+	if got := dropped(t, map[string]uint64{"a": 4}); got != 3 {
+		t.Fatalf("a consumer at the last record of the first segment: Dropped %d, want 3", got)
+	}
+	// Next to read is record 5, the first of segment 1: segment 0 was fully read.
+	if got := dropped(t, map[string]uint64{"a": 5}); got != 2 {
+		t.Fatalf("a consumer past the first segment: Dropped %d, want 2", got)
+	}
+}
