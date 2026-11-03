@@ -80,36 +80,63 @@ const hexDigits = "0123456789abcdef"
 // < > & and the line and paragraph separators U+2028 and U+2029. It also escapes DEL and the C1 controls
 // U+0080 to U+009F, which encoding/json passes and a terminal may act on (stage 2 audit A1-50, decision 35).
 func appendJSONString(b, s []byte) []byte {
+	start := 0 // s[start:i] is plain text not yet appended
 	for i := 0; i < len(s); i++ {
 		c := s[i]
+		if jsonPlain[c] {
+			continue
+		}
 		switch {
 		case c == '"' || c == '\\':
+			b = append(b, s[start:i]...)
 			b = append(b, '\\', c)
 		case c == '\b':
+			b = append(b, s[start:i]...)
 			b = append(b, '\\', 'b')
 		case c == '\f':
+			b = append(b, s[start:i]...)
 			b = append(b, '\\', 'f')
 		case c == '\n':
+			b = append(b, s[start:i]...)
 			b = append(b, '\\', 'n')
 		case c == '\r':
+			b = append(b, s[start:i]...)
 			b = append(b, '\\', 'r')
 		case c == '\t':
+			b = append(b, s[start:i]...)
 			b = append(b, '\\', 't')
 		case c < 0x20 || c == 0x7f || c == '<' || c == '>' || c == '&':
+			b = append(b, s[start:i]...)
 			b = append(b, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
 		case c == 0xc2 && i+1 < len(s) && s[i+1]&^0x1f == 0x80:
+			b = append(b, s[start:i]...)
 			c = s[i+1]
 			b = append(b, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
 			i++
 		case c == 0xe2 && i+2 < len(s) && s[i+1] == 0x80 && s[i+2]&^1 == 0xa8:
+			b = append(b, s[start:i]...)
 			b = append(b, '\\', 'u', '2', '0', '2', hexDigits[s[i+2]&0xf])
 			i += 2
 		default:
-			b = append(b, c)
+			continue // 0xc2 or 0xe2 that starts nothing to escape: part of the plain run
 		}
+		start = i + 1
 	}
-	return b
+	return append(b, s[start:]...)
 }
+
+// jsonPlain marks the bytes appendJSONString may copy as they are without looking at the next
+// ones: printable ASCII except the quote, the backslash and < > &, and every byte of 0x80 or
+// above except 0xc2 and 0xe2, the two that can begin a C1 control or U+2028 and U+2029.
+var jsonPlain = func() (t [256]bool) {
+	for c := 0x20; c < 0x7f; c++ {
+		t[c] = c != '"' && c != '\\' && c != '<' && c != '>' && c != '&'
+	}
+	for c := 0x80; c < 0x100; c++ {
+		t[c] = c != 0xc2 && c != 0xe2
+	}
+	return
+}()
 
 // appendQuoted appends s as strconv.Quote would, for valid UTF-8 text: printable runes
 // as they are, the rest escaped.
@@ -118,6 +145,16 @@ func appendQuoted(b, s []byte) []byte {
 	for i := 0; i < len(s); {
 		c := s[i]
 		if c < utf8.RuneSelf {
+			// A run of printable ASCII other than the quote and the backslash is copied whole.
+			j := i
+			for j < len(s) && quotedPlain[s[j]] {
+				j++
+			}
+			if j > i {
+				b = append(b, s[i:j]...)
+				i = j
+				continue
+			}
 			i++
 			switch {
 			case c == '"' || c == '\\':
@@ -141,6 +178,14 @@ func appendQuoted(b, s []byte) []byte {
 	}
 	return append(b, '"')
 }
+
+// quotedPlain marks the ASCII bytes appendQuoted copies as they are.
+var quotedPlain = func() (t [256]bool) {
+	for c := 0x20; c < 0x7f; c++ {
+		t[c] = c != '"' && c != '\\'
+	}
+	return
+}()
 
 // appendQuotedControl escapes an ASCII control character or DEL the way strconv.Quote does.
 func appendQuotedControl(b []byte, c byte) []byte {
