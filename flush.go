@@ -75,7 +75,8 @@ func (l *Log) flushLocked() error {
 	l.buf, l.bufCount = l.buf[:0], 0
 	l.flushErr = nil
 	l.clearBg(bgFlush)
-	// (d, e) Rotate if due and publish the marker; failures there are retried next time.
+	// (d, e) Rotate if due and publish the marker; a failed create or marker write is retried next
+	// time, a failed directory fsync fails the log.
 	err := l.publishLocked()
 	l.noteFlushOKLocked()
 	l.broadcastLocked()
