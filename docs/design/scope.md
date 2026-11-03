@@ -463,7 +463,7 @@ repository goes public: a `LICENSE`, `CONTRIBUTING`, a changelog and a stated Go
 
 - `examples/log/` — open a log, append, read, commit, restart, resume.
 - `examples/topics/` — three logs (`orders`, `payments`, `audit`) in one process, each with its own
-  consumers, to show that topics share nothing.
+  consumers, to show that topics share no lock, buffer or flusher (on one disk they still share the device).
 - `examples/pipeline/` — two processes: a writer appends to a log; a separate process opens a `Reader`
   and a consumer, starts late, catches up, and keeps following. Run under `go test` with a helper binary.
 

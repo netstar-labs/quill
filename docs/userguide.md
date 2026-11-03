@@ -17,7 +17,8 @@ sealed segments, oldest first, by age and by caps; it does not wait for a consum
 consumer is **protected**, and the caps win even then.
 
 Several topics are several directories, in one process or in several. Each has its own lock,
-buffer, flush goroutine, retention and consumers, and shares nothing.
+buffer, flush goroutine, retention and consumers: topics share no lock, buffer or flusher, but on one
+disk they still share the device.
 
 ## 2. Writing
 

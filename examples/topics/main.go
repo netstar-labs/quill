@@ -1,5 +1,6 @@
 // Example topics: three logs in one process, each a directory with its own lock, buffer,
-// flush goroutine and consumers. Topics share nothing, so one slow fsync never delays another.
+// flush goroutine and consumers. Topics share no lock, buffer or flush goroutine, so
+// one log's flush never waits on another's; on one disk they still share the device.
 package main
 
 import (
