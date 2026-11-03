@@ -731,3 +731,35 @@ func TestReaderAndConsumerScanNameAndIDForwardTheRightArguments(t *testing.T) {
 		c.Close()
 	}
 }
+
+// A sealed segment's first frame is probed with a small first read (firstFrameChunk), so a
+// first frame that is larger than that read, or just under or over it, must still decode.
+func TestAReaderReadsSealedSegmentsWhoseFirstFrameIsAroundAndAboveTheProbeSize(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 1 << 10 })
+	defer l.Close()
+	sizes := []int{10, firstFrameChunk - 20, firstFrameChunk - 8, firstFrameChunk, firstFrameChunk + 1, 3 * firstFrameChunk, readChunk + 5, 3 * readChunk}
+	var want [][]byte
+	for i, n := range sizes {
+		p := bytes.Repeat([]byte{byte('a' + i)}, n)
+		want = append(want, p)
+		if _, err := l.Append(p); err != nil {
+			t.Fatal(err)
+		}
+		mustFlush(t, l) // a flush past SegmentBytes seals the segment: the next record starts a new one
+	}
+	if ids := segmentFiles(t, s, "/log"); len(ids) < len(sizes) {
+		t.Fatalf("want at least %d segments, got %v", len(sizes), ids)
+	}
+	r := openReaderSim(t, s)
+	defer r.Close()
+	got, err := readerAll(r)
+	if err != nil || len(got) != len(want) {
+		t.Fatalf("read %d records of %d, %v", len(got), len(want), err)
+	}
+	for i := range want {
+		if got[i].Seq != uint64(i+1) || !bytes.Equal(got[i].Payload, want[i]) {
+			t.Fatalf("record %d: seq %d, %d bytes; want %d bytes", i+1, got[i].Seq, len(got[i].Payload), len(want[i]))
+		}
+	}
+}

@@ -247,7 +247,7 @@ func (r *Reader) segment(id uint64) (*readerSegment, error) {
 		s.bad = err
 	} else {
 		s.size = size
-		w := &window{r: f, size: size}
+		w := &window{r: f, size: size, chunk: firstFrameChunk}
 		rec, _, ferr := w.frameAt(0)
 		if ferr == nil && rec.Seq == 0 {
 			ferr = errBadFrame // a segment's first frame is at least 1 (decision 71)
@@ -323,8 +323,8 @@ func (s *readerSegment) scan(fsys fsx.FS) error {
 	return err
 }
 
-// firstFrameChunk is the read size of the active segment's first-frame probe: a frame's
-// header and a small payload, not the 64 KiB a scan starts with.
+// firstFrameChunk is the read size of a first-frame probe, of a sealed segment or the active
+// one: a frame's header and a small payload, not the 64 KiB a scan starts with.
 const firstFrameChunk = 4 << 10
 
 // view reads the marker, lists the directory, and builds the segment ranges from first
