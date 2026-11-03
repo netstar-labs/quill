@@ -3,6 +3,7 @@ package quill
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -51,5 +52,48 @@ func TestAHandleOpenAcrossAReplacedLogRefusesCommitAndWaitWithErrWrongLog(t *tes
 	defer cancel()
 	if _, err := r.ReadWait(ctx, 6, 1); !errors.Is(err, ErrWrongLog) {
 		t.Fatalf("ReadWait after the swap: %v, want ErrWrongLog", err)
+	}
+}
+
+// A quill.format that names a newer version while a Reader and a consumer are open is
+// ErrFutureVersion at Consumer.Commit and in the Reader's wait, not a pass and not ErrWrongLog:
+// the marker is re-read at both, so an older build never writes into a log it cannot read.
+func TestAHandleOpenAcrossANewerFormatRefusesCommitAndWaitWithErrFutureVersion(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	defer l.Close()
+	appendN(t, l, 5)
+	mustFlush(t, l)
+	r := openReaderSim(t, s)
+	defer r.Close()
+	c, err := r.Consumer("c", ConsumerOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := c.Commit(3); err != nil {
+		t.Fatalf("commit before the rewrite: %v", err)
+	}
+	before, err := s.Durable("/log/consumers/c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Same log id, a version this build does not know.
+	writeFile(t, s, "/log/"+formatName, []byte(fmt.Sprintf("quill/%d %s\n", formatVersion+1, r.id)))
+
+	err = c.Commit(4)
+	if !errors.Is(err, ErrFutureVersion) || errors.Is(err, ErrWrongLog) {
+		t.Fatalf("Commit after the rewrite: %v, want ErrFutureVersion", err)
+	}
+	if got, err := s.Durable("/log/consumers/c"); err != nil || string(got) != string(before) {
+		t.Fatalf("consumer file changed after a refused commit: %q %v", got, err)
+	}
+	if c.Offset() != 3 {
+		t.Fatalf("offset moved to %d by a refused commit", c.Offset())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := r.ReadWait(ctx, 6, 1); !errors.Is(err, ErrFutureVersion) {
+		t.Fatalf("ReadWait after the rewrite: %v, want ErrFutureVersion", err)
 	}
 }
