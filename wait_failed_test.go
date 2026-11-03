@@ -190,3 +190,39 @@ func TestAParkedWaiterIsWokenWhenTheLogFails(t *testing.T) {
 		}
 	})
 }
+
+// Decision 60 (e): a directory fsync error is fatal, including the one that makes the marker
+// naming a new segment durable at rotation. The first directory fsync of a rotating flush
+// (after the new segment is created) is let through and the second (after quill.tail is
+// published) fails; ignoring or retrying it would leave a marker that may name a segment
+// the directory does not durably hold.
+func TestDirFsyncErrorAfterTheRotationMarkerFailsTheLog(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 1 })
+	defer l.Close()
+	var armed atomic.Bool
+	var syncDirs int
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpSyncDir && armed.Load() {
+			syncDirs++
+			if syncDirs == 2 {
+				return errors.New("injected EIO")
+			}
+		}
+		return nil
+	}
+	appendN(t, l, 1)
+	armed.Store(true)
+	if err := l.Flush(); !errors.Is(err, ErrFailed) {
+		t.Fatalf("Flush: %v, want ErrFailed", err)
+	}
+	if syncDirs != 2 {
+		t.Fatalf("%d directory fsyncs in the rotating flush, want the failure at the second", syncDirs)
+	}
+	if err := l.Flush(); !errors.Is(err, ErrFailed) {
+		t.Fatalf("Flush after the failure: %v, want ErrFailed (sticky)", err)
+	}
+	if _, err := l.Append([]byte("x")); !errors.Is(err, ErrFailed) {
+		t.Fatalf("Append after the failure: %v, want ErrFailed", err)
+	}
+}
