@@ -421,7 +421,11 @@ func (r *Reader) view() (*segView, func(), error) {
 			}
 		}
 		if last < s.first {
-			continue // an empty range: the marker predates it (a stale marker after a rotation crash)
+			// An empty range: the marker predates it (a stale marker after a rotation crash), or
+			// (bounded) the next good segment starts at or below this one's first sequence (a
+			// duplicate or overlap). Either way the segment is left out of the view, never scanned,
+			// so contiguity is not given an overlap to report: lost records show as a gap.
+			continue
 		}
 		// One load: a scan may finish in another call while this loop runs.
 		var index []anchor
