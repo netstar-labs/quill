@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -139,5 +140,29 @@ func TestKillCountsOnlySentSignals(t *testing.T) {
 	o.kill(p)
 	if got := o.n.m["kills_writer"]; got != 1 {
 		t.Fatalf("kills_writer = %d after a kill of a frozen role, want still 1", got)
+	}
+}
+
+// A run that is cancelled early (a role recorded a violation) must stop the stall scheduler at
+// once. It used to loop on wall-clock time alone, with every sleep returning at once on the
+// cancelled context, so it spun at full CPU until the original deadline was near.
+func TestStallsReturnsWhenRunIsCancelled(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	cancel() // the run is over long before its deadline
+	o := &orch{
+		c:     &config{Retention: 2 * time.Second, Stall: time.Second, Seed: 1},
+		ctx:   ctx,
+		procs: []*proc{{role: "consumer", id: 0}},
+		n:     &counters{m: map[string]int64{}},
+	}
+	done := make(chan struct{})
+	go func() {
+		o.stalls()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stalls was still running 2s after the run was cancelled")
 	}
 }

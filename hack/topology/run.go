@@ -387,7 +387,7 @@ func (o *orch) stalls() {
 	d := o.c.Stall
 	last, _ := o.ctx.Deadline()
 	last = last.Add(-d)
-	for { // a freeze and a stretch of running, if they end before the last freeze begins
+	for o.ctx.Err() == nil { // a freeze and a stretch of running, if they end before the last freeze begins
 		run := d/2 + time.Duration(rng.Int63n(int64(d/2)+1))
 		if time.Now().Add(run + d + d/2).After(last) {
 			break
