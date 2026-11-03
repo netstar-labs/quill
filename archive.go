@@ -15,7 +15,7 @@ import (
 )
 
 // Archive copies the sealed segments of the log at srcDir that the consumer named _archive
-// has not yet copied to dstDir, verifying every frame's CRC on the way, writes the
+// has not yet copied, verifying every frame's CRC on the way, writes the
 // destination's quill.format and quill.tail so it opens with OpenReader, then commits the
 // consumer (decisions 28, 67, 68). It is idempotent, runs beside a live writer (it reads
 // only sealed segments, through a Reader), and stops with an error at a corrupt sealed
@@ -28,7 +28,14 @@ import (
 // consumer was removed and recreated at the first retained sequence (at 1 when a damaged oldest
 // segment left a gap below it).
 // Later runs have nothing to copy and return nil; `quill check` on the destination keeps
-// reporting the hole. It refuses, before
+// reporting the hole.
+//
+// The _archive offset belongs to the source log, not to a destination: a destination that is
+// new or empty receives only the records at or above the offset, and Archive returns nil. A
+// destination archived after the consumer has advanced (an earlier run copied to another
+// destination, say) is therefore a suffix of the source, not a complete copy; the records below
+// the offset are still in the source and are not a gap. `quill commit -name _archive -offset N`
+// rewinds the consumer, and the next run copies from N. It refuses, before
 // writing to it, a destination that is the source log itself and a destination whose
 // writer lock is held (ErrLocked): quill.tail is the writer's file. quill.lock is always 0600,
 // so a destination lock this account cannot open (it belongs to another account) is treated as
@@ -78,8 +85,10 @@ func archive(fsys fsx.FS, srcDir, dstDir string) error {
 		gap = &GapError{From: offset, To: v.first - 1}
 	}
 	// What the destination holds: its quill.tail names the last record of the last run. A zero
-	// Seq is a new destination (the whole source is then the archive's to copy) and a marker
-	// that cannot be read is about to be replaced, so neither says anything about a hole.
+	// Seq is a new destination, and a marker that cannot be read is about to be replaced, so
+	// neither says anything about a hole. A new destination is not the whole source: the _archive
+	// offset belongs to the source, so it receives only the records at or above that offset
+	// (decision 85, L1-12).
 	var destSeq uint64
 	if data, err := readState(fsys, filepath.Join(dstDir, tailName)); err == nil {
 		if dt, err := decodeTail(data); err == nil {

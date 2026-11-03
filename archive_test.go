@@ -364,6 +364,56 @@ func TestArchiveOfARetentionTrimmedSourceIntoANewDestinationReportsNoGap(t *test
 	}
 }
 
+// The _archive offset belongs to the source, not to a destination: once the consumer has
+// advanced, a second, new destination receives only the records at or above it, a suffix, and
+// Archive returns nil (decision 85). Rewinding the consumer copies more.
+func TestArchiveIntoANewDestinationAfterTheConsumerAdvancedCopiesOnlyTheSuffix(t *testing.T) {
+	s, _, l := retentionLog(t, func(c *Config) { c.Retention = -1 })
+	defer l.Close()
+	appendN(t, l, 30)
+	mustFlush(t, l)
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	if err := archive(s, "/log", "/dA"); err != nil {
+		t.Fatal(err)
+	}
+	appendN(t, l, 30)
+	mustFlush(t, l)
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	if list, err := l.Consumers(); err != nil || len(list) != 1 || list[0].Offset != 31 {
+		t.Fatalf("before the second archive: %+v %v", list, err)
+	}
+	if err := archive(s, "/log", "/dB"); err != nil {
+		t.Fatalf("a new destination behind the consumer's offset: %v", err)
+	}
+	list, err := l.Consumers()
+	if err != nil || len(list) != 1 || list[0].Name != "_archive" || list[0].Offset != 61 {
+		t.Fatalf("%+v %v", list, err)
+	}
+	first := func(dir string) (uint64, uint64) {
+		t.Helper()
+		ar, err := OpenReader(dir, ReaderOptions{fs: s})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer ar.Close()
+		st, err := ar.Stat()
+		if err != nil || len(st.Holes) != 0 {
+			t.Fatalf("%s: %+v %v", dir, st, err)
+		}
+		return st.First, st.Head
+	}
+	if f, h := first("/dA"); f != 1 || h != 30 {
+		t.Fatalf("dA first %d head %d", f, h)
+	}
+	if f, h := first("/dB"); f != 31 || h != 60 {
+		t.Fatalf("dB first %d head %d, want 31 and 60: the offset is the source's", f, h)
+	}
+}
+
 // A hole of exactly one record between two copied segments is a gap like any other.
 func TestArchiveReportsAHoleOfOneRecordBetweenCopiedSegments(t *testing.T) {
 	s, _, l := retentionLog(t, func(c *Config) { c.Retention = -1 })

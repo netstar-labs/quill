@@ -330,7 +330,12 @@ rewind to the first retained sequence (the `first` that `stat` prints) or by `-t
 segments can name data the copy lacks.
 
 **Archiving.** `quill archive -dir <log> -to <dest>` copies each sealed segment not yet
-copied, verifying every CRC, and commits the `_archive` consumer, which is protected. A segment that runs into the next one's sequences (two overlapping segments, which `Open` refuses too) stops the verb with `ErrCorrupt` before that segment is copied. The
+copied, verifying every CRC, and commits the `_archive` consumer, which is protected. The `_archive` offset belongs to the
+source log, not to a destination: a new or empty destination receives only the records at or above it, and the run exits 0.
+A destination archived after the consumer has advanced (an earlier run copied to another destination) is therefore a suffix
+of the source, not a complete copy, and `quill check` on it reports it healthy; to copy more, rewind the consumer with
+`quill commit -dir <log> -name _archive -offset N` (the `first` that `quill stat` prints copies the whole retained source)
+and archive again. Archive into one standing destination per source. A segment that runs into the next one's sequences (two overlapping segments, which `Open` refuses too) stops the verb with `ErrCorrupt` before that segment is copied. The
 destination is itself a log that `OpenReader` opens; the verb refuses the source log as its own
 destination and a destination that has a live writer (`ErrLocked`). The destination must be a new or empty directory (a
 `.tmp-*` file or `quill.lock` does not count) or one that is already an archive (it has a `quill.format`); a

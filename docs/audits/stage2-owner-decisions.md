@@ -1444,7 +1444,20 @@ an error that says the destination is new but the source's `_archive` offset is 
 partial archive. It must not be a `GapError` ("records First to N-1 are unavailable"), because those records are available at the
 source.
 
-**Fix written.** None.
+**Owner decision (2026-11-03).** Approved: the recommended answer, wording only. The comment in archive.go, the `Archive` godoc,
+the user guide, scope.md's Archiving paragraph and decision 85 (dated note) now say the `_archive` offset belongs to the source, a
+new or empty destination receives only records at or above it, a destination archived after the consumer advanced is a suffix, and
+`quill commit -name _archive -offset N` rewinds the consumer to copy more. No code change; the test
+`TestArchiveIntoANewDestinationAfterTheConsumerAdvancedCopiesOnlyTheSuffix` pins it (30 records, `Roll`, archive to dA; 30 more,
+`Roll`, archive to a new dB: nil, dB's first sequence 31, the source's `_archive` offset 31 before the run).
+
+**Open optional follow-up (not done).** Refuse a new destination that is behind the consumer: when the destination is new
+(`destSeq == 0`) and the source's first retained sequence is below the `_archive` offset, `Archive` returns an error that says the
+destination is new but the source's `_archive` offset is N (so `archive && notify-ok` cannot succeed on a partial archive). It must
+not be a `*GapError` ("records First to N-1 are unavailable"), because those records are available at the source. It changes an
+exit code and an error, so it needs its own owner decision.
+
+**Fix written.** Wording only (see the owner decision above).
 
 ## L1-4: "every later Sync fails" on a failed log is not what the code does (low)
 
