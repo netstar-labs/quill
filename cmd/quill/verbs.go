@@ -147,7 +147,6 @@ func findVerb(name string) *verb {
 	return nil
 }
 
-// run parses `quill [-dir DIR] <verb> [flags] [args]` and runs the verb.
 // run executes one invocation and returns the exit code. Standard output is wrapped so that
 // a write that fails (a full disk, a closed descriptor, an unwritable file) is not lost
 // behind the buffering of the verbs: a verb that would have exited 0 exits 1 instead.
@@ -175,6 +174,7 @@ func (e *errWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// dispatch parses `quill [-dir DIR] <verb> [flags] [args]` and runs the verb.
 func dispatch(args []string, in io.Reader, out, errw io.Writer) int {
 	c := &cli{in: in, out: out, err: errw}
 	global := flag.NewFlagSet("quill", flag.ContinueOnError)
