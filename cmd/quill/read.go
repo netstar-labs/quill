@@ -17,8 +17,11 @@ import (
 	"github.com/netstar-labs/quill"
 )
 
-// withReader opens the log read-only, runs fn, and closes the reader. A verb checks its
-// usage before calling it, so a bad flag still exits 2 when -dir cannot be opened.
+// withReader opens the log read-only, runs fn, and closes the reader. Not every verb checks
+// its usage before calling it. commit checks -offset and -time, register checks -protect and
+// -no-protect, and unregister checks -name, so those exit 2 even when -dir cannot be opened.
+// register and commit check -name, and read, cat and tail check -since, only once the log is
+// open: with a -dir that cannot be opened they exit 1, not 2.
 func (c *cli) withReader(fn func(r *quill.Reader) int) int {
 	r, err := quill.OpenReader(c.dir, quill.ReaderOptions{})
 	if err != nil {
