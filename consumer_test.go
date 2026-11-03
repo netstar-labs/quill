@@ -321,3 +321,65 @@ func TestThePublicPathsAcceptTheArchiveConsumerOnly(t *testing.T) {
 		}
 	}
 }
+
+// A closed handle has released its lock: Commit, SeekToTime and a second Close must refuse
+// with ErrClosed rather than write the offset file the lock's new holder owns.
+func TestAClosedConsumerHandleCannotOverwriteTheOffsetOfTheNewHolder(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	defer l.Close()
+	appendN(t, l, 10)
+	mustFlush(t, l)
+	a, err := l.Consumer("billing", ConsumerOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Close(); err != nil {
+		t.Fatal(err)
+	}
+	b, err := l.Consumer("billing", ConsumerOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	if err := b.Commit(8); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Commit(3); !errors.Is(err, ErrClosed) {
+		t.Fatalf("commit on a closed handle: %v", err)
+	}
+	if err := a.SeekToTime(time.Unix(0, 0)); !errors.Is(err, ErrClosed) {
+		t.Fatalf("seek on a closed handle: %v", err)
+	}
+	if err := a.Close(); !errors.Is(err, ErrClosed) {
+		t.Fatalf("second close: %v", err)
+	}
+	if string(fileBytes(t, s, "/log/consumers/billing")) != l.ID()+" 8 0\n" {
+		t.Fatalf("file %q", fileBytes(t, s, "/log/consumers/billing"))
+	}
+	if b.Offset() != 8 {
+		t.Fatalf("owner offset %d", b.Offset())
+	}
+}
+
+func TestLogMaintenanceCallsOnAClosedLogReturnErrClosed(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	appendN(t, l, 3)
+	mustFlush(t, l)
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Flush(); !errors.Is(err, ErrClosed) {
+		t.Fatalf("flush: %v", err)
+	}
+	if err := l.Roll(); !errors.Is(err, ErrClosed) {
+		t.Fatalf("roll: %v", err)
+	}
+	if err := l.Prune(true); !errors.Is(err, ErrClosed) {
+		t.Fatalf("prune: %v", err)
+	}
+	if _, err := l.Stat(); !errors.Is(err, ErrClosed) {
+		t.Fatalf("stat: %v", err)
+	}
+}
