@@ -123,6 +123,11 @@ func verify(dir, acks string) {
 	n := 0
 	err = l.ScanAll(func(rec quill.Record) bool {
 		n++
+		// Retention is -1, so nothing is deleted legitimately: the log starts at 1. A lost
+		// oldest segment is neither a gap between scanned records nor a head below acked.
+		if last == 0 && rec.Seq != 1 {
+			log.Fatalf("FAIL: log starts at %d, not 1", rec.Seq)
+		}
 		if last != 0 && rec.Seq != last+1 {
 			log.Fatalf("FAIL: not contiguous: %d after %d", rec.Seq, last)
 		}
