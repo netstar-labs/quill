@@ -860,3 +860,31 @@ func TestAReaderCallsAnActiveSegmentThatFailsTheMarkerCorruptNotAnIOError(t *tes
 		})
 	}
 }
+
+func TestReaderCheckReportsUnboundedOnlyWhenNeitherCapIsSet(t *testing.T) {
+	sf := &statfsSeam{free: 1 << 30}
+	for _, tc := range []struct {
+		name string
+		mut  func(*Config)
+		want bool
+	}{
+		{"no cap", func(*Config) {}, true},
+		{"MaxBytes only", func(c *Config) { c.MaxBytes = 1 << 20 }, false},
+		{"MinFreeBytes only", func(c *Config) { c.MinFreeBytes = 5000; c.statfs = sf.statfs }, false},
+		{"both", func(c *Config) { c.MaxBytes = 1 << 20; c.MinFreeBytes = 5000; c.statfs = sf.statfs }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := fsx.NewSim()
+			l := openSim(t, s, tc.mut)
+			defer l.Close()
+			appendN(t, l, 2)
+			mustFlush(t, l)
+			r := openReaderSim(t, s)
+			defer r.Close()
+			res, err := r.Check()
+			if err != nil || !res.Healthy || res.Unbounded != tc.want {
+				t.Fatalf("Check: %+v %v, want Unbounded %v", res, err, tc.want)
+			}
+		})
+	}
+}

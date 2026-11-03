@@ -603,3 +603,31 @@ func TestL2ReadAndTailOnALogWhoseHeadWasTrimmedByRetention(t *testing.T) {
 	check("tail -from", first+2, head, "tail", "-dir", dir, "-from", fmt.Sprint(first+2), "-n", "1")
 	check("tail -since", first, head, "tail", "-dir", dir, "-since", "@0", "-n", "1")
 }
+
+func TestCheckAndLsSayUnboundedOnlyForALogWithNeitherCap(t *testing.T) {
+	payload := func(i int) []byte { return []byte("record") }
+	for _, tc := range []struct {
+		name string
+		cfg  quill.Config
+		want bool
+	}{
+		{"no cap", quill.Config{}, true},
+		{"MaxBytes only", quill.Config{MaxBytes: 1 << 20}, false},
+		{"MinFreeBytes only", quill.Config{MinFreeBytes: 1}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.cfg.Retention, tc.cfg.SegmentBytes, tc.cfg.FlushInterval = -1, 4096, time.Hour
+			dir := buildLog(t, tc.cfg, 3, payload)
+			for _, args := range [][]string{{"check", "-dir", dir}, {"ls", "-dir", filepath.Dir(dir)}} {
+				out := mustRun(t, "", args...)
+				if got := strings.Contains(out, "UNBOUNDED"); got != tc.want {
+					t.Fatalf("%v: UNBOUNDED present %v, want %v: %s", args, got, tc.want, out)
+				}
+			}
+			var j struct{ Unbounded bool }
+			if err := json.Unmarshal([]byte(mustRun(t, "", "check", "-dir", dir, "-json")), &j); err != nil || j.Unbounded != tc.want {
+				t.Fatalf("check -json unbounded %v (%v), want %v", j.Unbounded, err, tc.want)
+			}
+		})
+	}
+}
