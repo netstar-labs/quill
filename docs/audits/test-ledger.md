@@ -39,7 +39,7 @@ were recorded from quill's encoder and equal the bytes the design specifies.
 | T9 | `TestConsumerLifecycle…`, `TestTempFilesYoungerThanAnHour…`, `TestAProtectedConsumerKeeps…` (unparseable file), CLI: `TestCheckReportsUnhealthyWithExitThree…` | done |
 | T10 | `TestTheAgeSweep…` (late consumer) | done |
 | T11 | `TestAnEmptyDirectoryIsANewLog…`, `TestANewerFormatMarker…`, `TestACrashAtEveryStepOfCreation…`, `TestTwoProcessesCreatingTheSameLogAtOnce…`, reader `ErrNoLog` in `TestAReaderSeesOnly…` | done |
-| T12 | `FuzzDecodeFrame`, `FuzzRecoverSegment`, `FuzzDecodeTail`, `FuzzDecodeFormat`, `FuzzDecodeConsumer`, `FuzzDecodePolicy`, `FuzzUnmarshalNeverPanics` | done; 20 s each in the gate |
+| T12 | `FuzzDecodeFrame`, `FuzzRecoverSegment`, `FuzzDecodeTail`, `FuzzDecodeFormat`, `FuzzDecodeConsumer`, `FuzzDecodePolicy`, `FuzzUnmarshalNeverPanics`, `FuzzWalkChunks`, `FuzzReaderDir` (the read path from mid-file, and a Reader over a whole directory; stage 2) | done; 20 s each in the gate |
 | T13 | `TestDiskBoundsMaxBytesHolds…`, `TestEveryConfigDefaultAndRefusal` | done |
 | T14 | `TestAFullDiskFailsAppends…` | done; runs in CI on a tmpfs (`QUILL_FULLDISK_DIR`) and was run by hand on a Linux server (see untestable-without-x.md) |
 | T15 | `TestRollDoesNothingOnAnEmptySegment…`, T1's `Roll` steps (a crash at each step of rotation), `TestAMarkerNamingASealedSegment…`, `TestArchiveCopies…`, `TestArchiveStopsAtACorruptSegment…`, `TestTheArchiverIsAProtectedConsumer…`, `TestArchiveOnTheRealFileSystem` | done |
