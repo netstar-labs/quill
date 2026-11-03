@@ -292,12 +292,23 @@ func (r *Reader) Check() (CheckResult, error) {
 	if err != nil {
 		fatal(Problem{Kind: "consumer", Path: r.path(consumersDir), Detail: err.Error()})
 	}
+	head, refreshed := tl.Seq, false
 	for _, c := range consumers {
+		if c.Err == nil && c.Offset > head+1 && !refreshed {
+			// The marker was read before the scan and the consumers after it, and a live writer
+			// and consumer can both have moved on in between: a consumer commits at most to
+			// Head+1 of the moment it commits. The marker read now is newer than the offset
+			// just read, so only an offset above it is one a restore left behind.
+			refreshed = true
+			if now, err := r.readTail(); err == nil && now.Seq > head {
+				head = now.Seq
+			}
+		}
 		if c.Err != nil {
 			fatal(Problem{Kind: "consumer", Path: r.path(filepath.Join(consumersDir, c.Name)), Detail: c.Err.Error()})
-		} else if c.Offset > tl.Seq+1 {
+		} else if c.Offset > head+1 {
 			// The log is intact; the consumer is what a restore left behind (decision 36).
-			warn(Problem{Kind: "consumer", Path: r.path(filepath.Join(consumersDir, c.Name)), Detail: fmt.Sprintf("at %d, ahead of the head %d: rewind it with quill commit", c.Offset, tl.Seq)})
+			warn(Problem{Kind: "consumer", Path: r.path(filepath.Join(consumersDir, c.Name)), Detail: fmt.Sprintf("at %d, ahead of the head %d: rewind it with quill commit", c.Offset, head)})
 		} else if c.Offset < first {
 			// Retention deleted records the consumer had not read (decision 38): the log is
 			// intact, the consumer's next read is a GapError, and this is the only offline sign.
