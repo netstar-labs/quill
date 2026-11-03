@@ -24,6 +24,27 @@ func openReaderSim(t *testing.T, s *fsx.Sim) *Reader {
 	return r
 }
 
+// A Reader opened with no options is bounded by DefaultMaxReadBytes (16 MiB), not unbounded: 40
+// records of 512 KiB are 20 MiB, and the read stops after the 32nd, which reaches 16 MiB exactly.
+func TestReaderDefaultMaxReadBytesBoundsARead(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 4 << 20 })
+	defer l.Close()
+	payload := make([]byte, 512<<10)
+	for i := 0; i < 40; i++ {
+		if _, err := l.Append(payload); err != nil {
+			t.Fatal(err)
+		}
+		mustFlush(t, l)
+	}
+	r := openReaderSim(t, s)
+	defer r.Close()
+	recs, err := r.Read(1, 0)
+	if err != nil || len(recs) != 32 {
+		t.Fatalf("%d records, %v; want 32", len(recs), err)
+	}
+}
+
 func readerAll(r *Reader) ([]Record, error) {
 	var out []Record
 	err := r.ScanAll(func(rec Record) bool {

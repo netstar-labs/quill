@@ -214,6 +214,34 @@ func TestReadStopsOnceMaxReadBytesIsReachedSoTheLastRecordMayPassIt(t *testing.T
 	}
 }
 
+// The documented rule is "stops once at least MaxReadBytes of payload have been returned": a total
+// that lands exactly on the bound ends the read, it does not admit one more record.
+func TestMaxReadBytesReachedExactlyStopsTheRead(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		segmentBytes int64
+	}{
+		{"one segment", 1 << 20},
+		{"one record per segment", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := fsx.NewSim()
+			l := openSim(t, s, func(c *Config) { c.MaxReadBytes = 20; c.SegmentBytes = tc.segmentBytes })
+			defer l.Close()
+			for i := 0; i < 5; i++ {
+				if _, err := l.Append(make([]byte, 10)); err != nil {
+					t.Fatal(err)
+				}
+				mustFlush(t, l)
+			}
+			recs, err := l.Read(1, 0)
+			if err != nil || len(recs) != 2 {
+				t.Fatalf("%v %v; want exactly records 1 and 2", seqsOf(recs), err)
+			}
+		})
+	}
+}
+
 func TestDescriptorsAcrossRotationAReadHoldsTheOldActiveSegmentOpen(t *testing.T) {
 	s := fsx.NewSim()
 	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 100 })
