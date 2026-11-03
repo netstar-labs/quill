@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -816,6 +817,45 @@ func TestSingleRecordWakesReadWaitAndFollowOnReaderAndLog(t *testing.T) {
 				}
 			case <-time.After(time.Second):
 				t.Fatal("a single new record was not delivered: the wait wants one more record first")
+			}
+		})
+	}
+}
+
+// A marker that names more bytes than the active segment holds, or a first frame that does not
+// decode below the marker, is corruption on every reader call (decisions 39 and 79). A bare
+// io.ErrUnexpectedEOF would read as a transient I/O fact, and a consumer loop would retry it.
+func TestAReaderCallsAnActiveSegmentThatFailsTheMarkerCorruptNotAnIOError(t *testing.T) {
+	cases := map[string]func(data []byte) []byte{
+		"the file is shorter than the marker's offset": func(data []byte) []byte { return data[:30] },
+		"a byte of the first frame is flipped": func(data []byte) []byte {
+			data[10] ^= 0xff
+			return data
+		},
+	}
+	for name, damage := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := fsx.NewSim()
+			l := openSim(t, s, func(c *Config) { c.SegmentBytes = 1 << 20 })
+			appendN(t, l, 5)
+			mustFlush(t, l)
+			if err := l.Close(); err != nil {
+				t.Fatal(err)
+			}
+			tl := readTail(t, s, "/log")
+			path := "/log/" + segmentName(tl.Seg)
+			data := fileBytes(t, s, path)
+			if int64(len(data)) != int64(tl.Off) || tl.Off <= 30 {
+				t.Fatalf("segment holds %d bytes, the marker says %d", len(data), tl.Off)
+			}
+			writeFile(t, s, path, damage(data))
+			r := openReaderSim(t, s)
+			defer r.Close()
+			if _, err := r.Read(1, 10); !errors.Is(err, ErrCorrupt) || errors.Is(err, io.ErrUnexpectedEOF) {
+				t.Errorf("Read: %v; want ErrCorrupt and not an unexpected EOF", err)
+			}
+			if _, err := r.Stat(); !errors.Is(err, ErrCorrupt) || errors.Is(err, io.ErrUnexpectedEOF) {
+				t.Errorf("Stat: %v; want ErrCorrupt and not an unexpected EOF", err)
 			}
 		})
 	}
