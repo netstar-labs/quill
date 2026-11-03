@@ -111,3 +111,17 @@ func TestDiskFullIsInErrAndStatAndItsClearingIsLogged(t *testing.T) {
 		t.Fatalf("the transition Warn should fire once, fired %d: %v", n, lc.msgs)
 	}
 }
+
+// freeBytes is the real statfs reader that Open wires in; every other test injects a seam.
+func TestFreeBytesReadsTheRealFilesystem(t *testing.T) {
+	free, err := freeBytes(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if free == 0 {
+		t.Fatal("freeBytes reports no free space on the test temp directory")
+	}
+	if _, err := freeBytes(t.TempDir() + "/missing"); err == nil {
+		t.Fatal("freeBytes on a missing directory returned no error")
+	}
+}

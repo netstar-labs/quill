@@ -660,3 +660,74 @@ func TestADamagedSegmentStaysCachedAsBadAcrossReaderCalls(t *testing.T) {
 		t.Fatalf("a damaged segment was examined again: %d operations on it", opens)
 	}
 }
+
+// Reader.Scan, Reader.ID, Consumer.Scan and Consumer.Name each forward one argument to
+// shared code; a swapped offset or limit would compile and pass every other test.
+func TestReaderAndConsumerScanNameAndIDForwardTheRightArguments(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, nil)
+	defer l.Close()
+	appendN(t, l, 5)
+	mustFlush(t, l)
+	r := openReaderSim(t, s)
+	defer r.Close()
+
+	scan := func(scanFn func(func(Record) bool) error) []Record {
+		t.Helper()
+		var out []Record
+		if err := scanFn(func(rec Record) bool {
+			rec.Payload = append([]byte(nil), rec.Payload...)
+			out = append(out, rec)
+			return true
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	wantFrom := func(recs []Record, first, n uint64) {
+		t.Helper()
+		if uint64(len(recs)) != n || checkContiguous(t, recs, first) != first+n-1 {
+			t.Fatalf("want %d records from %d, got %v", n, first, seqsOf(recs))
+		}
+		for _, rec := range recs {
+			if string(rec.Payload) != string(payloadFor(rec.Seq)) {
+				t.Fatalf("seq %d payload %q", rec.Seq, rec.Payload)
+			}
+		}
+	}
+
+	if r.ID() != l.ID() || r.ID() == "" {
+		t.Fatalf("reader id %q, log id %q", r.ID(), l.ID())
+	}
+	wantFrom(scan(func(fn func(Record) bool) error { return r.Scan(1, 0, fn) }), 1, 5)
+	wantFrom(scan(func(fn func(Record) bool) error { return r.Scan(3, 0, fn) }), 3, 3)
+	wantFrom(scan(func(fn func(Record) bool) error { return r.Scan(2, 2, fn) }), 2, 2)
+
+	for _, tc := range []struct {
+		from string
+		open func(string) (*Consumer, error)
+	}{
+		{"log", func(name string) (*Consumer, error) { return l.Consumer(name, ConsumerOptions{}) }},
+		{"reader", func(name string) (*Consumer, error) { return r.Consumer(name, ConsumerOptions{}) }},
+	} {
+		name := "scan-" + tc.from
+		c, err := tc.open(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.Name() != name {
+			t.Fatalf("%s: consumer name %q, want %q", tc.from, c.Name(), name)
+		}
+		wantFrom(scan(func(fn func(Record) bool) error { return c.Scan(0, fn) }), 1, 5)
+		wantFrom(scan(func(fn func(Record) bool) error { return c.Scan(2, fn) }), 1, 2)
+		if err := c.Commit(4); err != nil {
+			t.Fatal(err)
+		}
+		wantFrom(scan(func(fn func(Record) bool) error { return c.Scan(0, fn) }), 4, 2)
+		wantFrom(scan(func(fn func(Record) bool) error { return c.Scan(1, fn) }), 4, 1)
+		if c.Offset() != 4 {
+			t.Fatalf("%s: Scan moved the offset to %d", tc.from, c.Offset())
+		}
+		c.Close()
+	}
+}
