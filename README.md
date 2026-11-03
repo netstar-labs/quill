@@ -85,6 +85,14 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 | `.github/workflows/` | CI on Linux and macOS, the same gate as separate steps, the full-disk job, and the PR-issue-link check |
 
 
+## Installing
+
+The repository is private for now, so these paths apply once it is public; until then the owner builds with `build/quill`.
+
+- **The library**: `go get github.com/netstar-labs/quill`, then import `github.com/netstar-labs/quill`.
+- **The command**: `go install github.com/netstar-labs/quill/cmd/quill@v0.y.z` (a release tag), or unpack the archive for your platform from a release and put `quill` on your `PATH`.
+- **Versions**: a go-installed binary prints `quill dev` for `quill version`; only the release archives are stamped with the version. The archives hold the binary, README, CHANGELOG and SECURITY (and LICENSE once the repository has one), not `docs/`, so the user guide and the format document are read in the repository.
+
 ## Building and the Go version
 
 Standard library only; `go.mod` has no `require` line. **Go-version policy:** the toolchain
