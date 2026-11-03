@@ -314,7 +314,8 @@ quill archive -dir orders -to /backup/orders
 **Output.** Text lines are `seq`, the RFC 3339 time, and the payload quoted with control
 characters escaped (binary payloads as `b64:…`). `-json` prints one object per record:
 `seq`, `at`, `time`, `len`, and exactly one of `payload` (valid UTF-8) or `payload_b64`;
-`-b64` forces base64. Both forms are lossless and never pass a raw control character (C0, DEL or C1) or
+`-b64` forces base64. Both forms are lossless and never pass a raw control character (C0, DEL or C1), a Unicode
+format or bidi control (U+202E, U+200B, U+FEFF and the rest of category Cf; `-json` writes them as `\u202e` and so on) or
 invalid UTF-8 to the terminal. The same holds for names read from the disk: in text output `ls`, `consumers`,
 `check` and error messages print a log, consumer or file name (and a path built from one) as it is when every character is
 printable, and quoted with the same escapes (`"a\nb"`, `\x1b`, `\u202e`) when it is not, so a hostile file name cannot add a

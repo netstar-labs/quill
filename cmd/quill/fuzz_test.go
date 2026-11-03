@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/netstar-labs/quill"
@@ -111,6 +112,7 @@ func FuzzPrinter(f *testing.F) {
 	f.Add(uint64(2), int64(1<<62), []byte{0xff, 0xfe})
 	f.Add(uint64(3), int64(253402300800), []byte("\u2028\u2029\u0085\ufeff\x00"))
 	f.Add(uint64(4), int64(-62135596801), []byte(nil))
+	f.Add(uint64(5), int64(0), []byte("a\u202eb\u200b\u061c\u2066\u00ad\U000e0041\u0600z"))
 	f.Fuzz(func(t *testing.T, seq uint64, at int64, payload []byte) {
 		rec := quill.Record{Seq: seq, At: at, Payload: payload}
 		for _, mode := range []struct{ json, b64 bool }{{false, false}, {false, true}, {true, false}, {true, true}} {
@@ -142,6 +144,9 @@ func FuzzPrinter(f *testing.F) {
 			for _, r := range string(b) {
 				if r >= 0x80 && r <= 0x9f {
 					t.Fatalf("json=%v b64=%v: raw C1 control %U in %q", mode.json, mode.b64, r, b)
+				}
+				if unicode.Is(unicode.Cf, r) {
+					t.Fatalf("json=%v b64=%v: raw format character %U in %q", mode.json, mode.b64, r, b)
 				}
 			}
 			if !mode.json {

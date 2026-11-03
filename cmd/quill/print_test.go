@@ -9,15 +9,19 @@ import (
 	"io"
 	"math/rand"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+	"unicode"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/netstar-labs/quill"
 )
 
 // refPrint is the encoding/json, strconv.Quote and fmt formulation the printer's appenders
-// must match byte for byte (decision 35), except that the JSON form also escapes DEL and C1 controls.
+// must match byte for byte (decision 35), except that the JSON form also escapes DEL, the C1 controls and
+// the Unicode format characters (category Cf).
 func refPrint(w *bufio.Writer, jsonMode, b64 bool, rec quill.Record) error {
 	at := time.Unix(rec.At, 0).UTC().Format(time.RFC3339)
 	text := !b64 && utf8.Valid(rec.Payload)
@@ -48,6 +52,20 @@ func refPrint(w *bufio.Writer, jsonMode, b64 bool, rec quill.Record) error {
 		for r := rune(0x80); r <= 0x9f; r++ {
 			b = bytes.ReplaceAll(b, []byte(string(r)), []byte(fmt.Sprintf(`\u%04x`, r)))
 		}
+		// And, stage 2 audit A3-24, the format characters (bidi controls, zero-width characters, the
+		// byte order mark), which the text form escapes because strconv.IsPrint rejects them: as \uXXXX,
+		// a surrogate pair above U+FFFF. Written as a rune walk, apart from the printer's byte tables.
+		var esc strings.Builder
+		for _, r := range string(b) {
+			if !unicode.Is(unicode.Cf, r) {
+				esc.WriteRune(r)
+				continue
+			}
+			for _, u := range utf16.Encode([]rune{r}) {
+				fmt.Fprintf(&esc, `\u%04x`, u)
+			}
+		}
+		b = []byte(esc.String())
 		w.Write(b)
 		return w.WriteByte('\n')
 	}

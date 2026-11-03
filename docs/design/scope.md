@@ -194,6 +194,10 @@ sequence order; `read` and `tail` take the same flag and encoder. `cat` takes `-
   would silently replace it.
 - Control characters in a text payload, including DEL and the C1 controls U+0080 to U+009F, are JSON-escaped, so a
   payload cannot inject lines or terminal escapes. The text (non-JSON) output escapes them the same way.
+  The Unicode format characters (category Cf: the bidi controls such as U+202E, the zero-width characters, the byte
+  order mark U+FEFF, U+061C, the tag characters) are JSON-escaped as `\uXXXX` too (a surrogate pair above U+FFFF), as the
+  text output already escapes them (Stage 2 audit, owner-approved 2026-11-03, A3-24). The decoded value of every
+  payload is unchanged; only the raw bytes of the line differ. The `time` field is not range-checked.
 - Names that come from the disk are escaped the same way in the text output (Stage 2 audit, owner-approved 2026-11-03,
   A3-3): a log name in `ls`, a consumer name in `consumers`, a path in `check` and in an error message is printed as it is
   when it is valid UTF-8 and every character is printable, and quoted by the payload escaper otherwise (a newline, ESC,

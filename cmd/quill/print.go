@@ -8,6 +8,7 @@ import (
 	"io"
 	"strconv"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/netstar-labs/quill"
@@ -35,7 +36,7 @@ func (p *printer) flush() error { return p.w.Flush() }
 
 // print appends the record to p.buf, which is kept between records, and writes it with one
 // call. The bytes are what encoding/json and strconv.Quote would produce for the same
-// values (the JSON form also escapes DEL and C1 controls, see appendJSONString): the fixed
+// values (the JSON form also escapes DEL, C1 controls and format characters, see appendJSONString): the fixed
 // field order of decision 35 is seq, at, time, len, then exactly one of payload and payload_b64.
 func (p *printer) print(rec quill.Record) error {
 	text := !p.b64 && utf8.Valid(rec.Payload)
@@ -79,8 +80,12 @@ const hexDigits = "0123456789abcdef"
 
 // appendJSONString appends the body of a JSON string (without the quotes) for valid UTF-8 text, escaping as
 // encoding/json does by default: the quote, the backslash, the controls, the HTML characters
-// < > & and the line and paragraph separators U+2028 and U+2029. It also escapes DEL and the C1 controls
-// U+0080 to U+009F, which encoding/json passes and a terminal may act on (stage 2 audit A1-50, decision 35).
+// < > & and the line and paragraph separators U+2028 and U+2029. It also escapes what encoding/json passes
+// and a terminal or a bidi-aware viewer may act on: DEL, the C1 controls U+0080 to U+009F (stage 2 audit
+// A1-50) and the Unicode format characters (category Cf: the bidi controls U+202A to U+202E and U+2066 to
+// U+2069, the zero-width characters U+200B to U+200F, U+2060, U+FEFF, U+061C and the rest), which the text
+// output escapes because strconv.IsPrint rejects them (stage 2 audit A3-24, decision 35). A character
+// above U+FFFF is written as a surrogate pair, as encoding/json does, so the decoded value never changes.
 func appendJSONString(b, s []byte) []byte {
 	start := 0 // s[start:i] is plain text not yet appended
 	for i := 0; i < len(s); i++ {
@@ -110,32 +115,70 @@ func appendJSONString(b, s []byte) []byte {
 		case c < 0x20 || c == 0x7f || c == '<' || c == '>' || c == '&':
 			b = append(b, s[start:i]...)
 			b = append(b, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
-		case c == 0xc2 && i+1 < len(s) && s[i+1]&^0x1f == 0x80:
-			b = append(b, s[start:i]...)
-			c = s[i+1]
-			b = append(b, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
-			i++
-		case c == 0xe2 && i+2 < len(s) && s[i+1] == 0x80 && s[i+2]&^1 == 0xa8:
-			b = append(b, s[start:i]...)
-			b = append(b, '\\', 'u', '2', '0', '2', hexDigits[s[i+2]&0xf])
-			i += 2
 		default:
-			continue // 0xc2 or 0xe2 that starts nothing to escape: part of the plain run
+			// A lead byte that may begin a character to escape (see jsonPlain); most of the time it
+			// begins one that stays as it is, and the run goes on.
+			r, n := utf8.DecodeRune(s[i:])
+			if !jsonEscapeRune(r) {
+				i += n - 1
+				continue
+			}
+			b = append(b, s[start:i]...)
+			if r >= 0x10000 {
+				r -= 0x10000
+				b = appendU4(b, 0xd800+r>>10)
+				b = appendU4(b, 0xdc00+r&0x3ff)
+			} else {
+				b = appendU4(b, r)
+			}
+			i += n - 1
 		}
 		start = i + 1
 	}
 	return append(b, s[start:]...)
 }
 
+// appendU4 appends \uXXXX, four lower-case hex digits, for a value below 0x10000.
+func appendU4(b []byte, r rune) []byte {
+	return append(b, '\\', 'u', hexDigits[r>>12], hexDigits[r>>8&0xf], hexDigits[r>>4&0xf], hexDigits[r&0xf])
+}
+
+// jsonEscapeRune reports whether appendJSONString escapes r although it is not a byte below 0x80: a C1
+// control, U+2028 or U+2029, or a format character (Cf). Every Cf code point is rejected by
+// strconv.IsPrint, so the text output escapes the same characters; a test pins that.
+func jsonEscapeRune(r rune) bool {
+	return r >= 0x80 && r <= 0x9f || r == 0x2028 || r == 0x2029 || unicode.Is(unicode.Cf, r)
+}
+
 // jsonPlain marks the bytes appendJSONString may copy as they are without looking at the next
 // ones: printable ASCII except the quote, the backslash and < > &, and every byte of 0x80 or
-// above except 0xc2 and 0xe2, the two that can begin a C1 control or U+2028 and U+2029.
+// above except the lead bytes of the characters jsonEscapeRune accepts. Those lead bytes are
+// derived from the same tables, not listed: the C1 controls and U+2028 and U+2029 begin with 0xc2
+// and 0xe2, the format characters with a handful of others (Cyrillic, Greek, Latin and CJK text
+// begin with none of them, so it is still copied without a lookup).
 var jsonPlain = func() (t [256]bool) {
 	for c := 0x20; c < 0x7f; c++ {
 		t[c] = c != '"' && c != '\\' && c != '<' && c != '>' && c != '&'
 	}
 	for c := 0x80; c < 0x100; c++ {
-		t[c] = c != 0xc2 && c != 0xe2
+		t[c] = true
+	}
+	mark := func(r rune) {
+		var e [utf8.UTFMax]byte
+		utf8.EncodeRune(e[:], r)
+		t[e[0]] = false
+	}
+	mark(0x80)
+	mark(0x2028)
+	for _, g := range unicode.Cf.R16 {
+		for r := rune(g.Lo); r <= rune(g.Hi); r += rune(g.Stride) {
+			mark(r)
+		}
+	}
+	for _, g := range unicode.Cf.R32 {
+		for r := rune(g.Lo); r <= rune(g.Hi); r += rune(g.Stride) {
+			mark(r)
+		}
 	}
 	return
 }()
