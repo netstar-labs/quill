@@ -20,7 +20,9 @@
 //   - A consumer is a name plus a committed offset, the next sequence to read, stored in its own
 //     file and written only by the process holding that consumer. Commit once per batch.
 //   - Retention deletes whole sealed segments, oldest first, by age and by caps. It does not wait
-//     for a consumer unless that consumer is protected, and the caps win even then.
+//     for a consumer unless that consumer is protected, and the caps (MaxBytes, MinFreeBytes and
+//     MaxRecords) win even then: a protected consumer holds data back from the age sweep only, and
+//     can lose records to a cap, MinFreeBytes included.
 //   - Corruption is never served silently: a damaged sealed segment becomes a hole that reads
 //     report as a GapError and Err() names until retention deletes it; a missing one is a hole in
 //     Stat().Holes and in reads, not in Err(); damage in the newest segment below the durable

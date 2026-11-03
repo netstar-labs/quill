@@ -55,6 +55,15 @@ type Config struct {
 	// ENOSPC, and Err() and Stat().DiskFull report it until a pass finds room. When statfs fails,
 	// Err() reports that until a later pass can read the free space, and the floor is not enforced
 	// meanwhile.
+	//
+	// The floor overrides consumer protection. Below it the writer deletes the oldest sealed
+	// segments (never the active one) until its estimate, the free space read once by statfs plus
+	// each deleted segment's size, reaches the floor, or no sealed segment is left, whether or not
+	// a protected consumer has read them. A protected consumer can therefore lose records, and the
+	// Warn that names it ("deleted segment past a consumer's offset; it has lost records") and
+	// Stat().Dropped are how that is seen. It is the same for MaxBytes and MaxRecords; only the
+	// age sweep (Retention) waits for a protected consumer. Free space that another process uses
+	// counts: it is paid for with this log's history.
 	MinFreeBytes int64
 	// MaxPayloadBytes is the largest accepted record (64 MiB − 32, the ceiling).
 	MaxPayloadBytes int
@@ -71,6 +80,14 @@ type Config struct {
 	// ProtectedConsumers names consumers the writer creates, protected, when it opens the log, at
 	// the first retained sequence (at 1 when a damaged oldest segment is a hole from 1). A
 	// file already protected is left alone, so a running consumer does not block a restart.
+	//
+	// Protection holds sealed segments back from the age sweep (Retention) only: the sweep stops
+	// before the first segment with a record at or above the slowest protected consumer's offset,
+	// until ConsumerTTL finds that consumer stale. MaxBytes, MinFreeBytes and MaxRecords override
+	// it: each deletes the oldest sealed segments whatever a protected consumer has read (MaxBytes
+	// while the log's segment bytes exceed it, MaxRecords while more than MaxRecords records are
+	// retained, MinFreeBytes while the free space is estimated below the floor), so a protected
+	// consumer can lose records. The Warn that names it, and Stat().Dropped, say so.
 	ProtectedConsumers []string
 	// Logger receives every record the log writes, all through one handler. They are:
 	//   - about a condition a prune pass (Prune, or the flusher's background pass) finds: Warn for each

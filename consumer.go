@@ -19,7 +19,13 @@ type Protect int
 const (
 	// ProtectAsStored keeps the flag the consumer's file holds; a new consumer is unprotected.
 	ProtectAsStored Protect = iota
-	// ProtectOn makes retention keep the consumer's unread segments, and records the flag.
+	// ProtectOn makes retention keep the consumer's unread segments, and records the flag. It holds
+	// them back from the age sweep only: MaxBytes, MinFreeBytes and MaxRecords override it, each
+	// deleting the oldest sealed segments whether or not the consumer has read them (for
+	// MinFreeBytes, when the filesystem is below the floor), so a protected consumer can lose
+	// records. The writer's Warn
+	// "deleted segment past a consumer's offset; it has lost records" names it. ConsumerTTL also
+	// ends protection for a consumer that is stale.
 	ProtectOn
 	// ProtectOff stops retention keeping them, and records the flag.
 	ProtectOff
