@@ -1570,3 +1570,45 @@ listed so that nothing open lives only in the record.
   Reader's first call, one open per sealed segment; counting filesystem: 403 opens on the first call, 2 on the second, for 401
   segments). Rejected: docs/design/build-prompt.md:385 (test T19) still says "cost touches O(log segments) first frames and
   one segment". Remaining: that one sentence.
+
+## Pass L2: test, benchmark and hardening suite
+
+Date 2026-11-03, against `f274b51`. Pass L2 (a coverage ledger on two platforms, three hand-mutation runs and an invariants-and-fuzz run) filed 53 items after merging five duplicates; the full record, with every item's claim, grounds, warrant,
+backing, rebuttal, votes and reproduction, is [mutation-hardening.md](mutation-hardening.md), with [defects-log.md](defects-log.md), [harness-inventory.md](harness-inventory.md), [test-ledger.md](test-ledger.md) and
+[untestable-without-x.md](untestable-without-x.md) alongside. 52 items were test gaps and were fixed with tests, each fix FIXED-VERIFIED by a fix-skeptic (312 lens verdicts, all pass). One item is held, below: it is the only
+one that is a production behaviour, and a fix changes what a read returns and the wording of a guarantee. The recommended answer is the recorder's reading of the auditor's proposed fix and the voters' notes; it was not approved when written.
+
+| counted over the 53 items | |
+|---|---|
+| verdict | 47 CONFIRMED, 6 PLAUSIBLE, 0 REFUTED |
+| disposition | 52 fixed, 1 held for the owner (L2-53), 0 deliberately not changed |
+| finding-skeptic votes | 109 (101 CONFIRMED, 5 PLAUSIBLE, 3 REFUTED) |
+| reproduced by execution | 52 of 53 items by at least one voter |
+
+| Id | Item | Severity | Verdict | Recommendation |
+|---|---|---|---|---|
+| L2-53 | `MaxReadBytes` bounds payload bytes only, so a read of tiny records allocates without a bound | medium | CONFIRMED (2 of 2 voters, both reproduced) | Charge a per-record overhead against the cap |
+
+Other points the owner may want to see, none held: the tests that pin behaviour no decision states are listed in [mutation-hardening.md](mutation-hardening.md), section "Behaviour pinned that the spec does not state" (L2-12, L2-50, L2-27, L2-18, L2-31,
+L2-47, L2-52, L2-19); the L2-31 fix edited decision 45's wording from "older than" to "at least as old", which is a decision text changed by a fixer.
+
+## L2-53: `MaxReadBytes` bounds payload bytes, not the memory of a read (medium)
+
+**Claim.** `scanSource` counts payload bytes only against `MaxReadBytes` (read.go lines 259 and 266 in the tree: `bytes += len(rec.Payload)`, stop at `bytes >= maxBytes`), and `Read(offset, 0)`, `Records` and `Follow` pass a limit of 0, which means no limit
+(iter.go:63). A record with an empty or tiny payload adds 0 or 1 to a total that must reach the cap, so one call can return, and allocate for, every record of the log. The documented 16 MiB read bound therefore does not bound the memory a read takes. Item: L2-53.
+
+**Evidence.** Reproduced by the auditor and by both voters, default `Config`, real disk (reported; the recorder ran nothing). 4,000,000 empty-payload records: `Log.Read(1,0)` returned 4,000,000 records and allocated 788 MB, `Records()` 787 MB. 17,000,000 one-byte records:
+`Read(1,0)` returned 16,777,216 records, allocated 3,892 MB and the process peaked at 2.78 GB resident; `Records()` allocated 3,935 MB. Voter runs: 1,000,000 empty payloads, 206 MB; 2,000,000 empty payloads, about 403 MB per call, against a 16 MiB cap. That is about 232 bytes allocated per
+record at the largest size (inferred: 3,892 MB over 16,777,216 records). I read the loop condition and the accumulation in the tree and they match the claim.
+
+**Why held.** The fix changes observable behaviour. A read of small records would return fewer records per call than it does now, which a caller that depends on the batch size (for example a loop that calls `Read` with limit 0 and expects the whole tail) would notice, and the wording of
+`MaxReadBytes` ("payload bytes", in `log.go`, scope.md and decision 79) and the guarantee 7 text would change. By the letter the current behaviour is as documented, and a caller of `Read` can pass a limit; but `Records`, `Follow` and the consumers' iterators have no limit parameter, and decisions 50 and 79
+justify the cap by "a read into memory needs a byte bound". The default is one an ordinary workload meets (counters, heartbeats), not only a hostile one.
+
+**Recommended answer.** Charge each record `len(payload) + 48` bytes against `MaxReadBytes` (the auditor's proposal named `frameLen` or a constant of about 48; 48 is a little over the 40-byte `Record` the auditor cites, inferred, not measured), keep "at least one record per call", and reword the cap as "payload
+bytes plus 48 bytes of overhead per record, a bound on the size of a batch, not on the sum of payloads". At the default cap a read of one-byte records then returns about 342,000 records per call instead of 16.7 million (16,777,216 / 49, inferred), about 49 times fewer, and the memory per call falls from gigabytes to
+tens of megabytes (inferred from the measured 232 bytes per record; it stays a small multiple of the cap, not equal to it). The runner-up is the constant 34 that decision 46 already charges at append, for consistency (479,349 one-byte records per call; about 111 MB at 232 bytes each, so a larger multiple of the cap). The
+second runner-up is to leave `Read` as documented and give only the iterators a record-count bound of their own (iter.go passes no limit today), plus a sentence in the `Read` doc that `limit` 0 bounds payload bytes only; that changes nothing a caller can see except the iterators' internal batch size. If the owner
+prefers not to change behaviour at all, document that `MaxReadBytes` does not bound the record count and recommend `limit`.
+
+**Fix written.** None. The proposed test, to add with whichever answer is chosen: 1,000,000 empty-payload records, default `MaxReadBytes`; `len(Read(1,0))` far below 1,000,000, and `Records` batches bounded. See [defects-log.md](defects-log.md), D1.
