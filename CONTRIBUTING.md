@@ -30,7 +30,7 @@ Before every commit:
 hack/gate.sh
 ```
 
-runs the no-require check, gofmt, vet, build, the unsupported-platform check, `go test -race`, staticcheck,
+runs the no-require check, gofmt, vet, build, a vet for linux and for darwin, the unsupported-platform check, `go test -race`, staticcheck,
 deadcode, every fuzz target for 20 seconds, and the tidy check. `FUZZTIME=0` skips the fuzz
 step, says so in red and ends with `PARTIAL` instead of `OK: gate green` (the exit status stays 0);
 that is not a green gate.

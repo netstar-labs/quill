@@ -96,10 +96,10 @@ The volume stages (skeptics, fixers, recorders, gate runners, integrators) run o
 
 On macOS and on Linux, on the same commit:
 
-- `hack/gate.sh` with `FUZZTIME=20s`: gofmt, vet, build, the unsupported platform must not build, `test -race`,
+- `hack/gate.sh` with `FUZZTIME=20s`: gofmt, vet, build, vet for linux and darwin, the unsupported platform must not build, `test -race`,
   staticcheck, deadcode, the fuzz targets, `go mod tidy` with no diff, no `require` line;
 - `govulncheck` (reachable findings fail);
-- cross-vet for the other platform, the examples run, `build/quill --dev` and its checksums;
+- the examples run, `build/quill --dev` and its checksums;
 - on Linux, the full-disk tests (T14) on a real 4 MiB tmpfs, which must **run, not skip**;
 - a screen of tracked files for the names the project never uses (the origin is only ever "the reference
   implementation") and for hosts, addresses and personal paths.

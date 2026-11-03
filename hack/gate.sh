@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # The commit gate (decision 70): one command, run before every commit. CI runs the same
 # checks as separate steps; keep the tool pins below in step with .github/workflows/ci.yml.
-# The one check CI runs and the gate does not is govulncheck: it reads a live vulnerability
-# database, so it can go red with no change in the repo, which a commit gate must not do.
-# It runs in CI only.
+# CI runs three things the gate does not: govulncheck (it reads a live vulnerability
+# database, so it can go red with no change in the repo, which a commit gate must not do),
+# the full-disk test on a real tmpfs (decision 70: not part of the default gate), and the
+# examples run and the release build script (`build/quill --dev`). Everything else CI runs
+# is here, the vet of both supported platforms included.
 #
 # Fail-closed: a tool that is missing or a step that cannot run is red, never a skip.
 set -euo pipefail
@@ -43,6 +45,9 @@ if [ -z "$pkgs" ]; then
 else
 	step "go vet";        go vet ./...
 	step "go build";      go build ./...
+	# lock_unix.go and the other platform-specific files are only compiled for their own OS:
+	# vet both supported platforms, so a macOS committer sees a Linux-only error and the reverse.
+	for goos in linux darwin; do step "go vet (GOOS=$goos)"; GOOS=$goos go vet ./...; done
 	step "unsupported platform must not build"
 	! GOOS=freebsd go build ./... >/dev/null 2>&1 || fail "the module builds on freebsd; it must not (decision 19)"
 	step "go test -race"; go test -race -count=1 ./...
