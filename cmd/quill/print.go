@@ -140,8 +140,28 @@ var jsonPlain = func() (t [256]bool) {
 	return
 }()
 
-// appendQuoted appends s as strconv.Quote would, for valid UTF-8 text: printable runes
-// as they are, the rest escaped.
+// safeText is how the text output prints a string that came from the disk (a directory entry, a
+// file's content, or an error message built from one): s as it is when it is valid UTF-8 and every
+// rune is printable (strconv.IsPrint, which admits the ASCII space), so the names the library creates print
+// unchanged, otherwise s quoted by appendQuoted as a record payload is. No newline, ESC or other
+// control, C1 or bidi control, and no invalid UTF-8, then reaches the terminal (stage 2 audit
+// A3-3, decision 35).
+func safeText(s string) string {
+	plain := utf8.ValidString(s)
+	for _, r := range s {
+		if !strconv.IsPrint(r) {
+			plain = false
+			break
+		}
+	}
+	if plain {
+		return s
+	}
+	return string(appendQuoted(nil, []byte(s)))
+}
+
+// appendQuoted appends s as strconv.Quote would: printable runes as they are, the rest
+// escaped, and a byte that is not valid UTF-8 as \xNN.
 func appendQuoted(b, s []byte) []byte {
 	b = append(b, '"')
 	for i := 0; i < len(s); {
@@ -169,7 +189,9 @@ func appendQuoted(b, s []byte) []byte {
 			continue
 		}
 		r, n := utf8.DecodeRune(s[i:])
-		if strconv.IsPrint(r) {
+		if r == utf8.RuneError && n == 1 {
+			b = append(b, '\\', 'x', hexDigits[c>>4], hexDigits[c&0xf])
+		} else if strconv.IsPrint(r) {
 			b = append(b, s[i:i+n]...)
 		} else if r < 0x10000 {
 			b = append(b, '\\', 'u', hexDigits[r>>12], hexDigits[r>>8&0xf], hexDigits[r>>4&0xf], hexDigits[r&0xf])

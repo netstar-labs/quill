@@ -71,7 +71,7 @@ func cmdConsumers(c *cli, args []string) int {
 					notes = append(notes, fmt.Sprintf("stale: behind and silent for the policy's consumer-ttl %s, so the writer no longer protects segments for it", ttl))
 				}
 			}
-			fmt.Fprintf(w, "%s\t%d\t%d\t%v\t%s\n", ci.Name, ci.Offset, lag(head, ci.Offset), ci.Protected, strings.Join(notes, "; "))
+			fmt.Fprintf(w, "%s\t%d\t%d\t%v\t%s\n", safeText(ci.Name), ci.Offset, lag(head, ci.Offset), ci.Protected, safeText(strings.Join(notes, "; ")))
 		}
 		_ = w.Flush()
 		return exitOK

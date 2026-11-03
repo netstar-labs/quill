@@ -194,6 +194,11 @@ sequence order; `read` and `tail` take the same flag and encoder. `cat` takes `-
   would silently replace it.
 - Control characters in a text payload, including DEL and the C1 controls U+0080 to U+009F, are JSON-escaped, so a
   payload cannot inject lines or terminal escapes. The text (non-JSON) output escapes them the same way.
+- Names that come from the disk are escaped the same way in the text output (Stage 2 audit, owner-approved 2026-11-03,
+  A3-3): a log name in `ls`, a consumer name in `consumers`, a path in `check` and in an error message is printed as it is
+  when it is valid UTF-8 and every character is printable, and quoted by the payload escaper otherwise (a newline, ESC,
+  another control, a C1 or bidi control, a byte that is not UTF-8). A plain name prints unchanged. The `-json` shape is
+  unchanged.
 
 `stat`, `check` and `consumers` take `-json` too (Stage 2 audit, owner-approved 2026-10-30, A1-57). Every key is
 lowercase snake_case, a key listed below is always present unless marked optional, and an empty list is `[]`,

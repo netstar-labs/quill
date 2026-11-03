@@ -58,7 +58,7 @@ func cmdLs(c *cli, args []string) int {
 		}
 		if err != nil {
 			failed++
-			fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\t\terror: %v\n", e.Name(), err)
+			fmt.Fprintf(w, "%s\t\t\t\t\t\t\t\t\t%s\n", safeText(e.Name()), safeText("error: "+err.Error()))
 			continue
 		}
 		found++
@@ -72,7 +72,7 @@ func cmdLs(c *cli, args []string) int {
 		} else {
 			note = "policy unreadable"
 		}
-		fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\n", e.Name(), st.Head, st.Records, st.Segments, st.Bytes, ret, mb, mf, mr, note)
+		fmt.Fprintf(w, "%s\t%d\t%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\n", safeText(e.Name()), st.Head, st.Records, st.Segments, st.Bytes, ret, mb, mf, mr, note)
 	}
 	_ = w.Flush()
 	if found+failed == 0 {
@@ -241,7 +241,7 @@ func cmdCheck(c *cli, args []string) int {
 				fmt.Fprintln(c.out, "UNBOUNDED: neither MaxBytes nor MinFreeBytes is set; a fast writer can fill the disk")
 			}
 			for _, p := range res.Problems {
-				fmt.Fprintln(c.out, p.String())
+				fmt.Fprintln(c.out, safeText(p.String()))
 			}
 		}
 		if !res.Healthy {

@@ -288,7 +288,10 @@ quill archive -dir orders -to /backup/orders
 characters escaped (binary payloads as `b64:…`). `-json` prints one object per record:
 `seq`, `at`, `time`, `len`, and exactly one of `payload` (valid UTF-8) or `payload_b64`;
 `-b64` forces base64. Both forms are lossless and never pass a raw control character (C0, DEL or C1) or
-invalid UTF-8 to the terminal.
+invalid UTF-8 to the terminal. The same holds for names read from the disk: in text output `ls`, `consumers`,
+`check` and error messages print a log, consumer or file name (and a path built from one) as it is when every character is
+printable, and quoted with the same escapes (`"a\nb"`, `\x1b`, `\u202e`) when it is not, so a hostile file name cannot add a
+line or a terminal sequence. A plain name looks as it always did. `-json` is unchanged.
 
 `stat`, `check` and `consumers` also take `-json`: lowercase keys throughout, and a list is always an array (`"holes":[]`, never `null`; a hole is
 `{"from":N,"to":N}`). The schemas are in the scope document, "Readable output".

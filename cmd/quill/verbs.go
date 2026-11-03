@@ -45,9 +45,10 @@ type cli struct {
 	maxRecords, ttl                    string
 }
 
-// errorf prints one "quill: " prefix: the library's errors already begin with it.
+// errorf prints one "quill: " prefix: the library's errors already begin with it. The message
+// goes through safeText: it often holds a path built from a directory entry (A3-3).
 func (c *cli) errorf(format string, args ...any) int {
-	fmt.Fprintf(c.err, "quill: %s\n", strings.TrimPrefix(fmt.Sprintf(format, args...), "quill: "))
+	fmt.Fprintf(c.err, "quill: %s\n", safeText(strings.TrimPrefix(fmt.Sprintf(format, args...), "quill: ")))
 	return exitError
 }
 
