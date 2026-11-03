@@ -37,15 +37,13 @@ func TestOpenWithAProtectedConsumerRunningDoesNotNeedItsLock(t *testing.T) {
 	if err := l.Close(); err != nil {
 		t.Fatal(err)
 	}
-	start := time.Now()
+	// No stopwatch: a reopen that needed the consumer's lock retries it for lockRetry and then
+	// returns ErrLocked, so the error check is the whole test and holds on a slow machine.
 	l2, err := reopenProtected(dir)
 	if err != nil {
 		t.Fatalf("reopen beside the live consumer: %v", err)
 	}
 	defer l2.Close()
-	if d := time.Since(start); d > lockRetry/2 {
-		t.Fatalf("reopen took %v: it waited on the consumer's lock", d)
-	}
 	if !c.Protected() {
 		t.Fatal("the consumer lost its flag")
 	}
