@@ -2269,7 +2269,7 @@ step.
 ## Held after pass A7
 
 Pass A7 (gap audit, 2026-11-03; the full record is [gap-audit.md](gap-audit.md)) fixed seven items and held three. A7-15 was
-held for an owner choice, made 2026-11-03 (see its section). A7-18 and A7-19 each have a written fix that the fix-skeptic rejected on one objection; neither commit
+held for an owner choice, made 2026-11-03, and then fixed in 08d7f77 (see its section); that makes eight fixed. A7-18 and A7-19 each have a written fix that the fix-skeptic rejected on one objection; neither commit
 is merged into this branch (verified: `git merge-base --is-ancestor` fails for both, and both objects exist in the
 repository). They are listed here so the written fix and the objection are not lost.
 
@@ -2293,9 +2293,18 @@ orders of magnitude or remove them, and drop the absolute ceiling at `:94` in fa
 table that describes the reference so it carries no more than the comparison needs. If the owner instead accepts the figures,
 keep them and correct decision 90 only.
 
-**Owner's answer, 2026-11-03.** Approved the recommended answer: delete the reference's numbers; documentation only.
+**Owner's answer, 2026-11-03.** Approved the recommended answer: delete the reference's numbers; documentation only. The
+alternative (accept the figures and correct only decision 90) was not approved.
 
-**Fix written.** Branch `stage2/A7-15-a1` (rejected by the fix-skeptic on two defects: decision 90's row had a duplicated cell, and a reference-derived framing range survived in `scope.md` and `format.md` while decision 32 gave another), then `stage2/A7-15-a2`, which cherry-picks it and corrects both; fix-skeptic outcome for attempt 2: not yet run when it was made.
+**Fix commit.** 08d7f77 on `main` (verified: it is the tip, with ee220c8, the rejected first attempt, as its parent). Disposition: fixed.
+
+**Fix-skeptic outcome.** Attempt 1 (ee220c8) rejected on the two defects named under "Fix written"; attempt 2 (08d7f77)
+FIXED-VERIFIED, 6 of 6 lenses pass (reported, the fix-skeptic's evidence; details in [gap-audit.md](gap-audit.md), section A7-15).
+State of Y128 and decision 90: Y128 is met by deletion; decision 90 says what was done and its row has the same five fields as the
+other rows. Residue: `review.md:74` keeps "minutes for 100+ GB of never-expiring log", which the skeptic read as a scale
+scenario and not a reference figure (inferred); the owner may delete it.
+
+**Fix written.** Branch `stage2/A7-15-a1` (rejected by the fix-skeptic on two defects: decision 90's row had a duplicated cell, and a reference-derived framing range survived in `scope.md` and `format.md` while decision 32 gave another), then `stage2/A7-15-a2`, which cherry-picks it and corrects both; fix-skeptic outcome for attempt 2: FIXED-VERIFIED (above).
 Figures found by search of every tracked file outside `docs/audits/` and `.claude/`, and what became of each:
 
 - `review.md`: the reference's line counts in the header, the table (the column was dropped; the rows are kept), findings 3,

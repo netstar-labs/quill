@@ -26,9 +26,8 @@ A7-12 and A7-17 and A7-24 and A7-25).
 
 | By disposition | Count | Items |
 |---|---|---|
-| Fixed, fix-skeptic FIXED-VERIFIED | 7 | A7-1 (47812f1), A7-4 (f0090db), A7-6 (3b86a4a), A7-11 (f47d6f0), A7-13 (1262a8f), A7-20 (730d525), A7-23 (0c83572) |
+| Fixed, fix-skeptic FIXED-VERIFIED | 8 | A7-1 (47812f1), A7-4 (f0090db), A7-6 (3b86a4a), A7-11 (f47d6f0), A7-13 (1262a8f), A7-15 (08d7f77, second attempt, owner-approved 2026-11-03), A7-20 (730d525), A7-23 (0c83572) |
 | Fix written, fix-skeptic objection; corrected and merged by hand 2026-11-03, no fix-skeptic re-run | 2 | A7-18 (08553bd, merged as e2f02b6), A7-19 (1a701fb, merged as ffae168) |
-| Owner-approved 2026-11-03 and fixed (fix-skeptic pending when committed) | 1 | A7-15 (branch `stage2/A7-15-a2`) |
 | Refuted, nothing to change | 3 | A7-7, A7-21, A7-22 |
 | Deliberately not changed (decided in an earlier pass) | 4 | A7-2, A7-8, A7-14, A7-16 |
 
@@ -41,7 +40,8 @@ A7-12 and A7-17 and A7-24 and A7-25).
   probes of A7-1, the two mutants of A7-6 and the one mutant of A7-13 (a mutated copy of the tree on which the full suite
   still passed). The other 8 are reads and greps of the tree, marked reproduced by the voter. The one correctness bug, A7-1,
   was reproduced by the auditor and by both skeptics with three separate programs. There is no security item.
-- **Fix-skeptics.** 7 fixes, 7 FIXED-VERIFIED, 43 lens verdicts (7 lenses on A7-1, 6 on each of the others), all pass.
+- **Fix-skeptics.** 8 fixes, 8 FIXED-VERIFIED, 49 lens verdicts (7 lenses on A7-1, 6 on each of the others), all pass. A7-15 took
+  two attempts: the first (ee220c8) was rejected on two defects (below), the second (08d7f77) passed all 6 lenses.
   Two further fixes (A7-18, A7-19) were rejected on one objection each (below); the assistant corrected the one sentence each and
   merged them by hand on 2026-11-03 (e2f02b6, ffae168) with no fix-skeptic re-run and without the owner's word.
 - **Ladder.** Every fix stopped at the lowest rung that closes the item: one line or one pure move or one table or one test;
@@ -100,8 +100,9 @@ Three auditors returned; none failed to return. Everything ran on macOS (darwin/
   behaviour was not checked beyond building linux/386 and riscv64.
 - Fix-skeptics ran gofmt, vet and `go test -race` on every fix. Staticcheck and deadcode at the pinned versions were run by
   the A7-11 skeptic (clean) and staticcheck by the A7-6 skeptic; the fuzz step of the gate was run by none, and none of the
-  seven fixes touches a fuzzed path. The fixes were verified one at a time on the parent of each; the combined tree at
-  0c83572 was not re-gated for this record.
+  eight fixes touches a fuzzed path (A7-15 changes only `.md` files). The fixes were verified one at a time on the parent of each; the combined tree at
+  0c83572 was not re-gated for this record. The A7-15 skeptic ran gofmt, vet and `go test -race -count=1 ./...` on the tree at 08d7f77
+  (all clean; reported, from its lens evidence) and not staticcheck, deadcode or fuzz, since no Go source changed.
 
 ## Ledger
 
@@ -114,7 +115,7 @@ Cost is the severity the auditor assigned. "Skeptic" is the fix-skeptic outcome.
 | A7-6 | Y177 Y30 Y11 Y33 | caps running at a seal made by Sync, Close, SyncAppends or the flusher is pinned by no test | CONFIRMED | low | fixed 3b86a4a | FIXED-VERIFIED |
 | A7-11 | Y77 Y135 | docs state no file over about 600 lines; log.go is 845 | CONFIRMED | low | fixed f47d6f0 | FIXED-VERIFIED |
 | A7-13 | Y64 Y62 Y171 | ErrFutureVersion at Consumer.Commit and in a Reader's wait has no test | CONFIRMED | low | fixed 1262a8f | FIXED-VERIFIED |
-| A7-15 | Y128 | decision 90 says reference figures were replaced or softened; review.md and decisions 3, 15, 32 still carry them | CONFIRMED | medium | owner-approved 2026-11-03: figures deleted, decision 90 reworded (branch `stage2/A7-15-a2`; a1 was rejected on a duplicated cell in decision 90 and a surviving framing range) | pending |
+| A7-15 | Y128 | decision 90 says reference figures were replaced or softened; review.md and decisions 3, 15, 32 still carry them | CONFIRMED | medium | owner-approved 2026-11-03: figures deleted, decision 90 reworded; fixed 08d7f77 (attempt 1, ee220c8, was rejected on a duplicated cell in decision 90 and a surviving framing range) | FIXED-VERIFIED |
 | A7-23 | Y47 Y59 | docs quote 20 ms per macOS flush and 23-39 us per Read; the baselines say about 10 ms and 21-36 us | CONFIRMED | low | fixed 0c83572 | FIXED-VERIFIED |
 | A7-18 | Y64 Y62 Y171 Y170 | no upgrade, migration or rollback note for an operator | PLAUSIBLE | low | fix written 08553bd, rejected; corrected by hand, merged e2f02b6, no re-run | objection (one) |
 | A7-19 | Y75 Y141 Y166 | no install path documented; a go-installed binary reports `dev` | PLAUSIBLE | low | fix written 1a701fb, rejected; corrected by hand, merged ffae168, no re-run | objection (one) |
@@ -296,11 +297,31 @@ claiming they were removed. Decision 90 names scope.md and review.md, so decisio
 sentence, and decision 15's timings are labelled as measured on the reference's access pattern; the review.md line counts
 alone carry the finding.
 
-**Disposition.** Held for the owner, who approved the recommended answer on 2026-11-03: delete the reference's numbers. Done on
-branch `stage2/A7-15-a2` (documentation only; the framing figure is one computed range in decision 32, scope.md and format.md): review.md, decisions 3, 5, 7, 15, 16, 20, 21 and 32 carry no figure from the
-reference, each with a dated note; decisions 70 and 90 say what was done (Y128 is satisfied by deletion, not replacement);
-the CHANGELOG has the line. Fix-skeptic outcome: attempt 1 rejected (two defects, both corrected in attempt 2); attempt 2 not yet run when the commit was made. Section "A7-15" in
-[stage2-owner-decisions.md](stage2-owner-decisions.md) lists every figure found and what became of it.
+**Disposition.** Fixed in commit 08d7f77 (on `main`), documentation only, after the owner approved the recommended answer on
+2026-11-03: delete the reference's numbers. The alternative (keep the figures and correct only decision 90) was not approved.
+review.md and decisions 3, 5, 7, 15, 16, 20, 21 and 32 carry no figure from the reference, each decision with a dated note;
+decisions 70 and 90 say what was done (Y128 is satisfied by deletion, not replacement; decision 90's state: reworded, one
+row of five fields); review.md's size ceiling is replaced by quill's own 5,370 lines of non-test Go in the root package; the
+framing cost is one quill-derived range, 12 to 18 bytes per record, in decision 32, `scope.md` (two places) and `format.md:51`;
+the CHANGELOG has the "Changed:" line.
+
+**Fix-skeptic outcome.** Attempt 1 (ee220c8) was rejected on two defects: decision 90's row had a duplicated cell, and a
+framing range derived from the reference ("14 to 18") survived in `scope.md` and `format.md` while decision 32 gave another
+("13 to 17"). Attempt 2 (08d7f77) corrected both and is FIXED-VERIFIED, 6 of 6 lenses pass (reported, the fix-skeptic's
+evidence). What the skeptic ran, as it reports: `go test -race -count=1 ./...` on the fixed tree exit 0; gofmt and vet clean;
+`go doc -all .` identical before and after; no `.go` or `testdata` change; the 5,370-line count reproduced with `wc -l`; the
+12-to-18 range reproduced with its own throwaway test over `frameLen` (`codec.go:64`), payloads 0 to 16,384 and sequences 1 to
+2^21-1 (minimum 12, maximum 18; sequence 2^21 gives 19, so "about two million" is the bound); a search of the tree outside
+`docs/audits/` and `.claude/` for every old figure found only unrelated quill constants. The recorder re-ran `wc -l` over the
+root package's non-test files at 08d7f77 (5,370, verified) and read the figure at `review.md:96` and the range at
+`scope.md:291` and `format.md:51` (verified); the 12-to-18 derivation itself is reported from the skeptic and the fixer.
+
+**Residue left by the skeptic (not blocking).** (1) `review.md:74` (finding 14) says a cold start takes "minutes for 100+ GB
+of never-expiring log"; the fixer did not classify it. Inferred: it is the reviewer's scale scenario, not a measured reference
+figure, but the skeptic could not rule out that it came from the reference's operational plan. Left as written; the owner may
+delete it. (2) The 12-byte floor assumes a real Unix-second timestamp; a record with `At` of 0 frames in 8 bytes, and
+`format.md:51` omits that the length prefix also grows; both are covered by "about". Section "A7-15" in
+[stage2-owner-decisions.md](stage2-owner-decisions.md) lists every figure found and what became of each.
 
 ### A7-23: operator documents quote figures that disagree with the baselines (hygiene, low) CONFIRMED
 
