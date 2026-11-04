@@ -14,6 +14,11 @@ toolchain=$(sed -n 's/^toolchain //p' go.mod)
 [ -n "$toolchain" ] || toolchain="go$(sed -n 's/^go //p' go.mod)"
 case "$toolchain" in go[0-9]*.[0-9]*.[0-9]*) ;; go[0-9]*.[0-9]*) toolchain="$toolchain.0" ;; esac
 export GOTOOLCHAIN="$toolchain"
+# The compiler's architecture level is part of the binary: a builder's GOAMD64=v3 or
+# GOARM64=v9.0 (in the shell or in `go env -w`'s file, which the environment overrides) would
+# ship AVX2 or v9 instructions that an older CPU dies on with SIGILL, and a verifier on the
+# defaults could not reproduce the hash. Pin the baselines, the toolchain's own defaults.
+export GOAMD64=v1 GOARM64=v8.0
 # Nothing in the output depends on the clock or the builder: the SBOM time stamp and every
 # archive entry's mtime are the commit time, entries are sorted, owners are root with no names,
 # and the gzip header carries no time. So a rebuild of one commit with the same tar, gzip and Go

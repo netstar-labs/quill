@@ -459,6 +459,83 @@ func TestBuildScriptPinsToolchain(t *testing.T) {
 	}
 }
 
+// The compiler's architecture level changes the instructions it emits, so a builder's GOAMD64
+// or GOARM64 (in the shell, or in the file `go env -w` writes, which the environment overrides)
+// would change the shipped binaries and could make them die with SIGILL on an older CPU. The
+// script pins the baseline levels, v1 and v8.0, for every build. A stand-in go on PATH records
+// the two variables each `go build` ran with, under a builder that sets the higher levels.
+func TestBuildScriptPinsArchLevel(t *testing.T) {
+	for _, tool := range []string{"bash", "git", "shasum"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skipf("%s is not installed", tool)
+		}
+	}
+	script, err := os.ReadFile(filepath.Join("build", "quill"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	bin := t.TempDir()
+	log := filepath.Join(t.TempDir(), "calls")
+	write := func(p, body string, mode os.FileMode) {
+		t.Helper()
+		p = filepath.Join(dir, p)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("go.mod", "module example.com/q\n\ngo 1.27\n\ntoolchain go1.27.1\n", 0o644)
+	write("cmd/quill/main.go", "package main\n\nfunc main() {}\n", 0o644)
+	for _, f := range []string{"README.md", "CHANGELOG.md", "SECURITY.md"} {
+		write(f, f+"\n", 0o644)
+	}
+	write("build/quill", string(script), 0o755)
+	fake := "#!/bin/sh\n" +
+		"case \"$1\" in\n" +
+		"version) echo \"go version go1.27.1 linux/amd64\" ;;\n" +
+		"build) echo \"$GOOS/$GOARCH amd64=${GOAMD64:-unset} arm64=${GOARM64:-unset}\" >> '" + log + "'\n" +
+		"  while [ $# -gt 0 ]; do [ \"$1\" = -o ] && { shift; mkdir -p \"$(dirname \"$1\")\"; echo x > \"$1\"; }; shift; done ;;\n" +
+		"esac\n"
+	if err := os.WriteFile(filepath.Join(bin, "go"), []byte(fake), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"GOAMD64=v3", "GOARM64=v9.0",
+		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com",
+		"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
+	for _, args := range [][]string{{"init", "-q"}, {"add", "."}, {"commit", "-q", "-m", "x"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = env
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	cmd := exec.Command("bash", "build/quill", "--dev")
+	cmd.Dir = dir
+	cmd.Env = env
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("build/quill --dev: %v\n%s", err, out)
+	}
+	calls, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(calls)), "\n")
+	if len(lines) != 4 {
+		t.Fatalf("want four builds, got %q", lines)
+	}
+	for _, l := range lines {
+		if !strings.HasSuffix(l, " amd64=v1 arm64=v8.0") {
+			t.Errorf("go build ran as %q; want GOAMD64=v1 and GOARM64=v8.0 whatever the builder sets", l)
+		}
+	}
+}
+
 // The script pins GOTOOLCHAIN to go.mod's toolchain line. A throwaway module for a test that
 // runs the real go names the Go running the test, so the build neither downloads nor switches.
 func pinnedGoMod(t *testing.T) string {
