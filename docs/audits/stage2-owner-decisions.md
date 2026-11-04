@@ -2375,3 +2375,45 @@ before the flip.
 **Fix written.** 1a701fb (README.md and CHANGELOG.md), not merged; it needs the correction above.
 
 **Hand finish 2026-11-03 (the assistant, not the owner; no fix-skeptic re-run).** The corrected text is merged as ffae168: cherry-picked from 1a701fb, and the archive-contents sentence now reads "README, CHANGELOG and SECURITY (and LICENSE once the repository has one)", which is what `build/quill:69-71` does. The recommended answer said to merge only after a fix-skeptic re-run and only if the owner wants install text before the flip; neither happened. The commit is local and unpushed; `git revert ffae168` removes it.
+
+## Held after pass A1d
+
+Pass A1d (adversarial audit of the v0.1.0..HEAD diff, 2026-11-03; the full record is [a1-diff-scoped.md](a1-diff-scoped.md)) came to
+fourteen items. Eight were fixed, each FIXED-VERIFIED by a fix-skeptic, and one was refuted; four were decided in an earlier pass and
+left unchanged. One item is held for the owner: a documentation fix was written and rejected by its fix-skeptic and is not merged.
+
+### A1d-9: the logger documentation's list of records `Open` gives itself is incomplete (low)
+
+**Claim.** The `Config.Logger` rule (the `Logger` row of the user guide, decision 50 and the "from Open:" bullet in the `config.go` doc)
+names four records `Open` gives itself and says every other record runs with the lock held. Since L3b-8 (`29f5c6c`) `Open` also gives the
+marker-publish Warn ("cannot publish quill.tail...") and, when the publish rotates, a rotation Warn, both on the caller's goroutine with no lock
+held, so by the documented wording they would run under the lock. Two skeptics CONFIRMED it; documentation only, no code defect (read from `log.go`,
+`load.go` and `flush.go`, not run with a lock-probing handler).
+
+**Why held.** The fix rewrites the wording of a numbered decision (50) and of the `scope.md` statement of what a `Logger` handler may assume about
+locking, which is the owner's to approve. The first fix (a longer list) was rejected because the enumeration would go stale again. The second, `f2287c7`,
+was rejected by its fix-skeptic on one factual error that it adds to decision 50 (below). It is not merged: `git merge-base --is-ancestor f2287c7 HEAD`
+fails, and the object exists in the repository.
+
+**Recommended answer.** State the exception by where a record is written, not by a list: every record written while `Open` runs, before it returns, is delivered
+on the caller's goroutine with no lock held; every other record runs with the lock held. That is the generic form `config.go` already uses ("except those Open
+gives itself"). Merge `f2287c7` after correcting the one error the fix-skeptic found.
+
+**Fix written.** `f2287c7` (documentation only: user guide, `scope.md`, decision 50 with a dated A1d-9 note, and the `config.go` Logger doc), not merged. The
+fix-skeptic's objection, which the correction has to meet: the dated note on decision 50 lists "the consumer-passed Warn" among the records `Open` writes through the
+seal its recovery makes, and the code cannot produce it, because `l.offsets` is nil until `log.go:217`, after `load()` has already run `publishLocked` and its seal
+(`flush.go:204` passes `l.offsets`); the fix-skeptic ran a protected consumer at offset 1 with a seal at `Open` and got only the "deleted segment" Info. The same
+sentence in decision 50 also still enumerates `Open`'s own warnings and omits the `quill.tail` mode Warn added by `96588fb` (A1d-2). The correction: remove "the
+consumer-passed Warn" from the note and from the commit's summary, and either drop the enumeration after "its own warnings:" or complete it. Merge only after a fix-skeptic
+re-run on the corrected commit.
+
+### Not held, but worth the owner's eye: A1d-1 (medium)
+
+Not a held item (the ledger records it as decided in round 1, A1-31 and decision 65, and nothing was changed), listed here because its reproduction is new
+information. A live retention pass syncs the directory once per deleted segment while holding the log's lock (`retention.go:363`), which is the cost round 1
+accepted ("n directory syncs instead of one") and disclosed. What round 1 did not record (inferred from reading
+[a1-round2-correctness.md](a1-round2-correctness.md) section 18, which does not mention the lock) is that the syncs run under `l.mu`. The auditor measured a pass over 401
+expired sealed segments blocking `Head()` for 2.128 s on macOS APFS (31 ms on v0.1.0) and 204 ms on Linux ext4 (16 ms on v0.1.0), about 5 ms and 0.5 ms per segment. A live pass deletes at most a
+quarter of the sealed segments, so a burst of simultaneous expiries (for example 2,000 expired sealed segments, up to 500 deleted in the first pass) is the case that reaches seconds. Recommended answer if
+reopened: keep the sync-before-each-unlink order and release the lock between chunks of a few segments, re-validating the sealed set when it is reacquired; if left as is, say in decisions 61 and 65, the user
+guide and the Latency section of `scope.md` that a pass blocks the log for the duration of its syncs. Fix written: none.
