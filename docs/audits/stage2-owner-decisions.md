@@ -2281,6 +2281,8 @@ the lock mode. A fix-skeptic should then re-run on the corrected commit.
 
 **Fix written.** 08553bd (docs/userguide.md section 9 and CHANGELOG.md), not merged; it needs the correction above.
 
+**Hand finish 2026-11-03 (the assistant, not the owner; no fix-skeptic re-run).** The corrected text is merged as e2f02b6: cherry-picked from 08553bd onto the A7 tip (CHANGELOG and user guide conflicts with A7-20 resolved by keeping both), and the sentence the fix-skeptic objected to now reads "The differences between the two versions are listed under \"Unreleased\" in the CHANGELOG, which you should read before upgrading": no count and no examples. The recommended answer asked for a fix-skeptic re-run and said whether the note is wanted is an owner call; neither happened. The commit is local and unpushed; `git revert e2f02b6` removes it.
+
 ### A7-19: no install path documented; a go-installed binary reports `dev` (low)
 
 **Claim.** README, user guide and introduction never say how to obtain the `quill` command or the library, and a binary built
@@ -2302,3 +2304,5 @@ from the list. Leave `quill version` as it is. Merge only after a fix-skeptic re
 before the flip.
 
 **Fix written.** 1a701fb (README.md and CHANGELOG.md), not merged; it needs the correction above.
+
+**Hand finish 2026-11-03 (the assistant, not the owner; no fix-skeptic re-run).** The corrected text is merged as ffae168: cherry-picked from 1a701fb, and the archive-contents sentence now reads "README, CHANGELOG and SECURITY (and LICENSE once the repository has one)", which is what `build/quill:69-71` does. The recommended answer said to merge only after a fix-skeptic re-run and only if the owner wants install text before the flip; neither happened. The commit is local and unpushed; `git revert ffae168` removes it.

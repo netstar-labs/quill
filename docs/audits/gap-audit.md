@@ -27,7 +27,7 @@ A7-12 and A7-17 and A7-24 and A7-25).
 | By disposition | Count | Items |
 |---|---|---|
 | Fixed, fix-skeptic FIXED-VERIFIED | 7 | A7-1 (47812f1), A7-4 (f0090db), A7-6 (3b86a4a), A7-11 (f47d6f0), A7-13 (1262a8f), A7-20 (730d525), A7-23 (0c83572) |
-| Fix written, fix-skeptic objection, not merged | 2 | A7-18 (08553bd), A7-19 (1a701fb) |
+| Fix written, fix-skeptic objection; corrected and merged by hand 2026-11-03, no fix-skeptic re-run | 2 | A7-18 (08553bd, merged as e2f02b6), A7-19 (1a701fb, merged as ffae168) |
 | Held for the owner | 1 | A7-15 |
 | Refuted, nothing to change | 3 | A7-7, A7-21, A7-22 |
 | Deliberately not changed (decided in an earlier pass) | 4 | A7-2, A7-8, A7-14, A7-16 |
@@ -42,7 +42,8 @@ A7-12 and A7-17 and A7-24 and A7-25).
   still passed). The other 8 are reads and greps of the tree, marked reproduced by the voter. The one correctness bug, A7-1,
   was reproduced by the auditor and by both skeptics with three separate programs. There is no security item.
 - **Fix-skeptics.** 7 fixes, 7 FIXED-VERIFIED, 43 lens verdicts (7 lenses on A7-1, 6 on each of the others), all pass.
-  Two further fixes (A7-18, A7-19) were rejected on one objection each and are not merged (below).
+  Two further fixes (A7-18, A7-19) were rejected on one objection each (below); the assistant corrected the one sentence each and
+  merged them by hand on 2026-11-03 (e2f02b6, ffae168) with no fix-skeptic re-run and without the owner's word.
 - **Ladder.** Every fix stopped at the lowest rung that closes the item: one line or one pure move or one table or one test;
   no new exported symbol, flag, file of code or config field was added by any of them (config.go in A7-11 is a move).
 
@@ -115,8 +116,8 @@ Cost is the severity the auditor assigned. "Skeptic" is the fix-skeptic outcome.
 | A7-13 | Y64 Y62 Y171 | ErrFutureVersion at Consumer.Commit and in a Reader's wait has no test | CONFIRMED | low | fixed 1262a8f | FIXED-VERIFIED |
 | A7-15 | Y128 | decision 90 says reference figures were replaced or softened; review.md and decisions 3, 15, 32 still carry them | CONFIRMED | medium | held for the owner | none |
 | A7-23 | Y47 Y59 | docs quote 20 ms per macOS flush and 23-39 us per Read; the baselines say about 10 ms and 21-36 us | CONFIRMED | low | fixed 0c83572 | FIXED-VERIFIED |
-| A7-18 | Y64 Y62 Y171 Y170 | no upgrade, migration or rollback note for an operator | PLAUSIBLE | low | fix written 08553bd, rejected, not merged | objection (one) |
-| A7-19 | Y75 Y141 Y166 | no install path documented; a go-installed binary reports `dev` | PLAUSIBLE | low | fix written 1a701fb, rejected, not merged | objection (one) |
+| A7-18 | Y64 Y62 Y171 Y170 | no upgrade, migration or rollback note for an operator | PLAUSIBLE | low | fix written 08553bd, rejected; corrected by hand, merged e2f02b6, no re-run | objection (one) |
+| A7-19 | Y75 Y141 Y166 | no install path documented; a go-installed binary reports `dev` | PLAUSIBLE | low | fix written 1a701fb, rejected; corrected by hand, merged ffae168, no re-run | objection (one) |
 | A7-20 | Y33 Y153 | no message, meaning, action runbook for the log records and errors | PLAUSIBLE | low | fixed 730d525 | FIXED-VERIFIED |
 | A7-7 | Y149 Y170 Y184 | README Layout table omits hack/topology, topology.sh, skew.sh, skewopen | REFUTED | low | no change | none |
 | A7-21 | Y65 Y137 Y138 Y139 Y179 | v0.2.0 deferrals have no recorded disposition | REFUTED | low | no change | none |
@@ -379,6 +380,9 @@ vet, `-race`). Commit 08553bd exists in the repository (verified, `git cat-file`
 Recommended re-fix: drop the count or say "several", point to the CHANGELOG Unreleased section, and name only differences
 that the audit or CHANGELOG records; see [stage2-owner-decisions.md](stage2-owner-decisions.md), section "A7-18".
 
+Hand finish 2026-11-03: corrected as recommended and merged as e2f02b6 (the count and the examples are gone; the reader is pointed to
+the CHANGELOG Unreleased section). No fix-skeptic re-run, and the owner was not asked.
+
 ### A7-19: no install path documented; a go-installed binary reports `dev` (gap, low) PLAUSIBLE (votes: PLAUSIBLE, PLAUSIBLE)
 
 **Claim.** README, user guide and introduction never say how to obtain the `quill` command or the library, and a binary built
@@ -405,6 +409,9 @@ dropped the finding's own "if present" qualifier. The `quill dev` statement and 
 verified correct. Commit 1a701fb exists (verified) and is not an ancestor of this branch. Recommended re-fix: say the
 archives carry LICENSE once one lands, or drop it from the list; see [stage2-owner-decisions.md](stage2-owner-decisions.md),
 section "A7-19".
+
+Hand finish 2026-11-03: corrected as recommended and merged as ffae168 (LICENSE "once the repository has one"). No fix-skeptic
+re-run, and the owner was not asked.
 
 ## Refuted
 
