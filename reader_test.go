@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -783,6 +784,108 @@ func TestAReaderReadsSealedSegmentsWhoseFirstFrameIsAroundAndAboveTheProbeSize(t
 		if got[i].Seq != uint64(i+1) || !bytes.Equal(got[i].Payload, want[i]) {
 			t.Fatalf("record %d: seq %d, %d bytes; want %d bytes", i+1, got[i].Seq, len(got[i].Payload), len(want[i]))
 		}
+	}
+}
+
+// probeReadFS records the length of every ReadAt on each file it opens, by file name.
+type probeReadFS struct {
+	fsx.FS
+	mu    sync.Mutex
+	reads map[string][]int
+}
+
+type probeReadFile struct {
+	fsx.File
+	fs   *probeReadFS
+	name string
+}
+
+func (f *probeReadFS) OpenFile(name string, flag int, perm fs.FileMode) (fsx.File, error) {
+	file, err := f.FS.OpenFile(name, flag, perm)
+	if err != nil {
+		return file, err
+	}
+	return &probeReadFile{File: file, fs: f, name: filepath.Base(name)}, nil
+}
+
+func (f *probeReadFile) ReadAt(p []byte, off int64) (int, error) {
+	f.fs.mu.Lock()
+	f.fs.reads[f.name] = append(f.fs.reads[f.name], len(p))
+	f.fs.mu.Unlock()
+	return f.File.ReadAt(p, off)
+}
+
+// A first-frame probe reads firstFrameChunk bytes, not the 64 KiB a scan starts with, and reads
+// again only when the first frame is larger than that (decision 91, amendment). The records come
+// out the same either way, so only the length of the reads can tell the probe was kept small.
+func TestAReaderProbesASegmentsFirstFrameWithASmallRead(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 6 << 10 })
+	defer l.Close()
+	small := bytes.Repeat([]byte("s"), 100)
+	for i := 0; i < 180; i++ { // three sealed segments of 60 frames (6720 bytes), each first frame small
+		if _, err := l.Append(small); err != nil {
+			t.Fatal(err)
+		}
+		if i%10 == 9 {
+			mustFlush(t, l) // a flush past SegmentBytes seals the segment
+		}
+	}
+	big := bytes.Repeat([]byte("b"), 3*firstFrameChunk) // a first frame larger than the probe
+	if _, err := l.Append(big); err != nil {
+		t.Fatal(err)
+	}
+	mustFlush(t, l)
+	for i := 0; i < 45; i++ { // the big frame's segment is now sealed; these make an active segment of 5 KiB, past the probe
+		if _, err := l.Append(small); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustFlush(t, l)
+
+	fsys := &probeReadFS{FS: s, reads: map[string][]int{}}
+	r, err := OpenReader("/log", ReaderOptions{fs: fsys, PollInterval: 5 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	fsys.mu.Lock()
+	clear(fsys.reads) // the probes under test are the ones view makes, whatever Open read
+	fsys.mu.Unlock()
+	_, release, err := r.view()
+	if err != nil {
+		t.Fatal(err)
+	}
+	release()
+
+	fsys.mu.Lock()
+	defer fsys.mu.Unlock()
+	var probed, large int
+	for _, id := range segmentFiles(t, s, "/log") {
+		name := segmentName(id)
+		reads := fsys.reads[name]
+		if len(reads) == 0 {
+			t.Fatalf("%s: no probe read", name)
+		}
+		info, err := s.Lstat("/log/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Size() > firstFrameChunk && reads[0] != firstFrameChunk {
+			t.Fatalf("%s (%d bytes): first probe read %d bytes, want %d", name, info.Size(), reads[0], firstFrameChunk)
+		}
+		probed++
+		if info.Size() > 2*firstFrameChunk { // the big frame: one more read for the rest of it
+			large++
+			if len(reads) != 2 {
+				t.Fatalf("%s: a first frame over the probe took reads %v, want 2", name, reads)
+			}
+		} else if len(reads) != 1 {
+			t.Fatalf("%s: a first frame under the probe took reads %v, want 1", name, reads)
+		}
+	}
+	if probed < 4 || large != 1 {
+		t.Fatalf("probed %d segments, %d with a large first frame; the setup is wrong", probed, large)
 	}
 }
 
