@@ -428,6 +428,7 @@ Release builds:
 - Fixed: `quill tail -follow` held its output in a 4 KiB buffer, so to a pipe or file nothing
   appeared until the buffer filled or the command was interrupted; each record is now written
   as it is read.
+- Changed: documentation only, no behaviour change (audit L4b-4). `docs/design/review.md` gave quill's own size as "5,370 lines, counted 2026-11-03", which was 5,399 one commit later; it now says "about 5,400 lines" and names the command that counts them. `docs/audits/a1-diff-scoped.md` gave commit counts that did not reproduce: 137 commits touching non-test, non-hack Go files is 138 at the audited tree (137 only with `examples/` excluded too), and the 113 / 74 split reproduces only when "production" means a non-test `*.go` file in any directory (119 / 68 with `build/` and `hack/*.sh` added); each number now sits next to the command that gives it.
 - Changed: documentation only. The user guide, `scope.md`, decision 85 and the `Archive` godoc said `quill check -dir <dest>` keeps reporting a hole after `quill archive` exits 3 for lost source records; that holds only when the destination already held records below the hole. When the destination starts after the lost records (a new destination, or a source whose damaged oldest segment is a hole from 1) `check` prints HEALTHY and the next `archive` run exits 0, so a script that must not lose track of the loss has to act on the exit 3 of the run that found it. The behaviour and the message text are unchanged.
 
 ## v0.1.0

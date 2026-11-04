@@ -92,7 +92,7 @@ cover, follows. Where an auditor ran code, the toolchain was Go 1.27.3 with `GOW
 
 **Tests lens (A1d-tests).**
 
-- *Revert coverage.* 113 non-docs commits in the range change both production and test files. For each, a scratch copy of the tree at
+- *Revert coverage.* 113 non-docs commits in the range change both production and test files (recount, Stage 2 L4b-4, 2026-11-04: "production" was not defined here. The 113 and the 74 below reproduce at `e2d35d1` when it means a non-test `*.go` file in any directory, `hack/` and `examples/` included: `git log --format=%H v0.1.0..e2d35d1 -- '*.go' ':!*_test.go'` lists 144 commits and `git log --format=%H v0.1.0..e2d35d1 -- '*_test.go'` lists 187; 113 are in both lists and 74 are in the second only. If "production" also means `build/` and `hack/*.sh`, as the restore set in the next sentence does, the split is 119 and 68. The 83, 12, 18 and 60 below are the auditor's and were not recounted). For each, a scratch copy of the tree at
   that commit had the commit's non-test Go, `build/` and `hack/*.sh` files restored to the parent's versions, and the tests the commit
   added or touched were run. 83 fail on an assertion, 12 fail to build (the test needs the new symbol), 18 pass. Of the 83, every newly
   added test function fails without the fix except 18 explicit "still works" guards, which the auditor read and judged to be guards by
@@ -144,7 +144,7 @@ cover, follows. Where an auditor ran code, the toolchain was Go 1.27.3 with `GOW
 - *Ledger arithmetic recomputed from raw numbers,* all adding up: the gap audit (17 items; 27 votes; 49 lens verdicts), the live-integration
   record (12 items; 21 votes; 40 lens verdicts), pass L1h (46 lens verdicts; 22 votes), pass A1h (109 and 102 lens verdicts; 33 and 35 votes) and the round-2 findings
   (16 plus 1 fix commits).
-- *CHANGELOG coverage.* Of 137 commits in the range that touch non-test, non-hack Go files, every user-visible one maps to an Unreleased entry.
+- *CHANGELOG coverage.* Of 138 commits in the range that touch non-test, non-hack Go files (recount, Stage 2 L4b-4, 2026-11-04: `git log --format=%H v0.1.0..e2d35d1 -- '*.go' ':!*_test.go' ':!hack' | wc -l` gives 138; the 137 first written here reproduces only with `':!examples'` added as well, and the same command run at the tip of `main` on 2026-11-04, after later commits, gives 141 and 140), every user-visible one maps to an Unreleased entry.
   The ones without an entry are refactors, comment-only commits or behaviour-unchanged by their own text. The v0.1.0 section is untouched.
 - *Exported API and reference.* `go doc -short` differs from v0.1.0 only by six new Stats fields, each in the CHANGELOG and the guides. The
   CLI's `reference` output is identical to `docs/reference.md`, which a test pins.

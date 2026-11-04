@@ -93,8 +93,9 @@ The reference's core is sound; its size comes from the options layered on it. Qu
 its bytes. Cutting the network layer and its two daemons, the
 fixed-width format and the wire encoding removes a large share of it before sharding, the frontier and the
 topic registry go, and before the reader and consumer files are added back (**inferred** from the table above,
-not counted). Quill's own size, for orientation: **5,370 lines** of non-test Go in the root package, counted
-2026-11-03 with `wc -l` over the root's `*.go` files other than `*_test.go`. Build it **fresh**, porting the
+not counted). Quill's own size, for orientation: **about 5,400 lines** of non-test Go in the root package
+(`ls *.go | grep -v _test.go | xargs wc -l | tail -1` in the repository root; it drifts by tens of lines per commit, so re-run it
+rather than trust this figure). Build it **fresh**, porting the
 reference's behavioural tests that still apply as the specification, and not by deleting code from the reference. Findings 1, 2, 6 and 7 define the shape; 8–11
 and 19–20 are improvements worth making on the way.
 
