@@ -2407,6 +2407,8 @@ sentence in decision 50 also still enumerates `Open`'s own warnings and omits th
 consumer-passed Warn" from the note and from the commit's summary, and either drop the enumeration after "its own warnings:" or complete it. Merge only after a fix-skeptic
 re-run on the corrected commit.
 
+**Resolved 2026-11-04.** The owner approved the documentation-only answer. It was applied as a fresh `fix(stage2 A1d-9)` commit (not by merging `f2287c7`) that lists no record: the records `Open` itself writes run with no lock held, every other record with the lock held (see the item in [a1-diff-scoped.md](a1-diff-scoped.md) for the records run to check it).
+
 ### Not held, but worth the owner's eye: A1d-1 (medium)
 
 Not a held item (the ledger records it as decided in round 1, A1-31 and decision 65, and nothing was changed), listed here because its reproduction is new

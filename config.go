@@ -123,8 +123,9 @@ type Config struct {
 	// which stalls every Append, Read, Sync and the flusher (a handler that writes straight to a
 	// pipe or socket blocks when the reader does), nor take a lock that a caller of the Log may
 	// hold while calling it: hand the record to another goroutine and return. This holds for every
-	// record above except those Open gives itself, which run on the caller's goroutine before Open
-	// returns, before there is a Log, with no lock held.
+	// record above except those Open itself writes, which run on the caller's goroutine before
+	// Open returns, before there is a Log, with no lock held. The same rule (do not call the Log,
+	// do not block) still applies to them, and is the safe way to write a handler for both.
 	Logger *slog.Logger
 	// Perm is the file mode (0600); directories get the matching execute bits (0700). State
 	// files (quill.format, quill.tail, quill.policy, consumer offsets) are exactly Perm; Open
