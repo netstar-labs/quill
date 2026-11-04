@@ -390,8 +390,13 @@ code `check` uses for UNHEALTHY; the library returns a `*GapError`), so `quill a
 report success for an incomplete archive. It finds it two ways: the `_archive` offset is below the source's first
 retained sequence, or the destination's `quill.tail` names a last record below the first segment the run copies, which
 is how it shows after `quill unregister -name _archive` recreated the consumer at the first retained sequence (at 1 when a damaged oldest segment left a gap below it). The
-run that reports the hole commits past it, so the next run has nothing to copy and exits 0 (unless it copied nothing, as when every sealed segment is damaged: nothing is committed then, and every run exits 3 until `quill commit -name _archive -offset N` goes past the gap); `quill check -dir <dest>`
-keeps reporting the hole (exit 3).
+run that reports the hole commits past it, so the next run has nothing to copy and exits 0 (unless it copied nothing, as when every sealed segment is damaged: nothing is committed then, and every run exits 3 until `quill commit -name _archive -offset N` goes past the gap); What `quill check -dir <dest>` then says depends on where the hole falls in the destination.
+If the destination already held records below it, the hole is a gap between two of its segments and `check` reports it (exit 3).
+If the destination starts after the lost records (a new destination, or a source whose damaged oldest segment is a hole from 1), no
+damaged file was copied and nothing in the destination records the loss, so `check` prints HEALTHY (exit 0), and `quill stat -dir <dest>`
+shows `first` past 1. The message's "the archive holds the same hole" is then loose: the destination holds no hole, it begins after
+the lost records. So the exit 3 of the run that found the loss is the only report of it, and the next run exits 0: a script that must
+not lose track of the hole has to act on that exit 3 itself (record it, or stop and alert), not rely on a later `archive` or on `check`.
 
 A rerun after rewinding (`quill commit -name _archive -offset N`) verifies the segments it meets again. A destination segment of the
 same size as the source's is read and CRC-checked: a damaged one is replaced by a fresh copy, a healthy one is left as it is, so

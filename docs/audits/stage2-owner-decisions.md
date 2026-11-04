@@ -1010,6 +1010,17 @@ Open points the fix-skeptic left, none fixed here:
    stays HEALTHY. That describes the retention case; with a damaged oldest segment `check` is UNHEALTHY for the hole and also warns
    of the new consumer at 1 (observed by the skeptic).
 
+**Follow-up to open point 2 (L4b-3, owner-approved 2026-11-04).** Reproduced on a build of the tree at bdb1522 (verified): a log of three
+sealed segments of 500 records each, the first byte of the first frame of segment 0 damaged. `quill check -dir <log>` exits 3;
+`quill archive -dir <log> -to <dest>` prints `the source lost records 1 to 500; the archive holds the same hole` and exits 3;
+`quill stat -dir <dest>` shows `first 501`, `records 1000`; `quill check -dir <dest>` prints HEALTHY and exits 0; a second
+`quill archive` exits 0. (A damage in the middle of segment 0 instead makes `archive` fail with exit 1 at that segment, a different
+path.) The existing test `TestArchiveExitsUnhealthyWhenTheSourceLostRecordsTheArchiveNeverCopied` pins the other case: with records
+already archived below the hole, `check` on the destination exits 3. The documents now say this (documentation only, no code change):
+`userguide.md`, `scope.md`, decision 85 (a dated note), the `Archive` godoc and the CHANGELOG. Still open, recorded in the release
+record's known limitations and not changed here: the message text "the archive holds the same hole" is inaccurate when the
+destination starts after the lost records, since the destination then holds no hole, it begins later.
+
 ## A3-20: a Reader serves overlapping segments (low)
 
 **Claim.** When a sealed segment holds frames past the next segment's first sequence, `Reader.Read` and `ScanAll` deliver the

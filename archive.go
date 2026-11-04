@@ -20,15 +20,20 @@ import (
 // consumer (decisions 28, 67, 68). It is idempotent, runs beside a live writer (it reads
 // only sealed segments, through a Reader), and stops with an error at a corrupt sealed
 // segment, and at two segments that overlap (ErrCorrupt, as a Reader and Open do, decision
-// 102), before it copies the earlier of the two. When the source has lost segments the
-// destination holds the same hole, and Archive returns a *GapError naming it after copying what exists. The gap is found by the
+// 102), before it copies the earlier of the two. When the source has lost records the archive
+// never copied, Archive returns a *GapError naming them after copying what exists; the
+// destination lacks those records. The gap is found by the
 // run that copies past it, in two ways: the _archive offset is below the first retained
 // sequence or a segment is missing between two it copies, or the destination's quill.tail
 // names a last record below the first segment it copies, which is how a loss shows after the
 // consumer was removed and recreated at the first retained sequence (at 1 when a damaged oldest
 // segment left a gap below it).
-// Later runs have nothing to copy and return nil; `quill check` on the destination keeps
-// reporting the hole.
+// Later runs have nothing to copy and return nil, so the *GapError is the only report of the
+// loss: a Reader's Check on the destination reports it only when the destination already held
+// records below it (a gap between two of its segments), and finds nothing wrong when the
+// destination starts after the lost records, as for a new destination or a source whose damaged
+// oldest segment is a hole from 1. A caller that must not lose track of the loss acts on the
+// error of the run that returned it.
 //
 // The _archive offset belongs to the source log, not to a destination: a destination that is
 // new or empty receives only the records at or above the offset, and Archive returns nil. A
