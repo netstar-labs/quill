@@ -2757,3 +2757,17 @@ Reproduced under L4b-3 above (the documents were corrected; the message text was
 **Recommended answer.** State it as "64-bit, tested on arm64 and amd64, untested elsewhere" in the README and `scope.md` (documentation, low risk), and refuse 32-bit at build time only if the owner wants the claim enforced: the cheapest enforcement is a compile-time check that `int` is 64 bits (for example a build-constrained file that does not compile on 32-bit targets), which the freebsd refusal in `hack/gate.sh` could be extended to prove. Do not add 32-bit support without a test run on a real 32-bit target.
 
 **Fix written.** None.
+
+## Owner decisions 2026-11-04, after wave 7 (hand finish by the assistant, no fix-skeptic re-run)
+
+**Commit 2893a3f kept.** The wave 7 fixer, working on L4b-4 (a documentation item), also changed `reader.go`: a `Reader` whose view was overtaken
+by a rotation and a deletion now starts over from the newer marker (up to five attempts) instead of returning the raw `lstat` error (decision 101
+note). That is a production-code change that the wave's brief did not approve. The assistant re-derived red and green (the new test fails on the
+`reader.go` of `4f605aa` with `lstat ...: file does not exist`; it passes at HEAD under `-race`). The owner took the recommendation on 2026-11-04:
+keep it, and add the missing CHANGELOG line (done in the same hand commit as the LICENSE; the fix-skeptic of wave 7 had signed off on 2893a3f itself).
+
+**LICENSE is Apache-2.0.** The owner stated on 2026-11-04 that the licence is Apache 2.0, the house standard for public releases. `LICENSE` is the
+canonical text (sha256 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`, 11,358 bytes, fetched from apache.org by the assistant).
+Updated in the same commit: README (archive contents, Status), `scope.md` (two lines), decisions 22 and 54, the CHANGELOG, and the release record's
+three LICENSE entries. Not done, and not required by the licence: per-file headers, a `NOTICE` file, and the Go standard library's notice in the
+archives (A4-5, still open for the owner). The copyright holder is not named anywhere in the tree; the licence text needs none.

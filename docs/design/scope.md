@@ -496,7 +496,7 @@ reader and consumer before the new format is written (`docs/format.md`, `quill.f
 
 Each release is gated on: tests green with `-race`, fuzz targets run for a fixed budget, `go vet`,
 `staticcheck` and `govulncheck` clean, `go mod tidy` a no-op, and the benchmark baselines recorded. Before the
-repository goes public: a `LICENSE`, `CONTRIBUTING`, a changelog and a stated Go-version policy (decision 54).
+repository goes public: a `LICENSE` (Apache-2.0, added 2026-11-04), `CONTRIBUTING`, a changelog and a stated Go-version policy (decision 54).
 
 ## Examples
 
@@ -513,7 +513,7 @@ a directory; no feed for a shipper; a durable marker file for external readers, 
 probe (decision 8); one offset file per consumer; the frame unchanged from the reference; sequences contiguous
 after a crash (decision 10); an offset is the next sequence to read; an fsync error is fatal; reads never skip a
 gap; commit once per batch (decision 9); the format marker file (decision 6); no `LICENSE` while private
-(decision 22); the `quill.policy` file (decision 29); consumer protection per consumer, with the old log-wide
+(decision 22, superseded 2026-11-04: Apache-2.0); the `quill.policy` file (decision 29); consumer protection per consumer, with the old log-wide
 switch retired (decision 57); `MaxBytes` has no default (decision 24); `ConsumerTTL` off and `MaxRecords` included
 (decisions 31, 33); `pread` for reads (decision 15); the quarter-per-pass clock guard (decision 44); Go iterators (decision 58);
 seek by timestamp (decision 59).

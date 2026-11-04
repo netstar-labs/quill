@@ -91,7 +91,7 @@ The repository is private for now, so these paths apply once it is public; until
 
 - **The library**: `go get github.com/netstar-labs/quill`, then import `github.com/netstar-labs/quill`.
 - **The command**: `go install github.com/netstar-labs/quill/cmd/quill@v0.y.z` (a release tag), or unpack the archive for your platform from a release and put `quill` on your `PATH`.
-- **Versions**: a go-installed binary prints `quill dev` for `quill version`; only the release archives are stamped with the version. The archives hold the binary, README, CHANGELOG and SECURITY (and LICENSE once the repository has one), not `docs/`, so the user guide and the format document are read in the repository.
+- **Versions**: a go-installed binary prints `quill dev` for `quill version`; only the release archives are stamped with the version. The archives hold the binary, README, CHANGELOG, SECURITY and LICENSE, not `docs/`, so the user guide and the format document are read in the repository.
 
 ## Building and the Go version
 
@@ -111,5 +111,5 @@ Linux and darwin only (arm64, amd64); other platforms fail to build on purpose.
 ## Status
 
 Private, pre-release, under construction by the phased build in the build prompt. Tags are
-`v0.y.z` for ever: breaking changes bump the minor with a migration note. No `LICENSE` while
-private; one lands before the repository goes public.
+`v0.y.z` for ever: breaking changes bump the minor with a migration note. Licensed under the
+Apache License 2.0 (see `LICENSE`).
