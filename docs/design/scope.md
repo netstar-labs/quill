@@ -164,7 +164,7 @@ beside a live writer without its lock and show only durable records; they print 
 `-json` (below).
 
 **Locks and exit codes** (decision 53). `append`, `roll`, `prune` and `recover` open the log writable and fail with
-`ErrLocked` beside a live writer. `commit`, `register`, `unregister` and `archive` take only the consumer's lock.
+`ErrLocked` beside a live writer, for an account that can open `quill.lock`: under a different account than the log's creator that file (always 0600) cannot be opened, and they fail with a permission error naming it, not `ErrLocked` (guarantee 5; `prune` with no retention flags and an unreadable `quill.policy` stops earlier, on that file). `commit`, `register`, `unregister` and `archive` take only the consumer's lock.
 `cat`, `read`, `tail`, `stat`, `ls`, `consumers` and `check` take no lock. Exit codes: 0 ok, 1 error, 2 usage,
 3 `check` found the log UNHEALTHY or `archive` found that the source had lost records the archive never copied
 (it still copied what exists; Stage 2 audit, owner-approved 2026-10-31, A5-29). `append` closes the log before it prints and exits 1 when `Close` fails; under
@@ -397,6 +397,10 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
    SMB, FUSE or a directory shared between kernels the lock is not coherent, and quill does not detect it). The lock is the file `quill.lock`: if that file is removed or
    replaced under a live writer, the writer finds out at its next flush or prune pass and fails with `ErrFailed`
    (decision 62), but a second writer that opened in between is not stopped, so never delete it.
+   `ErrLocked` is what an account that can open `quill.lock` gets. The file is always 0600 (decision 51), so a writable open under a different account than
+   the one that created the log (root, which bypasses file permissions, excepted) fails with the permission error from opening it (EACCES, naming `quill.lock`), not `ErrLocked`,
+   whether or not a writer is live: the lock is never tried, and an unreadable lock owned by another account almost always means someone else's log, where `ErrLocked` would claim a live writer. A script that
+   wants to detect a live writer treats both as "this is not this account's log, or a writer may be live". `Archive` differs: it only refuses, so it reports an unopenable lock as an error that is both `ErrLocked` and `fs.ErrPermission`.
 6. **Corruption is never served silently.** A segment corrupt in the middle fails to load, is never
    modified, is named by `Err()` (until retention deletes it) and `quill check`, and reaches readers as a gap: reads stop before it with a
    `GapError`, never skipping it. A sealed segment with no frames is corrupt in the same way, and `quill check` reports it

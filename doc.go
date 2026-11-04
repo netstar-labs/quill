@@ -10,6 +10,11 @@
 //     fails with ErrLocked. Readers in other processes use OpenReader and take no lock. The lock
 //     is a flock: it holds on a local filesystem written by one kernel, not over NFS, SMB, FUSE
 //     or a directory shared between VMs or containers, and quill does not detect those (see Open).
+//     The lock file quill.lock is always 0600, so a writable open under a different account than
+//     the one that created the log, which cannot open that file, fails with the permission error
+//     on quill.lock (EACCES), not ErrLocked, whether or not a writer is live. A caller that
+//     wants to know if a writer may be live treats both as "not this account's log, or a writer
+//     may be live".
 //   - Records are numbered from 1 and sequences are contiguous. Append returns before the record
 //     is durable; Flush, Sync or SyncAppends make it so. After a crash the unflushed suffix is
 //     lost and its numbers are reassigned, so a caller flushes before acknowledging a sequence

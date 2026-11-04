@@ -138,6 +138,16 @@ func (l *Log) path(name string) string { return filepath.Join(l.dir, name) }
 // VMs or containers with separate kernels (virtiofs, 9p) do not provide these coherently.
 // Open does not detect them: on one, two writers can both believe they hold the lock and
 // corrupt the log, and nothing fails at write time.
+//
+// A second Open beside a live writer fails with ErrLocked. That is so only for an account that
+// can open quill.lock, which is always 0600 (decision 51): under a different account than the
+// one that created the log (root, which bypasses file permissions, excepted) Open fails with the
+// permission error from opening quill.lock (EACCES, which matches fs.ErrPermission and names
+// the file), not ErrLocked, whether or not a writer is live. The lock is never tried, so quill
+// cannot say a writer is live, and for an account that cannot open the lock the log is almost
+// always someone else's. A caller that wants to detect a live writer treats both as "not this
+// account's log, or a writer may be live". Archive differs: it only refuses, so it reports the
+// same condition as an error that is both ErrLocked and fs.ErrPermission.
 func Open(cfg Config) (*Log, error) {
 	cfg = cfg.withDefaults()
 	if err := cfg.validate(); err != nil {
