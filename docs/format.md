@@ -48,8 +48,9 @@ body  = uvarint(seq) | uvarint(at) | uvarint(len(payload)) | payload
 - `payload` is opaque bytes. The body is exactly three varints followed by exactly
   `len(payload)` bytes: a body with slack after the payload is damage.
 - The CRC covers the body only, not the length prefix.
-- Framing costs the three varints, the length prefix and the CRC: about 14 to 18 bytes per
-  record for ordinary sequences and payload sizes.
+- Framing costs the three varints, the length prefix and the CRC: about 12 to 18 bytes per
+  record for sequences below about two million and payloads up to 16 KiB (one byte more for each
+  extra byte a sequence or length varint needs).
 
 Recorded frames (hex), from the golden tests:
 

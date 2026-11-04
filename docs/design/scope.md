@@ -150,7 +150,7 @@ Segment files are **binary** (varints, the raw payload bytes, a CRC) and are not
 text: JSON for `quill.tail` and `quill.policy`, one line for `quill.format`, one line per consumer file (the log ID, the next sequence to read and a protect flag).
 The payload is opaque, so a caller who appends text stores readable bytes between binary frames. Binary is chosen
 over a line-oriented text format because arbitrary payloads need no escaping, a torn write is detected exactly
-by length and CRC, and framing costs about 14–18 bytes per record.
+by length and CRC, and framing costs about 12–18 bytes per record.
 
 ### Command line (`quill`)
 
@@ -288,7 +288,7 @@ configured with only `Retention` can fill a disk; `quill check` and `quill ls` m
 and `Stat().Records` is `Head − first retained sequence + 1` minus the records inside holes, exact because sequences are contiguous
 (decisions 10, 32). **Verified** in quill's tests (T17): the byte count equals the bytes of the segment files on
 disk across rotations, deletions and a crash. Framing is the length prefix, three varints and the CRC: about
-14 to 18 bytes per record (the baselines' 128-byte records cost 145 bytes each). So for planning, `bytes ≈ records × (average payload + about 16)`, and
+12 to 18 bytes per record for sequences below about two million and payloads up to 16 KiB (the baselines' 128-byte records cost 145 bytes each). So for planning, `bytes ≈ records × (average payload + about 16)`, and
 `MaxBytes ≈ target records × (average payload + 16)`; the overhead creeps up a few bytes as sequence numbers
 grow, because they are varints. A record count alone does not bound disk unless record size is bounded, so
 `MaxRecords` caps the count and `MaxBytes` caps the bytes, and the worst case under `MaxRecords` is

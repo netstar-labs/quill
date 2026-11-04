@@ -2295,7 +2295,7 @@ keep them and correct decision 90 only.
 
 **Owner's answer, 2026-11-03.** Approved the recommended answer: delete the reference's numbers; documentation only.
 
-**Fix written.** Branch `stage2/A7-15-a1`, one commit "fix(stage2 A7-15)"; fix-skeptic outcome: not yet run when it was made.
+**Fix written.** Branch `stage2/A7-15-a1` (rejected by the fix-skeptic on two defects: decision 90's row had a duplicated cell, and a reference-derived framing range survived in `scope.md` and `format.md` while decision 32 gave another), then `stage2/A7-15-a2`, which cherry-picks it and corrects both; fix-skeptic outcome for attempt 2: not yet run when it was made.
 Figures found by search of every tracked file outside `docs/audits/` and `.claude/`, and what became of each:
 
 - `review.md`: the reference's line counts in the header, the table (the column was dropped; the rows are kept), findings 3,
@@ -2307,10 +2307,14 @@ Figures found by search of every tracked file outside `docs/audits/` and `.claud
   size of the benchmark), 16 (230-byte limit), 20 (3,300 lines), 32 (13.9-17.9 bytes per record): the figure removed, the
   conclusion kept, a dated note on each. Decision 21 said the scope.md orientation figures came from the reference; they
   are quill's baselines, so its sentence was corrected. Decisions 70 and 90: dated notes; 90 now says what was done.
-- Classified and left: the 14 to 18 bytes per record framing figure (`scope.md:153, 291`, `format.md:51`) matches the
-  reference's range but is quill's own claim, re-measured on quill 2026-11-03 at 12.9-16.9 bytes per record for payloads of
-  0 to 16 KiB and sequences to about two million (a throwaway program in the scratch area, `Stat().Bytes` equal to the file
-  bytes), and the baselines' 128-byte records cost 145 bytes, so "about" holds. The 64 MiB, 1.5 GiB and 1 GiB limits
+- Framing figure, corrected in attempt 2: the attempt-1 text left "about 14 to 18 bytes per record" in `scope.md:153, 291` and
+  `format.md:51` and put "13 to 17" in decision 32, and the fix-skeptic rejected it: the 14 to 18 matched the reference's
+  old range, not a quill measurement, and decision 32 disagreed with it. All four places now carry one figure, computed
+  from quill's own `frameLen` (`codec.go:64`) over payloads of 0 to 16,383 and 16,384 bytes, sequences from 1 to about two
+  million and a current Unix-second timestamp: 12 to 18 bytes per record (12 for a sequence under 128 and a payload under
+  128; 14 to 18 for sequences between 16,384 and 2,097,151; one more byte per extra varint byte beyond that). Verified by a
+  throwaway test in the scratch area, 2026-11-03. The baselines' 128-byte records cost 145 bytes, inside the range for their
+  sequence numbers' size. The 64 MiB, 1.5 GiB and 1 GiB limits
   (decision 16, `format.md`) are quill's own constants now, pinned by tests. "Several fsyncs per durable flush" (finding 8)
   and finding 6's "one known limitation" concern the reference's structure, not a measurement. `scope.md` holds only quill's
   own figures and the qualitative "the reference ... " statements, which carry no number.
