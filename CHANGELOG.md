@@ -5,6 +5,58 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ## Unreleased
 
+### Breaking changes and upgrade notes
+
+Changes since `v0.1.0` that a script, a Go caller or an operator may need to act on, taken from the entries below; the on-disk format `quill/1` is unchanged. The list is drawn from 86 of the 144 entries below (the other 58 are documentation, tests, performance or internal tooling); each line names the entry's subject, and the entry gives the reason and the audit id.
+
+Go callers:
+
+- An unkeyed composite literal of `ConsumerOptions`, `Problem`, `SegmentError` or `Stats` no longer compiles because each gained a field, so build them with field names; no function or method signature changed.
+- `Open` returns `ErrConfig` for a `MaxBufferBytes` below `FlushBytes`, for a `MaxBatchBytes`, `MaxBufferBytes` or `FlushBytes` near `math.MaxInt64`, and for a `SegmentBytes` that with the largest flush reaches the 1.5 GiB segment limit, so set real sizes.
+- `Read`, `Records` and `Follow` count 48 bytes per record against `MaxReadBytes`, so `Read(from, 0)` may return a first batch instead of the whole tail; call again from the next sequence.
+- `ReadWait` and `Follow` at the head of a failed log return `ErrFailed` instead of blocking until the context ends.
+- `Open` writes `quill.tail` only when recovery moved it and may return with the publish pending, so check `Err()` after `Open`; it also sets an existing `quill.tail` to `Config.Perm` in place.
+- `Err()` reports what is failing now and can return to nil after recovery (`errors.Is(err, ErrFailed)` is the terminal state), and it wraps `ENOSPC` or the `statfs` error while the `MinFreeBytes` floor cannot be met or checked.
+- `Prune` returns the unlink error where it returned nil, so treat a non-nil `Prune` error as "the pass did less than asked".
+- `AppendBatch` and `Append` return the first assigned sequence with the error when the inline flush's fsync fails, where they returned 0, so do not resubmit records on a non-zero sequence with an error.
+- A read from the beginning, `ScanAll` and a new consumer return the `GapError` of a damaged or empty oldest segment where they started silently at the first good one, so resume with `Commit(To + 1)` or read from past it.
+- A read I/O error (`EIO`) is returned as itself, not as `ErrCorrupt` or a `*GapError` (and a `Reader` retries a transient one instead of remembering it), and a `Log` read of a segment that retention just deleted returns a `*GapError` where it returned a `*fs.PathError`.
+- `Open`, `OpenReader`, `Check` and `Archive` refuse as `ErrCorrupt` a non-minimal varint, a frame after one numbered 2^64-1, a `quill.tail` with `maxseg` above 9999999999 or `off` above 1.5 GiB or a key repeated in another case, and overlapping sealed segments (`Check` reports kind `overlap`), and a `quill.policy` with no `retention` reads as unreadable; sequence 2^64-1 is never assigned.
+- `Archive` refuses a destination that is the source log, a populated directory that is not a log (`ErrNoLog`), or one whose `quill.lock` is held or cannot be opened (`ErrLocked`), and a newer destination format is `ErrFutureVersion`, not `ErrCorrupt`.
+- `Archive` returns the `*GapError` for a loss between the destination's last record and the first retained sequence, also after `quill unregister -name _archive`.
+- `quill.lock` is always created 0600 and `Open` tightens an older one, so a writable `Open` under another account fails with the permission error on `quill.lock`, not `ErrLocked`; `Open` with `Config.ProtectedConsumers` no longer fails with `ErrLocked` while a consumer process runs.
+- `Open` and `OpenReader` make a relative `Dir` absolute and follow a symbolic link in `Dir`, and a FIFO or oversize state file is reported as `ErrCorrupt` instead of hanging or matching no sentinel.
+- `Consumer` and `DeleteConsumer` accept the name `_archive`, `ConsumerOptions.Rewind` opens a consumer ahead of the head, and `Consumer.Commit` returns `ErrWrongLog` if the directory was replaced by another log.
+- `Stats.Dropped` may lag a consumer by up to `PruneInterval` (`Prune` refreshes it), and `Stats` has six new fields (`DiskFull`, `FreeBytesAtLastPass`, `BufferedRecords`, `BufferedBytes`, `FlushFailing`, `LastFlushOK`); `Stat().Holes` no longer reports an empty hole, `FlushFailing` is false once the log has failed, and `MarkerAge` counts from `Open`.
+- Retention and recovery failure paths changed, each a fix with no migration: the `MinFreeBytes` estimate credits the segments the pass already deletes, a prune pass survives a failed age rotation, syncs the directory before each unlink and counts an already-missing segment as deleted, a refused `Open` no longer cuts the newest segment, a failed `quill.policy` write at `Open` removes the stale file, and `Archive` removes stale `.tmp-*` files, syncs a new destination into its parent and replaces a damaged same-size segment on a rerun.
+- A writer whose `quill.lock` was deleted or replaced fails with `ErrFailed` at its next flush, and a log that fails writes one `Error` record to `Config.Logger`.
+- `Config.Logger` receives new `Warn`, `Info` and `Error` records (background failures on entry and recovery, a cut of the newest segment, a deleted damaged segment, a consumer ahead of the head or behind the first retained sequence, a failed staleness probe, a segment stamped in the future).
+
+Command line:
+
+- `-from`, `-limit` and `-n` take plain decimals, so `010` is ten (it was octal eight) and `0x10`, `1_0`, signs and exponents exit 2.
+- Any verb except `append` and `help` given a positional argument (`read 100`, `tail 5 -json`) exits 2 where it ignored the argument and every flag after it, so put flags first.
+- `quill roll`, `recover` and `prune` with a retention or cap flag at a directory that is not a log exit 1 and create nothing, where they exited 0 and created a log.
+- `quill ls` prints an `error:` row and exits 1 for a log it cannot open, where it skipped it and exited 0; only a directory that is not a log is skipped.
+- `quill prune` and `roll` exit 1 when `Close` fails, and `prune` exits 1 when an unlink failed or a consumer file could not be read, and its output line now ends `, dropped N`.
+- `quill read`, `cat` and `tail` exit 1 on the `GapError` of a damaged oldest segment, where they started at the first good segment and exited 0.
+- `quill cat`, `read`, `tail`, `stat`, `check`, `ls` and `consumers` exit 1 when writing to standard output fails, where a short output exited 0.
+- `quill archive` exits 3 when the source had lost records the archive never copied, where it exited 0, and exits 1 for a populated destination that is not a log, where it wrote into it.
+- `quill check` exits 3 for a sealed segment truncated to zero bytes (it printed HEALTHY), reports an `overlap` problem, no longer reports UNHEALTHY or a consumer-ahead warning for a change made during the scan, and with `quill consumers` now notes a consumer behind the first retained sequence or ahead of the head (`-json` adds `behind_first`, `stale` and `ahead` only when true).
+- `quill stat -json` writes holes as `{"from":N,"to":N}` and an empty list as `[]`, where it wrote `{"From":N,"To":N}` and `null`.
+- `quill cat`, `read` and `tail` with `-json` escape DEL, the C1 controls and the Unicode format and bidi characters in `payload` as `\uXXXX`, so a script that matched the raw bytes must decode the line.
+- `quill ls`, `consumers`, `check` and error messages quote a name from the disk that holds a control, bidi or invalid UTF-8 character, `quill append`'s oversize-stdin message changed text, and a library error prints one `quill:` prefix, not two.
+- The offline verbs print on standard error the warnings a writable open logs (a `quill.lock` that could not be tightened, a cut of the newest segment, a deleted damaged segment, a deletion past a consumer), and `quill tail -follow` now writes each record as it is read.
+- The offline verbs (`append`, `roll`, `recover`, `prune`) now keep a log's `Config.Perm` mode on `quill.tail` and new segments, and a consumer file or an archive made through a `Reader` or the CLI takes the log's mode.
+
+Release builds:
+
+- `build/quill` pins the toolchain, `GOAMD64=v1` and `GOARM64=v8.0`, and puts the commit time, not the clock or the builder, into the archives and the SBOM, so a verifier builds with `-buildvcs=false` or inside a checkout of the tag.
+
+### Entries
+
+- Changed: documentation only, no behaviour change. The list above, and the migration table in `docs/audits/release-v0.2.0.md`, are rebuilt from the entries below and from `git log v0.1.0..HEAD`: the release record had listed 8 breaking changes and called the unkeyed-literal break on `Problem` and `SegmentError` the only compile-time one, and it now has one row for each of 86 of the 144 entries below that a script, a Go caller or an operator may see (the other 58 are listed there by line as not user-visible; the classification is from each entry's own words and most rows were not re-run, as the record says, so the list is a best effort, not a proof of completeness), and names the four types (`ConsumerOptions`, `Problem`, `SegmentError`, `Stats`) that stop an unkeyed composite literal compiling, from a diff of the exported declarations at `v0.1.0` and at this tree (audit L4b-1, owner-approved 2026-11-04).
+
 - Changed: documentation only, no behaviour change. The `Config.Logger` rule no longer lists the warnings `Open` gives itself (the list had missed the marker-publish and rotation Warns and the records of the seal recovery may make, and would have gone stale again). The user guide, the scope, decision 50 and the `Config.Logger` doc now say that the records `Open` itself writes run on the caller's goroutine before `Open` returns, before there is a `Log`, with no lock held, that every other record runs with the lock held, and that the handler rule (do not call the `Log`, do not block) still applies to both (audit A1d-9, owner-approved 2026-11-04).
 - Fixed: `build/quill` did not pin the compiler's architecture level, so a releaser with `GOAMD64` or `GOARM64` set (in the shell, or by `go env -w`) shipped binaries built for AVX2 or ARMv9 instructions: not the baseline build, not reproducible by a verifier on the defaults, and able to die with SIGILL on an older CPU. The script now exports `GOAMD64=v1` and `GOARM64=v8.0` (the toolchain defaults), so the default hashes are unchanged for a default builder. Decision 88 carries the note; a test pins it (audit A4r-2).
 - Changed: source compatibility, no behaviour change. `Problem` and `SegmentError` each gained an unexported field since `v0.1.0` (`refused` and `oversize`, which mark a segment file refused whole, unread, for being over the size limit), so `go doc` shows "Has unexported fields" for them and an unkeyed composite literal of either from another package (`quill.Problem{"segment", path, 0, 0, "d", true}`) no longer compiles. Both types are only produced by quill and returned to callers, and `go vet` already flags unkeyed literals of imported structs; build one, if a test needs it, with field names (`quill.Problem{Kind: "segment", Path: path}`). Their comparability and every exported field are unchanged (audit A1d-3).

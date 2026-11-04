@@ -60,22 +60,121 @@ The on-disk format is unchanged: it is `quill/1` and versioned separately in `qu
 binary needs no migration. This is reported by those documents, not re-derived here: the rehearsal ran no cross-version
 test. The audit record [format-compatibility.md](format-compatibility.md) covers the format.
 
-Breaking changes, as the `CHANGELOG.md` section "Unreleased" states them (reported: the line numbers are in that file):
+### Migration table
 
-| change | who is affected | `CHANGELOG.md` |
-|--------|-----------------|----------------|
-| `Problem` and `SegmentError` each gained an unexported field, so an **unkeyed composite literal** of either from another package no longer compiles | the only compile-time break; callers that build these types (tests, mostly) must use field names | line 9 |
-| `Open` refuses a `MaxBufferBytes` below `FlushBytes` with `ErrConfig` | a `Config` that set `MaxBufferBytes` under `FlushBytes`, including one under the 64 KiB default `FlushBytes`; the default is unaffected | line 69 |
-| `MaxReadBytes` bounds the size of a batch, each record counting its payload plus 48 bytes | a caller that read with limit 0 and expected the whole tail of a log of small records now gets a first batch and must call again from the next sequence; `Records`, `Follow` and the command line tool continue across batches | line 29 |
-| `ReadWait` and `Follow` on a failed log return `ErrFailed` at the head instead of blocking until the context ends | a consumer loop that treated a block as "idle" now sees an error | line 70 |
-| a writable `Open` writes `quill.tail` only when recovery moved the position; it can return with the marker publish pending and `Err()` set | a caller that took a nil error from `Open` to mean "the marker is published" should check `Err()` | line 12 |
-| `quill roll`, `recover` and `prune` (with a retention or cap flag) at a directory that is not a log exit 1 and create nothing; they used to create a new empty log | scripts that relied on a mistyped `-dir` creating a log | line 25 |
-| `quill archive` exits 3 when the source had lost records the archive never copied; it used to exit 0 | `quill archive && notify-ok` now reports the incomplete archive | line 67 |
-| `quill cat`, `read` and `tail` with `-json` escape Unicode format and bidi controls in a `payload` as `\uXXXX` | consumers that parse the JSON (the value decodes to the same string) | line 21 |
+Breaking and behaviour-visible changes since `v0.1.0`, one row each. **Who** is script (the `quill` command's exit
+status or output), library (a Go caller of package `quill`) or operator (a person or a process that runs the log).
+**Recorded** is the `CHANGELOG.md` line in the "Entries" section as of this commit, then the commit that made the change
+(`git show <sha>`); `A..`/`L..` are the audit ids in those entries. The same rows, shorter, head the section in
+`CHANGELOG.md` ("Breaking changes and upgrade notes", lines 8 to 54).
 
-Other entries (the remaining `Fixed` and `Changed` items, the documentation-only changes) are not breaking by that file's
-own account. This record did not re-audit the classification (inferred: it rests on the file's own wording, and the A1
-and A5 audit records that the entries cite). The release notes must carry the table above as the migration note.
+How the table was derived (verified: counts by `awk` over the file, read of every entry's first lines and of the full
+text of those that name a script- or library-visible behaviour, and `git log --oneline v0.1.0..HEAD`: 287 commits, 252 of
+them `stage2` commits).
+
+```sh
+awk '/^### Entries/{f=1;next} /^## /{f=0} f && /^- /{n++} END{print n}' CHANGELOG.md   # 144
+```
+
+The count starts at the "Entries" heading, not at "Unreleased", because the "Breaking changes and upgrade notes" list above
+it also has lines that start with `- ` (35 of them: the command prints 179 if it scans the whole section, and 143 on the
+file before this change, which had no such list). It would stop working if that heading were retitled; the number
+is what to compare, not the command.
+
+`CHANGELOG.md` "Unreleased" holds **144 entries** (143 before the entry that records this change). **86 are covered by
+a row below and 58 are not user-visible.** An entry is identified by the line it starts on (the "Entries" section holds the new entry at line 58 and the first older one at line 60). The 58 are, by line:
+
+- documentation only, no behaviour change (37): 60, 64, 66, 67, 68, 69, 70, 73, 75, 76,
+  77, 83, 87, 88, 89, 97, 99, 103, 108, 110, 111, 116, 140, 141, 157, 199, 206,
+  231, 283, 320, 325, 329, 334, 348, 352, 357, 422;
+- a refactor (1): 71;
+- a comment or help text (3): 98, 100, 101;
+- performance only, the result unchanged (6): 90, 92, 93, 94, 95, 96;
+- test seams, harness and build or CI scripts (6): 102, 104, 105, 109, 302, 344;
+- tests (1): 139; a latent bug no path reaches (1): 147; a data race and a cache-growth fix with no changed result (2):
+  370, 374;
+- the entry that records this change (1): line 58.
+
+Each of the 86 is named in the "Recorded" column (row 16 also cites line 66, a documentation-only entry that states the permission-error behaviour; coverage was checked by script). (Inferred: the classification of the 58
+rests on each entry's own words, "documentation only", "no behaviour change", or a measured speed-up with the result
+unchanged; none of them was re-run. A reviewer who disagrees moves a line between the lists and the counts follow.)
+
+| # | What changed | Who | What to do | Recorded |
+|---|--------------|-----|------------|----------|
+| 1 | `ConsumerOptions` (new `Rewind`), `Problem` (unexported `refused`), `SegmentError` (unexported `oversize`) and `Stats` (six new fields) each gained a field, so an unkeyed composite literal of any of the four from another package no longer compiles | library | build them with field names | lines 62, 127, 128, 296; `65b7cb0`, `99b140d`, `1dda449`, `ba7c650` |
+| 2 | `Open` returns `ErrConfig` for `MaxBufferBytes` below `FlushBytes` (including below the 64 KiB default `FlushBytes`), for a size near `math.MaxInt64`, and for a `SegmentBytes` that with the largest flush reaches the 1.5 GiB segment limit; while rotation keeps failing, an append past the bound is refused | library, operator | leave `MaxBufferBytes` at its default or set it at least `FlushBytes`; replace "unlimited" with a size | lines 122, 175, 270; `4d0e8c9`, `120c8ac`, `c18a27a` |
+| 3 | `MaxReadBytes` bounds a batch, each record counting its payload plus 48 bytes | library, script | a `Read(from, 0)` on small records returns a first batch: call again from the next sequence (`Records`, `Follow` and the tool already do) | line 82; `637ed42` |
+| 4 | `ReadWait` and `Follow` at the head of a failed log return `ErrFailed` instead of blocking | library | treat `ErrFailed` as the signal to close and reopen, not as "idle" | line 123; `1e0a8ed` |
+| 5 | A writable `Open` writes `quill.tail` only when recovery moved it, may return with the publish pending, and sets an existing `quill.tail` to `Config.Perm` in place | library, operator | check `Err()` after `Open` | lines 65, 63; `29f5c6c`, `96588fb` |
+| 6 | `Err()` reports what is failing now and can return to nil; it wraps `ENOSPC` or the `statfs` error while the `MinFreeBytes` floor cannot be met or checked; `Stat().Holes` no longer holds an empty hole, `FlushFailing` is false on a failed log, `MarkerAge` counts from `Open` | library, operator | do not treat a non-nil `Err()` as permanent; `errors.Is(err, ErrFailed)` is the terminal state | lines 127, 129, 106, 107, 133; `91c2fce`, `1dda449`, `932cadf`, `d9d4833`, `906d49c` |
+| 7 | `Prune` returns the unlink error where it returned nil | library | treat a non-nil `Prune` error as "the pass did less than asked" | line 125; `2cbfdf2` |
+| 8 | `AppendBatch` and `Append` return the first assigned sequence beside the error when the inline flush's fsync failed (they returned 0) | library | do not resubmit on a non-zero sequence with an error | line 86; `867f4ed` |
+| 9 | A read from the beginning, `ScanAll` and a new consumer (the `_archive` one included) return the `GapError` of a damaged or empty oldest segment, where they started at the first good one | library, script, operator | resume with `Commit(To + 1)` after deciding the range is lost, or read with `-from` past it | line 160; `badb254` |
+| 10 | A read I/O error (`EIO`) comes back as itself, not as `ErrCorrupt` or a `*GapError`; a `Log` read of a segment retention just deleted returns a `*GapError`, not a `*fs.PathError`; a `Reader` retries a transient I/O error | library | retry on the I/O error where `ErrCorrupt` or `GapError` was matched for it; resume from `To + 1` on the gap | lines 260, 278, 415; `bb608d3`, `7ef431c`, `c8fb07b` |
+| 11 | Stricter validation: `Open`, `OpenReader` and `Check` refuse as `ErrCorrupt` a non-minimal varint, a frame after one numbered 2^64-1 (the ceiling is now 2^64-2), a `quill.tail` with `maxseg` above 9999999999, `off` above 1.5 GiB or a key repeated in another case, an oversize or non-regular state file (it matched no sentinel), and a `quill.policy` with no `retention` reads as unreadable; no log quill writes holds any of them | library, script, operator | a hand-built, restored or damaged log that `v0.1.0` opened may not open: `quill check` names the file; the user guide's corruption procedure applies | lines 112, 149, 153, 165, 193, 226, 394, 425; `d6dc2b9`, `46ff40f`, `bb646c0`, `5c603fc`, `89957ae`, `890c70e`, `a4f92e8`, `5579010` |
+| 12 | A `Reader` and `Archive` refuse a sealed segment that holds frames past the next segment's first sequence (`ErrCorrupt`), and `Check` reports an `overlap` problem (`quill check -json` `kind` `overlap`) | library, script | none for a log quill wrote | line 115; `53a5d3b` |
+| 13 | `Archive` refuses a destination that is the source log, has a live writer or a `quill.lock` it cannot open (`ErrLocked`, a permission error too), or is a populated directory that is not yet a log or archive (`ErrNoLog`, nothing written); a newer destination format is `ErrFutureVersion`, not `ErrCorrupt` | library, script | archive into a new or empty directory, or an existing archive | lines 130, 378, 117, 131, 236; `5b486d2`, `303b794`, `e293016`, `47315f1`, `b529db5` |
+| 14 | `quill archive` exits 3 when the source had lost records the archive never copied (it exited 0); `Archive` returns the `*GapError` for a loss between the destination's last record and the first retained sequence, also after `quill unregister -name _archive` | script, library | treat 3 as "incomplete archive", as for `check`; `quill archive && notify-ok` now stops | line 120; `caad4c5` |
+| 15 | An `Archive` rerun reads a same-size destination segment and replaces a damaged one (it kept it); it removes `.tmp-*` files older than an hour and syncs a new destination into its parent | operator | none; a rerun after a rewind reads each such segment once more | lines 119, 361, 365; `16cb0c8`, `db30a94`, `7672a8d` |
+| 16 | `quill.lock` is created 0600 whatever `Config.Perm` is and `Open` tightens an older one; a writable `Open` under another account fails with the permission error on `quill.lock`, not `ErrLocked`; `Open` with `Config.ProtectedConsumers` no longer fails `ErrLocked` while a consumer process holds that consumer's lock | library, operator | a script that detects a live writer treats `ErrLocked` and the permission error alike | lines 131, 66, 288; `47315f1`, `7fa0744`, `b5ad955` |
+| 17 | A consumer file made through a `Reader` or the CLI, the files `Archive` creates, and what the offline verbs (`append`, `roll`, `recover`, `prune`) write, take the log's `Config.Perm` mode (the verbs rewrote `quill.tail` 0600) | operator | none; a default-mode log is unchanged | lines 249, 142 |
+| 18 | `Open` and `OpenReader` make a relative `Dir` absolute, `Open` follows a symbolic link in `Dir`, and a FIFO planted as a state file is refused as damage instead of hanging | library, operator | none | lines 144, 221, 183; `837c860`, `8c0c531`, `acf7f39` |
+| 19 | `Consumer` and `DeleteConsumer` accept the name `_archive`; `ConsumerOptions.Rewind` opens a consumer ahead of the head (`quill commit` sets it); `Consumer.Commit` and the wait in `ReadWait` and `Follow` return `ErrWrongLog` if the directory was replaced by another log | library, script | none | lines 255, 296, 145; `a3955cd`, `ba7c650`, `495e457` |
+| 20 | `Dropped` is counted at a seal from the last prune pass's offsets, so it may lag a consumer by up to `PruneInterval` | library | call `Prune` to refresh it | line 169; `2bf7412` |
+| 21 | A writer whose `quill.lock` was deleted or replaced fails the log (`ErrFailed`, an `Error` record) at its next flush or prune pass | operator | do not delete `quill.lock` | lines 134, 114; `6acc23e`, `531fb35` |
+| 22 | New `Config.Logger` records: background failures once on entry (`Warn`) and on recovery (`Info`), a cut of the newest segment, a deleted damaged segment, a deletion past a consumer's offset, a consumer ahead of the head, a failed staleness probe, a skipped age rotation, a segment stamped in the future; the offline verbs print the relevant ones on standard error and the warning that `quill.lock` could not be tightened | operator, script | a log handler or a script that matched standard error should allow for them | lines 113, 118, 126, 128, 132, 135, 137, 138, 216; `99b140d`, `84efe58`, `7b87e64`, `d451fac`, `66081fe` |
+| 23 | Retention and recovery failure paths: the `MinFreeBytes` estimate credits segments the pass already deletes; a prune pass survives a failed age rotation, syncs the directory before each unlink and counts an already-missing segment as deleted; a refused `Open` no longer cuts the newest segment; a failed `quill.policy` write at `Open` removes the stale file | operator | none (fixes) | lines 72, 137, 389, 419, 384, 136; `47812f1`, `dd460a7`, `e2f7801`, `c2a7365`, `89073cb`, `1b68eee` |
+| 24 | `-from`, `-limit` and `-n` take plain decimals: `010` is ten (it was octal eight), and `0x10`, `1_0`, `0b1`, signs and exponents exit 2 | script | write plain decimals | line 240; `b4fe935` |
+| 25 | Any verb except `append` and `help` given a positional argument (`read 100`, `tail 5 -json`, `stat -json extra`) exits 2; it ignored the argument and every flag after it | script | flags first: `read -from 100` | line 244; `2c4e4f4` |
+| 26 | `quill roll`, `recover` and `prune` (with a retention or cap flag) at a directory that is not a log exit 1 with `not a log: <dir> has no quill.format` and create nothing; they exited 0 and a mistyped `-dir` got a new log | script | create the log first (`append` still creates one) | line 78; `18145b9` |
+| 27 | `quill ls` prints an `error:` row for a log it cannot open and exits 1 after the rest (it skipped it and exited 0); only a directory that is not a log is skipped | script | allow exit 1 where 0 meant "every log is fine" | line 121; `29e7db1` |
+| 28 | `quill prune` and `roll` print `Close`'s error and exit 1 when it fails after a good pass; `prune` exits 1 when an unlink failed or a consumer file could not be read; its output line ends `, dropped N` | script | allow exit 1; a script that matched the whole `prune` line must allow for the suffix | lines 124, 125, 126; `46f30db`, `2cbfdf2`, `7b87e64` |
+| 29 | `quill read`, `cat` and `tail -n` that reach a damaged or empty oldest segment print `records 1 to N are unavailable` and exit 1 (they started at the first good segment and exited 0); `quill archive`'s first run reports that range, exit 3 | script | `read -from` past the range, or resume after deciding it is lost | line 160; `badb254` |
+| 30 | `quill cat`, `read`, `tail`, `stat`, `check`, `ls` and `consumers` exit 1 when writing to standard output fails (a short output exited 0); `tail -follow` stops | script | none | line 410; `9c6a8c3` |
+| 31 | `quill tail -follow` writes each record as it is read (it held a 4 KiB buffer, so a pipe saw nothing until it filled) | script | none | line 428; `4337252` |
+| 32 | `quill check` exits 3 (it printed HEALTHY) for a sealed segment truncated to zero bytes and reports an `overlap` problem; it no longer reports UNHEALTHY, a hole, or a consumer-ahead warning for a segment or consumer that changed during the scan | script, operator | none for a healthy log | lines 84, 115, 405, 80, 81; `ce47243`, `53a5d3b`, `89211cc`, `ba30fee`, `136577c` |
+| 33 | `quill consumers` and `check` note a consumer behind the first retained sequence (`-json` adds `behind_first`, `stale`) or ahead of the head (`-json` adds `ahead`), each only when true | script, operator | none | lines 126, 296; `7b87e64`, `ba7c650` |
+| 34 | `quill stat -json` writes holes as `{"from":N,"to":N}` and an empty list as `[]` (it wrote `{"From":N,"To":N}` and `null`); the `stat`, `check` and `consumers` JSON shapes are documented and pinned | script | read the lower-case keys and an empty array | line 202; `c91329c`, `7dea97a` |
+| 35 | `-json` output of `cat`, `read` and `tail` escapes DEL, U+0080 to U+009F and the 170 Unicode format and bidi characters in `payload` as `\uXXXX`; the decoded value is the same | script | decode the line, or match the escape | lines 74, 211; `d15ac45`, `fd52463` |
+| 36 | `ls`, `consumers`, `check` and error messages quote a name from the disk that holds a control, bidi or invalid UTF-8 character; a printable name prints as before | script, operator | none | line 79; `116726b` |
+| 37 | `quill append`'s oversize-stdin message reads `stdin would be a batch over MaxBatchBytes (...); each line is counted as its length plus 34 bytes` and stdin is bounded while it is read; the limit, `ErrPayloadTooLarge` and exit 1 are unchanged. A library error prints one `quill:` prefix (it printed two), and a failed `quill commit` leaves no new consumer behind | script | a script that matched the old text must change | lines 85, 179, 339; `c2cddb7`, `8449425` |
+| 38 | Release builds: `build/quill` pins the toolchain to `go.mod`'s, `GOAMD64=v1` and `GOARM64=v8.0`, and puts the commit time, not the clock or the builder, into the archives and the SBOM, whose components now carry a `bom-ref`; `--dev` works on a clean tree | operator (the releaser, a verifier) | a third-party verifier builds with `-buildvcs=false` or inside a checkout of the tag | lines 61, 188, 308, 311, 401; `5bd55ce`, `988f1e5`, `10e8062`, `1b17ea5`, `df7af4f` |
+
+Nothing in the table changes a file's bytes: the on-disk format is `quill/1` and the encoders are untouched (reported:
+`CHANGELOG.md` header; `hack/skew.sh` was not run here). The readers are stricter about a few malformed shapes (row 11).
+
+**Cases run for this table (verified, `v0.1.0` and this tree built from `git archive` with go1.27.3, one log of 12
+records).** `tail -n 010` printed 8 lines at `v0.1.0` and 10 now (row 24); `read 5` exited 0 with no message and now exits 2
+with `unexpected argument "5"; flags go before arguments` (row 25); `ls` over a directory holding a log with
+`quill.format` `quill/9` exited 0 and now exits 1 (row 27); `roll`, `recover` and `prune -retention 1h` at a directory that
+is not a log exited 0 and created a directory entry, and now exit 1 and create nothing (row 26); `stat -json` printed
+`"holes":null` and now `"holes":[]` (row 34); `cat -json` of a payload with byte 0x7f printed it raw and now prints
+`\u007f` (row 35); `quill archive -to <populated non-log directory>` exited 0 and added `quill.format`,
+`quill.tail` and `consumers/` to it, and now exits 1 and leaves the directory as it was (row 13); `read -from 0x2` exited 0
+and now exits 2 (row 24). **Not run** (reported from the entries, not re-derived): every other row, including rows 3 to 12 and
+14 to 23, 28 to 33 and 36 to 38. A probe of a closed standard output (`stat >&-`) exited 0 at both versions on macOS
+because the log's own file reuses descriptor 1, so row 30 was not reproduced; the Linux `/dev/full` case was not run.
+
+**The compile-time break (verified: `go doc -all` at `v0.1.0` and at this tree, both from `git archive`, go1.27.3, then a
+diff of the exported declarations of package `quill` with comments removed).** No exported function, method, constant or
+variable was added, removed or changed in signature. The exported struct types that changed are exactly four:
+
+| type | change | an unkeyed literal |
+|------|--------|--------------------|
+| `ConsumerOptions` | new exported field `Rewind bool` (it had one field, `Protect`) | `ConsumerOptions{quill.ProtectOn}` no longer compiles |
+| `Problem` | new unexported field `refused bool` | `Problem{"segment", path, 0, 0, "d", true}` no longer compiles |
+| `SegmentError` | new unexported field `oversize bool` | no longer compiles |
+| `Stats` | six new exported fields: `DiskFull`, `FreeBytesAtLastPass`, `BufferedRecords`, `BufferedBytes`, `FlushFailing`, `LastFlushOK` | no longer compiles |
+
+`Log`, `Reader` and `Consumer` also gained unexported fields in the diff, but they already had them at `v0.1.0`, so no
+caller could build one with a literal. `Config`, `ReaderOptions`, `GapError`, `Hole`, `Record`, `CheckResult` and
+`ConsumerInfo` did not change. A keyed literal of any of the four still compiles. `Problem.Kind` has a new value,
+`"overlap"`, which is a runtime difference, not a compile one. The sentence "the only compile-time break" at
+`Problem` and `SegmentError` was therefore wrong; it is replaced by this table. (A caller that only reads these types, or
+assigns `Stats` from `Stat()`, is unaffected.)
+
+The release notes must carry the same list: it is the "Breaking changes and upgrade notes" list at the top of
+`CHANGELOG.md`'s "Unreleased" section, which the step below retitles `## v0.2.0` with the list under it.
 
 ## Commands that will be run
 
@@ -84,7 +183,7 @@ Run from a clean checkout of `main` on the release engineer's machine (macOS wit
 
 ```sh
 # 1. The release commit: retitle the changelog section (the heading style of v0.1.0 is "## v0.1.0").
-#    Edit CHANGELOG.md line 6 from "## Unreleased" to "## v0.2.0" and put the migration table above under it.
+#    Edit CHANGELOG.md line 6 from "## Unreleased" to "## v0.2.0" the migration list is already at the top of that section ("Breaking changes and upgrade notes"; check it still matches the table above).
 git add CHANGELOG.md
 git commit -m "docs: changelog for v0.2.0"
 
@@ -256,7 +355,7 @@ behave, not run here). Then the answer is a new tag (say `v0.2.1`) plus a `retra
 | Repository metadata (description, topics, homepage, default branch) | **PENDING**, not run. Set a description, topics (`go`, `append-only-log`, `wal`, `embedded`, `durable-log`), a homepage and the default branch `main` (the local default is `main`, verified). `README.md:93` and `go.mod` hard-code `github.com/netstar-labs/quill`: the public repository must live at exactly that path, or the module path, imports and examples change first. | owner |
 | Branch protection and the `ci` aggregator check | **PENDING.** `.github/workflows/ci.yml` defines one `ci` job (`needs:` every other job in the file, `if: always()`, fails unless all results are success; verified). The ruleset must require the check named `ci`, and can only do so after it has run once on a push or pull request to `main`. `pr-issue-link.yml` makes every pull request body carry `Closes #N`: confirm that contributor friction is intended. Rulesets and private reporting do not exist yet. | owner |
 | CI actions pinned | **PASS** (verified). All 10 `uses:` lines are full commit SHAs: `actions/checkout@3d3c42e5...` (v7.0.1) and `actions/setup-go@b7ad1dad...` (v7.0.0); `git ls-remote` against the actions' repositories confirms the SHAs are those tags. Dependabot is configured for GitHub Actions (weekly). Workflow permissions are `contents: read`; `pr-issue-link.yml` has `permissions: {}`. The tool pins in `ci.yml` match `hack/gate.sh` (staticcheck v0.8.2, deadcode v0.52.0), and govulncheck v1.9.0 is pinned in CI. | none |
-| `CHANGELOG.md` ready for the tag | **FAIL** for tagging as the tree stands (verified): `CHANGELOG.md:6` is `## Unreleased`. Retitle it `## v0.2.0` in a commit before the real tag, with the migration table; the tag then sits on that commit and the rehearsal's hashes will differ. | release engineer |
+| `CHANGELOG.md` ready for the tag | **FAIL** for tagging as the tree stands (verified): `CHANGELOG.md:6` is `## Unreleased`. Retitle it `## v0.2.0` in a commit before the real tag (the migration list is already under it); the tag then sits on that commit and the rehearsal's hashes will differ. | release engineer |
 
 ## Failures and findings, ranked
 
