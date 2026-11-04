@@ -29,37 +29,52 @@ func TestAvailBytesIsAvailableBlocksTimesBlockSize(t *testing.T) {
 
 // On the real filesystem the wiring from Statfs and the unit are checked by the effect of a
 // write: 8 MiB of random (incompressible) data, fsynced, takes about 8 MiB. A missing Bsize
-// factor would read a few kilobytes, a wrong factor far off. The bounds are loose because
-// other processes use the same disk.
+// factor would read a few kilobytes, a wrong factor far off. The bounds are loose and the
+// measurement is retried because other processes use the same disk: a package under the same
+// "go test ./..." that deletes a few megabytes between the two readings hides the write, or
+// shows a rise. A wrong unit or field fails every attempt; only a quiet window has to appear
+// once.
 func TestFreeBytesTracksRealWrites(t *testing.T) {
-	d := t.TempDir()
-	before, err := freeBytes(d)
-	if err != nil {
-		t.Fatal(err)
-	}
 	const size = 8 << 20
+	const attempts = 5
+	d := t.TempDir()
 	buf := make([]byte, size)
 	if _, err := rand.Read(buf); err != nil {
 		t.Fatal(err)
 	}
-	f, err := os.Create(filepath.Join(d, "ballast"))
-	if err != nil {
-		t.Fatal(err)
+	var before, after uint64
+	for i := 0; i < attempts; i++ {
+		var err error
+		before, err = freeBytes(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		name := filepath.Join(d, "ballast")
+		f, err := os.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, werr := f.Write(buf)
+		if werr == nil {
+			werr = f.Sync()
+		}
+		if werr != nil {
+			f.Close()
+			t.Fatal(werr)
+		}
+		after, err = freeBytes(d)
+		f.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after < before && before-after >= 4<<20 && before-after <= 64<<20 {
+			return
+		}
+		if err := os.Remove(name); err != nil {
+			t.Fatal(err)
+		}
 	}
-	defer f.Close()
-	if _, err := f.Write(buf); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Sync(); err != nil {
-		t.Fatal(err)
-	}
-	after, err := freeBytes(d)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if after >= before || before-after < 4<<20 || before-after > 64<<20 {
-		t.Fatalf("free space went from %d to %d after writing %d bytes: want a fall of 4 MiB to 64 MiB", before, after, size)
-	}
+	t.Fatalf("free space went from %d to %d after writing %d bytes, on the last of %d attempts: want a fall of 4 MiB to 64 MiB", before, after, size, attempts)
 }
 
 // Open with the real statfs: a floor of one byte is met, and a floor no disk can meet sets
