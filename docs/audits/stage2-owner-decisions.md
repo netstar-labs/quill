@@ -2230,3 +2230,75 @@ state it as the disposition. The sentence "never delete `quill.lock`" suggested 
 step.
 
 **Fix written.** None for A3-26 itself; 6acc23e is the related fix for the first writer.
+
+## Held after pass A7
+
+Pass A7 (gap audit, 2026-11-03; the full record is [gap-audit.md](gap-audit.md)) fixed seven items and held three. A7-15 is
+held for an owner choice. A7-18 and A7-19 each have a written fix that the fix-skeptic rejected on one objection; neither commit
+is merged into this branch (verified: `git merge-base --is-ancestor` fails for both, and both objects exist in the
+repository). They are listed here so the written fix and the objection are not lost.
+
+### A7-15: figures from the reference remain in review.md and decisions 3, 15 and 32 (medium)
+
+**Claim.** Decisions 70 and 90 say every figure in review.md and scope.md that came from the reference implementation was
+replaced by quill's own measurement or softened to "the reference measured" without numbers. review.md still states the
+reference's line counts (`review.md:3, 18-20, 63, 64, 71, 94`) and ratios (finding 1, `review.md:61`), and decisions 3, 15 and
+32 (`decisions.md:11, 23, 40`) still carry its timings, rates and framing size. Verified by reading and grep at 34947b2, and by
+both skeptics (CONFIRMED, 2 of 2).
+
+**Why held.** The fix changes what the project says publicly about its origin and which numbers it stands behind, and rewrites
+three recorded decisions. Decision 70 allows "or softens", so keeping the figures is a legitimate owner choice; but then
+decision 90's sentence is false and has to change. review.md is also linked from the README as design documentation and
+describes the reference's architecture in detail, which the owner may want trimmed for the same reason.
+
+**Recommended answer.** Delete the numbers before the repository is public. In review.md replace the line counts with
+orders of magnitude or remove them, and drop the absolute ceiling at `:94` in favour of quill's own line count. Reduce finding
+1 and decisions 3, 15 and 32 to "the reference measured X faster or slower" with no figures, pointing at
+`benchmark-baselines.md` for quill's own. Reword decision 90 to say what was actually done. Optionally trim the review.md
+table that describes the reference so it carries no more than the comparison needs. If the owner instead accepts the figures,
+keep them and correct decision 90 only.
+
+**Fix written.** None. The proposal above is the auditor's; no commit exists.
+
+### A7-18: no upgrade, migration or rollback note for an operator (low)
+
+**Claim.** Nothing in the operator documents says what upgrading a live log between releases requires or whether the old
+binary can be put back. The evidence exists only in `format-compatibility.md` and `hack/skew.sh`. The user guide never
+mentions `ErrFutureVersion`. Verified by search; 2 skeptic votes (CONFIRMED, PLAUSIBLE), verdict PLAUSIBLE.
+
+**Why held.** The first fix was rejected. 08553bd adds a 14-line "Upgrading and rolling back" paragraph at the end of user
+guide section 9 and a CHANGELOG line, and the fix-skeptic found one error in it: it says `format-compatibility.md` records
+"seven announced differences in edge cases (for example prune -force after register -no-protect, and the mode of quill.lock
+and of archive files)". In that audit "seven" counts decoder changes and fuzz divergences (lines 63-65 and 251), the three
+examples are not among them, its own list of differences (lines 84-90) is longer, and the `quill.lock` mode change is in
+CHANGELOG.md:69 and came after the audit. Everything else held: the `ErrFutureVersion` behaviour, the calls that re-read
+`quill.format`, the exit code, the `skew.sh` usage, the link and the gate (gofmt, vet, `go test -race`). Whether an operator
+note is wanted at all is also an owner call, since no specification requires one while the format is unchanged.
+
+**Recommended answer.** Add the note, with the one correction: drop the count or say "several", point the reader to the
+CHANGELOG Unreleased section, and name only differences that the audit or CHANGELOG records, without crediting the audit with
+the lock mode. A fix-skeptic should then re-run on the corrected commit.
+
+**Fix written.** 08553bd (docs/userguide.md section 9 and CHANGELOG.md), not merged; it needs the correction above.
+
+### A7-19: no install path documented; a go-installed binary reports `dev` (low)
+
+**Claim.** README, user guide and introduction never say how to obtain the `quill` command or the library, and a binary built
+with `go install` prints `quill dev` because the version is stamped only by `build/quill`'s `-X` flag
+(`cmd/quill/main.go:7-8`, no `ReadBuildInfo` fallback; inferred from the code, not run, since there is no remote and no
+network). Release archives carry README, CHANGELOG, SECURITY and LICENSE if present, not the user guide, format or reference
+(`build/quill:69-71`). Verdict PLAUSIBLE (2 of 2 PLAUSIBLE).
+
+**Why held.** The first fix was rejected. 1a701fb adds an "Installing" section to README.md and a CHANGELOG line, and the
+fix-skeptic found one error: README states as fact that the archives hold LICENSE, but `build/quill:70` copies it only if it
+exists and the tree has none (`README.md:113-114` and decision 22 say no LICENSE while the repository is private); the fixer
+dropped the finding's own "if present". The `quill dev` statement and the omission of `docs/` from the archives were verified
+correct, the gate passes and the exported API is unchanged. The install text can only be true once the repository is public,
+which is an owner decision, and adding a `debug.ReadBuildInfo` fallback would change `quill version` output and was not
+proposed.
+
+**Recommended answer.** Keep the section and fix the one sentence: say the archives carry LICENSE once one lands, or drop it
+from the list. Leave `quill version` as it is. Merge only after a fix-skeptic re-run, and only if the owner wants install text
+before the flip.
+
+**Fix written.** 1a701fb (README.md and CHANGELOG.md), not merged; it needs the correction above.
