@@ -454,7 +454,7 @@ and `v0.2.0` is tagged when the sequence is complete.
   working around it.
 - `gate.sh` output, the test count, and which guarantee in scope.md has which test (T-number) so far.
 - Every new entry in `decisions.md`, and every open question you could not settle.
-- At phase 4: the baseline table and the module's line count against the ceiling in review.md.
+- At phase 4: the baseline table and the module's line count (the root package's figure is in review.md's verdict).
 - After the A1 audit: the findings by verdict, what was fixed, and the tag.
 
 ## Out of scope — do not build

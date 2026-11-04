@@ -28,7 +28,7 @@ A7-12 and A7-17 and A7-24 and A7-25).
 |---|---|---|
 | Fixed, fix-skeptic FIXED-VERIFIED | 7 | A7-1 (47812f1), A7-4 (f0090db), A7-6 (3b86a4a), A7-11 (f47d6f0), A7-13 (1262a8f), A7-20 (730d525), A7-23 (0c83572) |
 | Fix written, fix-skeptic objection; corrected and merged by hand 2026-11-03, no fix-skeptic re-run | 2 | A7-18 (08553bd, merged as e2f02b6), A7-19 (1a701fb, merged as ffae168) |
-| Held for the owner | 1 | A7-15 |
+| Owner-approved 2026-11-03 and fixed (fix-skeptic pending when committed) | 1 | A7-15 (branch `stage2/A7-15-a1`) |
 | Refuted, nothing to change | 3 | A7-7, A7-21, A7-22 |
 | Deliberately not changed (decided in an earlier pass) | 4 | A7-2, A7-8, A7-14, A7-16 |
 
@@ -114,7 +114,7 @@ Cost is the severity the auditor assigned. "Skeptic" is the fix-skeptic outcome.
 | A7-6 | Y177 Y30 Y11 Y33 | caps running at a seal made by Sync, Close, SyncAppends or the flusher is pinned by no test | CONFIRMED | low | fixed 3b86a4a | FIXED-VERIFIED |
 | A7-11 | Y77 Y135 | docs state no file over about 600 lines; log.go is 845 | CONFIRMED | low | fixed f47d6f0 | FIXED-VERIFIED |
 | A7-13 | Y64 Y62 Y171 | ErrFutureVersion at Consumer.Commit and in a Reader's wait has no test | CONFIRMED | low | fixed 1262a8f | FIXED-VERIFIED |
-| A7-15 | Y128 | decision 90 says reference figures were replaced or softened; review.md and decisions 3, 15, 32 still carry them | CONFIRMED | medium | held for the owner | none |
+| A7-15 | Y128 | decision 90 says reference figures were replaced or softened; review.md and decisions 3, 15, 32 still carry them | CONFIRMED | medium | owner-approved 2026-11-03: figures deleted, decision 90 reworded (branch `stage2/A7-15-a1`) | pending |
 | A7-23 | Y47 Y59 | docs quote 20 ms per macOS flush and 23-39 us per Read; the baselines say about 10 ms and 21-36 us | CONFIRMED | low | fixed 0c83572 | FIXED-VERIFIED |
 | A7-18 | Y64 Y62 Y171 Y170 | no upgrade, migration or rollback note for an operator | PLAUSIBLE | low | fix written 08553bd, rejected; corrected by hand, merged e2f02b6, no re-run | objection (one) |
 | A7-19 | Y75 Y141 Y166 | no install path documented; a go-installed binary reports `dev` | PLAUSIBLE | low | fix written 1a701fb, rejected; corrected by hand, merged ffae168, no re-run | objection (one) |
@@ -296,8 +296,11 @@ claiming they were removed. Decision 90 names scope.md and review.md, so decisio
 sentence, and decision 15's timings are labelled as measured on the reference's access pattern; the review.md line counts
 alone carry the finding.
 
-**Disposition.** Held for the owner: the fix changes what the project says publicly about its origin and which numbers it
-stands behind, which is an owner choice; section "A7-15" in [stage2-owner-decisions.md](stage2-owner-decisions.md).
+**Disposition.** Held for the owner, who approved the recommended answer on 2026-11-03: delete the reference's numbers. Done on
+branch `stage2/A7-15-a1` (documentation only): review.md, decisions 3, 5, 7, 15, 16, 20, 21 and 32 carry no figure from the
+reference, each with a dated note; decisions 70 and 90 say what was done (Y128 is satisfied by deletion, not replacement);
+the CHANGELOG has the line. Fix-skeptic outcome: not yet run when the commit was made. Section "A7-15" in
+[stage2-owner-decisions.md](stage2-owner-decisions.md) lists every figure found and what became of it.
 
 ### A7-23: operator documents quote figures that disagree with the baselines (hygiene, low) CONFIRMED
 

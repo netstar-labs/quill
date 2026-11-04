@@ -2268,8 +2268,8 @@ step.
 
 ## Held after pass A7
 
-Pass A7 (gap audit, 2026-11-03; the full record is [gap-audit.md](gap-audit.md)) fixed seven items and held three. A7-15 is
-held for an owner choice. A7-18 and A7-19 each have a written fix that the fix-skeptic rejected on one objection; neither commit
+Pass A7 (gap audit, 2026-11-03; the full record is [gap-audit.md](gap-audit.md)) fixed seven items and held three. A7-15 was
+held for an owner choice, made 2026-11-03 (see its section). A7-18 and A7-19 each have a written fix that the fix-skeptic rejected on one objection; neither commit
 is merged into this branch (verified: `git merge-base --is-ancestor` fails for both, and both objects exist in the
 repository). They are listed here so the written fix and the objection are not lost.
 
@@ -2293,7 +2293,28 @@ orders of magnitude or remove them, and drop the absolute ceiling at `:94` in fa
 table that describes the reference so it carries no more than the comparison needs. If the owner instead accepts the figures,
 keep them and correct decision 90 only.
 
-**Fix written.** None. The proposal above is the auditor's; no commit exists.
+**Owner's answer, 2026-11-03.** Approved the recommended answer: delete the reference's numbers; documentation only.
+
+**Fix written.** Branch `stage2/A7-15-a1`, one commit "fix(stage2 A7-15)"; fix-skeptic outcome: not yet run when it was made.
+Figures found by search of every tracked file outside `docs/audits/` and `.claude/`, and what became of each:
+
+- `review.md`: the reference's line counts in the header, the table (the column was dropped; the rows are kept), findings 3,
+  4, 6 and 11 and the verdict's "at most about 5,400 of its 9,000" ceiling: removed or turned into "thousands of lines" or
+  "a large share". The ceiling is replaced by quill's own count, 5,370 lines (`wc -l` over the root package's non-test `*.go`
+  files, 2026-11-03), and the "Counts" risk bullet now says the one line count is quill's. Finding 1's ratios and finding
+  13's "a few microseconds" reduced to "faster or slower"; finding 2's "230-byte topic limit" to "a topic-name length limit".
+- decisions 3 (85% of read CPU), 5 (3-5 times), 7 (three of thirteen limitations), 15 (timings, rates, segment and frame
+  size of the benchmark), 16 (230-byte limit), 20 (3,300 lines), 32 (13.9-17.9 bytes per record): the figure removed, the
+  conclusion kept, a dated note on each. Decision 21 said the scope.md orientation figures came from the reference; they
+  are quill's baselines, so its sentence was corrected. Decisions 70 and 90: dated notes; 90 now says what was done.
+- Classified and left: the 14 to 18 bytes per record framing figure (`scope.md:153, 291`, `format.md:51`) matches the
+  reference's range but is quill's own claim, re-measured on quill 2026-11-03 at 12.9-16.9 bytes per record for payloads of
+  0 to 16 KiB and sequences to about two million (a throwaway program in the scratch area, `Stat().Bytes` equal to the file
+  bytes), and the baselines' 128-byte records cost 145 bytes, so "about" holds. The 64 MiB, 1.5 GiB and 1 GiB limits
+  (decision 16, `format.md`) are quill's own constants now, pinned by tests. "Several fsyncs per durable flush" (finding 8)
+  and finding 6's "one known limitation" concern the reference's structure, not a measurement. `scope.md` holds only quill's
+  own figures and the qualitative "the reference ... " statements, which carry no number.
+- Not classifiable: none.
 
 ### A7-18: no upgrade, migration or rollback note for an operator (low)
 
