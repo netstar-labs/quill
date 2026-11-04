@@ -329,9 +329,37 @@ func (s *readerSegment) scan(fsys fsx.FS) error {
 // one: a frame's header and a small payload, not the 64 KiB a scan starts with.
 const firstFrameChunk = 4 << 10
 
-// view reads the marker, lists the directory, and builds the segment ranges from first
-// frames (decision 47): a sealed segment's range ends where the next one starts.
+// maxViewAttempts bounds how often view starts over when the segment its marker names is gone
+// because the marker moved on meanwhile.
+const maxViewAttempts = 5
+
+// staleMarkerError is buildView's report that the marker it read named a segment that is gone
+// and that the marker on disk now names another one: the writer rotated, and retention deleted
+// the old active segment, between the read of the marker and the open of the segment.
+type staleMarkerError struct{ err error }
+
+func (e *staleMarkerError) Error() string { return e.err.Error() }
+func (e *staleMarkerError) Unwrap() error { return e.err }
+
+// view builds a view of the log, starting over with the newer marker when the one it read was
+// overtaken by a rotation and a deletion (a live log does not hold still while a view is built).
+// A marker that still names the missing segment is not stale: the error is returned as it is.
 func (r *Reader) view() (*segView, func(), error) {
+	for attempt := 1; ; attempt++ {
+		v, release, err := r.buildView()
+		var stale *staleMarkerError
+		if !errors.As(err, &stale) {
+			return v, release, err
+		}
+		if attempt == maxViewAttempts {
+			return nil, nil, stale.err
+		}
+	}
+}
+
+// buildView reads the marker, lists the directory, and builds the segment ranges from first
+// frames (decision 47): a sealed segment's range ends where the next one starts.
+func (r *Reader) buildView() (*segView, func(), error) {
 	r.mu.Lock()
 	closed := r.closed
 	r.mu.Unlock()
@@ -366,6 +394,13 @@ func (r *Reader) view() (*segView, func(), error) {
 	if tl.Off > 0 {
 		f, size, err := openSegment(r.fs, r.path(segmentName(tl.Seg)))
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				// The segment may have been sealed and deleted since the marker was read. If
+				// the marker has moved to another segment, this view is stale: start over.
+				if now, terr := r.readTail(); terr == nil && now.Seg != tl.Seg {
+					return nil, nil, &staleMarkerError{err}
+				}
+			}
 			return nil, nil, err
 		}
 		if size < int64(tl.Off) {
