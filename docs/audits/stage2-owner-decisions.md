@@ -2417,3 +2417,72 @@ expired sealed segments blocking `Head()` for 2.128 s on macOS APFS (31 ms on v0
 quarter of the sealed segments, so a burst of simultaneous expiries (for example 2,000 expired sealed segments, up to 500 deleted in the first pass) is the case that reaches seconds. Recommended answer if
 reopened: keep the sync-before-each-unlink order and release the lock between chunks of a few segments, re-validating the sealed set when it is reacquired; if left as is, say in decisions 61 and 65, the user
 guide and the Latency section of `scope.md` that a pass blocks the log for the duration of its syncs. Fix written: none.
+
+## Held after pass A4r
+
+Pass A4r (supply chain, refreshed before the release, 2026-11-03; the full record is the "Refreshed before release" section of
+[supply-chain.md](supply-chain.md)) came to five items. One, A4r-2, was a defect and was fixed in `5bd55ce` (FIXED-VERIFIED), so it
+is not held. A4r-3 (any tag name is accepted by `build/quill`) was left unchanged as an optional item of the first pass (A4-10) and
+is not held; if the owner wants it, the check is one line, given in supply-chain.md. The three items below were decided or held in
+an earlier pass and are held again, because the refresh found new evidence for each and the answer is still the owner's. None has a
+fix written. The recommended answers are the recorder's reading of the auditor's proposed fix (inferred) and are recommendations,
+not decisions. Each is an owner action or decision that the audit cannot take: it concerns what leaves the building at the public flip.
+
+### A4r-1: history still carries a personal scratch path and the reference's figures (medium)
+
+**Claim.** The tip of main no longer names a personal scratch path (a user name and an internal directory name) or carries the
+reference implementation's line counts and component breakdown, but both are still in the `v0.1.0` tag and in earlier history.
+The path is in `docs/audits/audit-correctness.md` at `v0.1.0` and was introduced by `98ff9e7` (removed from the tip by `0b70e82`
+and `007ba0e`); the figures are in `docs/design/review.md` before `ee220c8`. Verified by the auditor with `git grep` on the tag
+and a pickaxe over `git log --all`. This extends A4-4 above with two new facts: the figures are in history as well as the path, and
+the clone has 454 local branches (`worktree-wf_*`, `worktree-agent-*`, `stage2/*`, `failed/*`) that `git push --all` or `--mirror`
+would publish.
+
+**Why held.** Removing the text from history means rewriting history or starting a new first commit with a new tag, and the audit
+may not push, move or create a tag. The choice also decides what the public repository's first commit looks like, and it can be
+combined with the LICENSE commit.
+
+**Recommended answer.** Before the public flip, publish from a fresh root commit, or from a `filter-repo` pass that drops the
+three commits' text and the pre-`ee220c8` `review.md`. Create a new `v0.1.0` tag on the result, push main and that tag only, never
+`--all` or `--mirror` from this clone, and re-run the same pickaxe over the new history before pushing. If the owner instead
+accepts the exposure (a user name and a directory name, and counts with no product name), record that in decisions.md, because the
+CHANGELOG line that says the owner decides would then be answered.
+
+**Fix written.** None for history. The tip edits are `0b70e82` (the path) and `08d7f77` (the figures).
+
+### A4r-4: the tree is not yet publishable until the licence and the GitHub-side settings are done (medium)
+
+**Claim.** `LICENSE` is absent by design (decision 22) and the release archive carries none; the repository does not exist for the
+auditor's authenticated account (`gh api repos/netstar-labs/quill` returns 404, as do the rulesets and private-vulnerability-reporting
+endpoints), there is no git remote, and the module proxy lists no version of the path. Verified. Whether the 404 means "private" or
+"not created" could not be told.
+
+**Why held.** The licence is the owner's choice (decision 22), and the settings are on GitHub, not in the tree. Until they are
+done, a public repository would be all rights reserved, pkg.go.dev would withhold the documentation, `SECURITY.md`'s primary
+reporting route would fail, and the README's `go install ...@v0.y.z` line would not work. Unverified from the tree: the ruleset
+requiring the check named `ci`, CODEOWNERS write access, private vulnerability reporting.
+
+**Recommended answer.** The owner chooses the licence. Then add `LICENSE` (`build/quill` already ships it when present), add a
+licence line to the README and CONTRIBUTING, write `THIRD-PARTY-NOTICES` only if something third-party ever ships (nothing does,
+decision 15), enable private vulnerability reporting, create the ruleset requiring `ci`, confirm the listed owner's write access, and
+publish the cleaned history from A4r-1. This is the checklist in supply-chain.md's ranked action list (A4-3, A4-5, A4-6), plus the
+fact that the repository has to exist at the module path first.
+
+**Fix written.** None.
+
+### A4r-5: design documents still describe the origin's architecture in detail (low)
+
+**Claim.** `docs/design/review.md` (lines 4, 19-21, 61, 64), `docs/design/build-prompt.md` (462-463), `docs/design/scope.md` (475, 512),
+`docs/introduction.md` (46) and `docs/executive-summary.md` (17) still describe what the reference implementation is built from (a
+mutual-TLS fan-in layer, a sensor key set, collector and shipper daemons, enrolment, a vendored BSD-3 mmap) without naming the
+product. Verified by search. No internal name appears.
+
+**Why held.** Whether such detail identifies the origin is a policy question. Decisions 70 and 90 treated only names and figures as
+the exposure, and A7-15 removed the figures (`08d7f77`), so keeping the text is consistent with them. Generalising it changes
+what the project says publicly about its origin and the comparison review.md makes.
+
+**Recommended answer.** The owner reads review.md's tables once with the question "does this identify the product?". If it does,
+generalise rows 3, 4 and 13 to a sentence each and the other mentions likewise; if not, leave it and record in decisions.md that
+the policy is names and figures only.
+
+**Fix written.** None.

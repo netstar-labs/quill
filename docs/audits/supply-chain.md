@@ -424,3 +424,327 @@ Ranked by what the public flip needs, then by reach. Items 1 to 4 are owner acti
 6. Optional wording: state in README, CONTRIBUTING and `scope.md:94` that consumers need Go 1.27 or later because of the go line (A4-2); optionally an opt-in guard or checklist item for a missing
    `LICENSE` in `build/quill` (A4-6); optional tag-format validation in `build/quill` (A4-10).
 7. Watch the first CI run on the new action pins (A4-9) and the first dependabot pull requests.
+
+## Refreshed before release (pass A4r, 2026-11-03)
+
+A second supply-chain auditor re-ran the pass against the tree as it stands after the first pass's fixes, before the public
+release, and was told not to read this file, so that the refresh is an independent check and not a re-reading of the first
+record. Five items came back. One is new and was fixed; four restate items the first pass or a later pass had already decided,
+and are recorded here only because the refresh found fresh evidence for them. Line anchors are to the tree the auditors read
+(inferred: `a0b9ba8`, the parent of the A4r-2 fix, since the auditors worked from HEAD), except where a sentence says "now".
+The labels are those at the top of this file. Throwaway programs ran against `git archive` copies in the session scratch area
+and on the Linux box; nothing under audit was edited by an auditor or a skeptic.
+
+### Top line
+
+Five items. **Two skeptic votes**, both CONFIRMED, on the one new item (A4r-2); **both carry a reproduction**, so one item of
+five was reproduced by a skeptic (the auditor's own reproductions, A4r-2 and A4r-3, are in the items and are not counted). The
+other four items carry no vote: the ledger classes them `prior-deliberate`, meaning an earlier pass had already decided them
+(inferred: they were not put to skeptics). No item was REFUTED. One fix, with one fix-skeptic (FIXED-VERIFIED, 7 of 7 lenses
+pass).
+
+| verdict | items | ids |
+|---------|-------|-----|
+| CONFIRMED, 2 of 2 votes | 1 | A4r-2 |
+| prior-deliberate, decided in an earlier pass, no vote | 4 | A4r-1, A4r-3, A4r-4, A4r-5 |
+| REFUTED | 0 | none |
+
+| disposition | items | ids |
+|-------------|-------|-----|
+| fixed in `5bd55ce`, fix-skeptic FIXED-VERIFIED | 1 | A4r-2 |
+| held for the owner (see [stage2-owner-decisions.md](stage2-owner-decisions.md), "Held after pass A4r") | 3 | A4r-1, A4r-4, A4r-5 |
+| deliberately not changed | 1 | A4r-3 |
+
+Severity as the auditor assigned it: medium 2 (A4r-1, A4r-4), low 3 (A4r-2, A4r-3, A4r-5). Nothing in the refresh is a
+vulnerability, and no shipped binary was found to be wrong when built with the default environment. A4r-2 is the one defect:
+the release script let the builder's compiler settings reach the shipped binaries, and it is fixed.
+
+### What changed since the first pass
+
+- **Module graph and dependencies.** Unchanged in shape and re-verified: `go.mod` is `go 1.27` plus `toolchain go1.27.3`, with
+  no `require` line, no `go.sum`, no `vendor` directory and no nested `go.mod` or `go.work` (verified). `go mod tidy` leaves
+  `go.mod` byte-identical and creates no `go.sum`; `go mod verify` reports all modules verified (verified).
+- **Advisories published since.** None found. `govulncheck@v1.9.0` run on the source (`./...`, also `-show verbose`) and in
+  binary mode on a built `cmd/quill` reports "No vulnerabilities found", so nothing is reachable (verified). Go 1.27.3, the
+  pinned toolchain, is the newest stable release listed at go.dev/dl (first entry of the JSON listing, fetched the same day;
+  verified). The tool reads the vulnerability database at the time it runs, so this is a statement about 2026-11-03 and not a
+  standing one (inferred from how govulncheck works; the ledger does not say which database snapshot it read). govulncheck
+  stays CI-only by design (the comment in `hack/gate.sh`).
+- **The first pass's fixes hold.** The toolchain agreement of A4-1 holds across four places: `go.mod`, `hack/gate.sh:15-20`,
+  `build/quill:13-16` and CI (the first three verified by running; CI verified by reading `setup-go` at the pinned commit,
+  `src/installer.ts:645-662` and `src/main.ts:21,181`, where the toolchain line wins, and not by a CI run). The A4-9 action pins
+  are right: `actions/checkout` `3d3c42e5...` is the commit of tag v7.0.1 and `actions/setup-go` `b7ad1dad...` of v7.0.0, both
+  matching their comments (checked with `git ls-remote --tags` on github.com; verified). The A4-10 refusals work: an untagged
+  HEAD, a dirty tracked file and an untracked file each make `build/quill` exit 1, and a clean tagged tree succeeds (verified in
+  a scratch repository; `--dev` was not re-tested). The A4-7 reproducibility holds, with the one exception A4r-2 below.
+- **New since the first pass.** One defect, A4r-2 (a build setting not pinned), fixed in `5bd55ce`. The first pass's
+  `build/quill` comment and decision 88 had said nothing in the output depends on the builder; that was not true of the
+  binaries until this fix.
+- **Not new, but better evidenced.** A4r-1 adds two facts to the first pass's A4-4: what `git push --all` would publish (454
+  local branches) and the figures that the earlier history of one design document still holds. A4r-4 records that the repository
+  does not yet exist on GitHub for the auditor's account.
+
+### A4r-2: `build/quill` does not pin the compiler's architecture level (low; CONFIRMED, 2 of 2, both reproduced; fixed)
+
+**Claim.** `build/quill` does not pin `GOAMD64` or `GOARM64`, so the shipped linux/amd64 and linux/arm64 binaries change with
+the builder's settings. The script comment "Nothing in the output depends on ... the builder" and decision 88 were therefore not
+true of the binaries.
+
+**Grounds (verified).** As audited, `build/quill:10` exported only `GOWORK=off` and `CGO_ENABLED=0`, `:16` `GOTOOLCHAIN` and `:26`
+`TZ`. The auditor tagged a `git init`'d scratch copy `v0.1.1` and built the same commit twice with `GOFLAGS=-buildvcs=false`,
+once in the default environment and once as `GOAMD64=v3 GOARM64=v9.0 build/quill`. The sha256 of the shipped binaries:
+
+- default, linux_amd64: `09301065ab263134c823701037cc42e175b5ba65d39009ae16c1cfaef29c4872`
+- default, linux_arm64: `e7902063ce7e5bfce22bcbdcedf1656c89ff2528d893e1655bcbfb59cde589e8`
+- v3 and v9.0, linux_amd64: `ad9e1dffdf8de5cb92f6695ef3127c52fef78cc47d5c04413353f84f7c877776`
+- v3 and v9.0, linux_arm64: `a014ab5e0f66301bd9c6d58dd6074e3136e2ffb76141df5f18a79beac7b64c0e`
+
+The same commit built on macOS (UTC-7) and on the Debian box gave identical default hashes for all four binaries, so the builder
+differences that were tested (host OS, time zone) do not matter for the binaries; these two variables do. The SBOM records
+neither.
+
+**Warrant.** `GOAMD64=v3` makes the compiler emit AVX2 and BMI instructions and `GOARM64=v9.0` allows v9 instructions. A releaser
+with either set in the shell, or stored by `go env -w` in Go's per-user environment file, ships a binary that is not the
+baseline v1 / v8.0 build and that a verifier on the defaults cannot reproduce. It can die with SIGILL on an older CPU
+(inferred from what the setting does: no pre-AVX2 CPU was available, and no SIGILL was demonstrated). The SBOM and `SHA256SUMS`
+look the same either way.
+
+**Backing.** The header comment of `build/quill` (lines 17-25 as audited) and decision 88: "the build no longer puts the clock
+or the builder into the archives"; reproducibility as a release gate (decisions 54 and 88); the Go-version policy in the README.
+Related: A4-1 (toolchain pin) and A4-7 (reproducible archives) in this file.
+
+**Rebuttal.** None of it applies when the releaser's environment sets none of `GOAMD64`, `GOARM64`, `GOEXPERIMENT` and
+`GOFLAGS`, which is the default and what the two clones and the box did. The maintainer builds releases personally, and the
+values are visible in `go version -m` of the binary, so a careful verifier could see them.
+
+**Verdict.** CONFIRMED, 2 of 2. Severity low: it needs a non-default environment on the releaser's machine.
+
+**Reproduction (verified, both votes).** Skeptic 1, in a `git archive` copy of HEAD, ran `GOWORK=off CGO_ENABLED=0 GOOS=linux
+GOARCH=amd64 GOAMD64=$v go build -trimpath -buildvcs=false -ldflags "-s -w" ./cmd/quill` for v1 and v3 and got different sha256
+values (v1 `e0be0bc5...24e3`, v3 `864dc630...a2c1`). That is a direct `go build`, not the script, and the GOARM64 half was not
+run. Skeptic 2 tagged a `git init`'d copy `v0.1.1`, ran `build/quill` and then `GOAMD64=v3 GOARM64=v9.0 build/quill` with
+`GOFLAGS=-buildvcs=false`, extracted the linux amd64 and arm64 binaries from the tarballs and hashed them: all four hashes equal
+the auditor's, and the two builds differ. Neither ran a SIGILL test, and skeptic 2 did not repeat the run on the Linux box.
+
+**Disposition.** Fixed in `5bd55ce` (the parent of the commit that carries this record): one `export GOAMD64=v1 GOARM64=v8.0`,
+the toolchain's own defaults, at `build/quill:21` now, with a comment; a new test, `TestBuildScriptPinsArchLevel`
+(`build_script_test.go`), runs the real script against a stand-in `go` with `GOAMD64=v3` and `GOARM64=v9.0` set and checks each
+of the four `go build` calls; CHANGELOG has an Unreleased line and decision 88 a dated note. The proposed `GOENV=off` was not
+used: a non-empty environment variable overrides the value `go env -w` stored (verified by the fix-skeptic with a `GOENV` file),
+and `GOENV=off` could break a toolchain download that relies on that file's `GOPROXY` (inferred).
+
+**Fix-skeptic: FIXED-VERIFIED, 7 of 7 lenses pass.**
+
+- Test fails without the fix (verified): with only `build/quill` reverted, the new test fails on all four builds ("go build ran
+  as "linux/amd64 amd64=v3 arm64=v9.0"; want GOAMD64=v1 and GOARM64=v8.0", `build_script_test.go:534`), and the other
+  `TestBuildScript*` tests still pass.
+- Root cause, with the real go1.27.3 (verified): through the real script, with `GOFLAGS=-buildvcs=false`, the default run, a
+  shell `GOAMD64=v3 GOARM64=v9.0` run and a run with a `go env -w`-style `GOENV` file set to v3 gave identical sha256 for all
+  four binaries, and `go version -m` shows `GOAMD64=v1` and `GOARM64=v8.0`. Control: the pre-fix script under that `GOENV` file
+  gave a different linux_amd64 hash from the fixed script's on the same tree.
+- Behaviour preserved (verified): `gofmt -l` empty, `go vet` clean (also for linux and darwin), `go test -race -count=1 ./...`
+  ok for every package; no change to testdata, goldens or `go doc -all`. The commit touches only `build/quill`,
+  `build_script_test.go`, `CHANGELOG.md` and `docs/design/decisions.md`. The fix-skeptic did not run staticcheck or deadcode,
+  since the commit adds no non-test code.
+- No new gap, reachable, ladder, independent route: pass. The export runs before the build loop for every build, `--dev`
+  included; no new flag, file or exported symbol; the added text names no internal product.
+
+**Residual (the fix-skeptic's objection, not disqualifying).** `GOFLAGS` (for example `-gcflags=all=-N`) and `GOEXPERIMENT` are
+still taken from the builder and still change the linux_amd64 hash (verified for `GOFLAGS`). Decision 88 says so on purpose,
+because a verifier passes `GOFLAGS=-buildvcs=false`. The older comment at `build/quill:22`, "Nothing in the output depends on
+the clock or the builder", is a little broader than the code now; the adjacent comment and decision 88 carry the `GOFLAGS`
+caveat, so it was not counted as a defect. Not done: recording the two values in the SBOM (the auditor's optional item); they
+are the toolchain defaults and `go version -m` shows them. The SIGILL consequence remains inferred.
+
+### A4r-1: history still carries a personal scratch path and the reference's figures (medium; prior-deliberate; held)
+
+**Claim.** Git history (main, the `v0.1.0` tag and the local branches) still contains a personal scratch path with a user name
+and an internal directory name, and the reference implementation's line counts and architecture, although the tip of main has had
+both removed. A push of the history as it stands, or of the `v0.1.0` tag, publishes them.
+
+**Grounds (verified).** (1) `git grep` for the path fragments in the `v0.1.0` tree returns one line, in
+`docs/audits/audit-correctness.md` (line 7). A pickaxe over `git log --all` for the same fragments returns exactly three
+commits: `98ff9e7`, which introduces the path, and `0b70e82` and `007ba0e`, which remove it from the tip. The same pickaxe over
+tracked files at HEAD finds nothing. (2) `git show ee220c8 -- docs/design/review.md` deletes the reference's line counts, its
+component breakdown and a note on a vendored BSD-3 mmap; those are in `v0.1.0` and in every earlier commit (`ee220c8` was A7-15's
+first attempt, and `08d7f77` is the accepted one). (3) `git branch | wc -l` gives 454 local branches (`worktree-wf_*`,
+`worktree-agent-*`, `stage2/*`, `failed/*`), and `git log --all` reaches them, so `git push --all` or `--mirror` would publish
+every one. (4) A word-boundary pickaxe over `--all` and `git log --all --format=%B` finds no internal product name in any commit
+message, file name or tracked file other than those three commits; the one commit-message hit is those three commits,
+describing the removal.
+
+**Warrant.** The rule is that no text carries personal paths or internal names and that the origin is only called the
+reference implementation. A fix at the tip does not change what a clone of the public repository can read, because every earlier
+commit and the tag stay reachable.
+
+**Backing.** The ground rules of the audit; decision 54 (release gates); decisions 70 and 90 (the reference's figures removed
+before the flip); CHANGELOG Unreleased ("the owner decides before the public flip whether history is squashed or accepted") and
+`0b70e82`, which says the same.
+
+**Rebuttal.** Already known and recorded as an open owner decision (A4-4 above, `CHANGELOG.md:264-267`). The path holds a user
+name and a directory name and no secret; the figures are counts and descriptions with no product name. A squashed history, or a
+new first commit with a fresh tag, exposes none of it. The finding applies only if history is pushed as it is.
+
+**Verdict.** prior-deliberate (A4-4; `stage2-owner-decisions.md`, "A4-4"; `gap-audit.md:77` and A7-16). No vote. The commit count
+differs from A4-4's 75 because the two count different things: A4-4 counted commits that contain the file, this pickaxe counts
+commits whose diff adds or removes the text (inferred from the two descriptions).
+
+**Disposition.** Held for the owner; no change made, and no tag moved or created. Recommended: publish from a fresh root commit
+(or a `filter-repo` pass that drops the three commits' text and the pre-`ee220c8` `review.md`), create a new `v0.1.0` tag on the
+result, push main and that tag only, never `--all` or `--mirror` from this clone, and re-run the pickaxe over the new history
+before pushing.
+
+### A4r-3: `build/quill` accepts any tag, not only `v0.y.z` (low; prior-deliberate; deliberately not changed)
+
+**Claim.** `build/quill` accepts any tag on HEAD (lightweight or annotated, `latest`, `wip`), not only the `v0.y.z` shape its
+message and the README state, and stamps it into the binary, the archive names and the SBOM purl.
+
+**Grounds (verified in a scratch repository).** With only a lightweight tag `v0.1.1` the script succeeds. After `git tag latest`
+it still succeeds and writes `build/install/quill_latest_*.tar.gz` and `quill_latest.cdx.json` (valid JSON; purl
+`pkg:golang/github.com/netstar-labs/quill@latest`). `build/quill:36` is `git describe --tags --exact-match` with no pattern, and
+the only error text (line 37) says "tag it (v0.y.z)".
+
+**Warrant.** A stray local tag (a backup or marker tag left on HEAD) turns the refusal into a release-named build whose version,
+purl and archive names are not a Go-module version. With two tags on HEAD, `git describe` picks one, and the choice is not the
+maintainer's.
+
+**Backing.** Decision 88 (refuses a dirty or untagged tree, stamps the version); the README's `v0.y.z` text.
+
+**Rebuttal.** The tag is maintainer-controlled input, the script refuses the two cases decision 88 names (untagged or dirty:
+verified, and an untracked file counts as dirty), and nothing promises a semver-shaped tag. A tag containing a double quote can
+be created; whether it breaks the SBOM JSON was not tested (the `latest` case stayed valid).
+
+**Verdict.** prior-deliberate (A4-10, earlier in this file: tag-format validation was named and left undone because the claim
+called it optional). No vote.
+
+**Disposition.** Deliberately not changed; the first pass's reasoning stands and the refresh found no new consequence beyond the
+`latest` demonstration. If the owner wants it, the auditor's one-line check is
+`[[ $version =~ ^v0\.[0-9]+\.[0-9]+$ ]] || { echo ... >&2; exit 1; }` after the describe, optionally with a requirement of exactly
+one, annotated tag at HEAD.
+
+### A4r-4: the tree is not yet publishable; the licence and the GitHub-side settings are open (medium; prior-deliberate; held)
+
+**Claim.** `LICENSE` is absent by design, so the public flip needs it and several GitHub-side settings that cannot be checked from
+the tree. As of 2026-11-03 the repository does not exist for the authenticated account and there is no git remote.
+
+**Grounds.** Verified: no `LICENSE` or `THIRD-PARTY-NOTICES` in `git ls-files`; the linux_amd64 archive holds only `quill`,
+`README`, `CHANGELOG` and `SECURITY` (`build/quill` copies `LICENSE` only if the file exists); README, CONTRIBUTING and
+CHANGELOG say nothing about a licence (the only hits for "icen" are `docs/design/decisions.md:30` and `:62`). Verified:
+`gh api repos/netstar-labs/quill` returns 404 as the logged-in account, and so do the rulesets and the private-vulnerability-
+reporting endpoints; `git remote -v` is empty; `proxy.golang.org` lists no versions for the module path (404). The organisation
+and the maintainer's user exist. Reported (by the files themselves): `SECURITY.md:8-12` depends on private vulnerability
+reporting being enabled; `.github/CODEOWNERS:1-4` says to confirm the listed owner can write; `ci.yml:72-74` says the ruleset
+requires the check named `ci`.
+
+**Warrant.** Without a `LICENSE` a public repository is all rights reserved and pkg.go.dev withholds the documentation.
+`SECURITY.md`'s primary route fails until the setting is on. The README's `go install ...@v0.y.z` cannot work until the
+repository is public at that path with a tag.
+
+**Backing.** Decision 22 (no `LICENSE` while private; the owner decides), decision 54 (a `LICENSE` lands before the flip), the
+CHANGELOG notes about private reporting; A4-3, A4-5 and A4-6 in this file and its ranked action list.
+
+**Rebuttal.** The absence is deliberate (decision 22), so this is a checklist and not a defect. The 404 may mean only that the
+repository is private to a token without access, or not yet created; the auditor could not tell which. The ruleset, the
+required-check name, the CODEOWNERS validity and private reporting are therefore unverified.
+
+**Verdict.** prior-deliberate (decisions 22 and 54; A4-3, A4-5, A4-6; `gap-audit.md:540-548`). No vote.
+
+**Disposition.** Held for the owner; nothing changed. The recommended order is in `stage2-owner-decisions.md`.
+
+### A4r-5: design documents still describe the origin's architecture in detail (low; prior-deliberate; held)
+
+**Claim.** `docs/design/review.md`, `build-prompt.md` and `scope.md` still describe the private origin's architecture in
+recognisable detail (a mutual-TLS fan-in layer, a sensor key set, collector and shipper daemons, enrolment, a vendored BSD-3 mmap),
+without naming the product.
+
+**Grounds (verified).** A case-insensitive search for those terms outside `docs/audits` hits `docs/design/review.md:4,19-21,61,64`,
+`docs/design/build-prompt.md:462-463`, `docs/design/scope.md:475,512`, `docs/introduction.md:46` and
+`docs/executive-summary.md:17`. No product, repository or path name appears (the name screens are clean, see Coverage).
+
+**Warrant.** The name rule is met. The detail still lets a reader work out what the origin is built from; whether that counts as
+exposure is the owner's call.
+
+**Backing.** The rule that the origin is only called "the reference implementation"; decisions 70 and 90.
+
+**Rebuttal.** Nothing is named, and the descriptions are generic (a TLS collector and shipper is a common design). Decisions 70
+and 90 treated only the figures as the exposure, and A7-15 removed those (`08d7f77`). If the policy is names and figures only,
+there is nothing to fix.
+
+**Verdict.** prior-deliberate (A7-15; `gap-audit.md:273`; `stage2-owner-decisions.md`, "A7-15"). No vote.
+
+**Disposition.** Held for the owner; nothing changed.
+
+### Coverage
+
+Checked and found clean (all verified by the auditor unless marked otherwise):
+
+- **Dependencies.** `go list -deps ./...` and `go list -deps -test ./...` (default, `GOOS=linux`, `GOOS=darwin`) list only
+  `github.com/netstar-labs/quill/...` packages besides the standard library; a grep of every `.go` file's imports for dotted
+  domains finds only the module's own path. The gate's `! grep -q '^require'` and CI's identical step pass in a scratch copy.
+- **Toolchain and tool pins.** `staticcheck` v0.8.2 and `deadcode` v0.52.0 are identical in `hack/gate.sh:24-25` and
+  `ci.yml:62-65`; `govulncheck` v1.9.0 is CI-only by design.
+- **Binaries.** In `go version -m` of the release binary: `-trimpath=true`, `CGO_ENABLED=0`, module version `v0.1.1`, and
+  `quill version` prints `quill v0.1.1`. The linux binary is a static stripped ELF. A string scan of the linux/amd64 and
+  darwin/arm64 binaries finds no build-machine path or internal name (the only `mac/` hits are `crypto/hmac`). Darwin links
+  libSystem and libresolv, the Go runtime's usual imports (no `net` or `os/user` in `go list -deps ./cmd/quill`).
+- **Reproducibility.** The same commit built in two separate scratch clones (same tag, same commit date) gives byte-identical
+  `SHA256SUMS`, so all four archives and the SBOM match. Binaries built on macOS and on the Debian 13 box (GNU tar 1.35, gzip
+  1.13) are identical for all four targets under `GOFLAGS=-buildvcs=false`. Archives across tar and gzip implementations were not
+  tested (decision 88 says they differ, and the auditor did not contradict it).
+- **Archives and SBOM.** `shasum -a 256 -c` passes for all four archives and the SBOM. Archive entries are sorted, uid and gid
+  0 with no names, mtime at the commit time. The SBOM is valid against the CycloneDX 1.5 JSON schema (0 errors), its dependency
+  ref resolves to a declared `bom-ref`, and it lists the module and the standard library at go1.27.3, which is what
+  `go version -m` shows reaches the binary. It does not list the macOS system libraries; not treated as a defect.
+- **CI.** Every `uses:` line is SHA-pinned (two actions, five jobs); `dependabot.yml` tracks the github-actions ecosystem weekly.
+  Workflow permissions are `contents: read`, and `pr-issue-link` has `permissions: {}`. Triggers are push, pull_request and tags,
+  with no `pull_request_target`, so fork pull requests get a read-only token. The PR body goes through `env`, not inline. The `ci`
+  aggregator needs all five jobs and runs `if: always()`, and its test fails if any job failed, was cancelled or was skipped
+  (derived by reading it; not run on GitHub). Notes with no finding: checkout keeps persisted credentials, but they are
+  `contents: read` and nothing uploads the `.git` directory; setup-go's default cache fails with a warning (no `go.sum`) and is
+  ignored (`main.ts:80-91`); the `pr-issue-link` check would go red on Dependabot pull requests, which matters only if it is ever
+  made required (the `ci.yml` comment says only `ci` is).
+- **Names and secrets.** Word-boundary screens for the internal product, repository and directory names, the maintainer's
+  personal identifiers, personal paths and the host address, over tracked files at HEAD (audits and tests included), file names
+  and `git log --all --format=%B`, find nothing beyond the three commits in A4r-1. The module path appears as itself, and the
+  maintainer's login only in CODEOWNERS (intended). No addresses, hostnames, e-mail (other than `t@example.com` in
+  `build_script_test.go`) or personal paths in tracked files at HEAD; `docs/design/audit-prompt.md` says "the remote runner"
+  with no host. No private keys, token-shaped strings or password-like literals at HEAD or anywhere in `git log --all -G`; the
+  only "token" hits are `GITHUB_TOKEN` comments and Go's JSON `Token`. Author identity across history is the maintainer's GitHub
+  noreply address, plus one test commit `t <t@x>` on a non-main ref; no personal e-mail.
+- **`SECURITY.md`.** Reporting is through the Security tab, with a stated fallback (open an issue asking for a contact, with no
+  detail) if the setting is off, an acknowledgement window and a support statement; no stale contact; shipped in the archives. Its
+  "Stage 2 audit, owner-approved 2026-11-03, A3-7" wording is internal process language, not a name.
+- **Tracked files.** `git ls-files -ci --exclude-standard` is empty; no `.test`, `.prof`, `.DS_Store`, binary, symlink or large
+  file is tracked (the largest is a 256 KB audit document). Ignored working files are only `.claude/`, `build/install/` and
+  `build/quill.version`. Modes: 242 files 100644 and exactly five scripts 100755 (`build/quill`, `hack/gate.sh`, `fuzz.sh`,
+  `skew.sh`, `topology.sh`). A `~*.go` file cannot smuggle ignored source into a build: `go build` rejects the file name (tested;
+  it failed closed).
+
+Not covered:
+
+- Reproduction ran on macOS arm64 and one Debian 13 x86-64 box only.
+- The CI claims were checked by reading the workflow and the action source, and the action SHAs against github.com, and not by
+  a CI run: the repository is not reachable on GitHub from the audit environment.
+- The GitHub-side settings (ruleset, required check, private vulnerability reporting, CODEOWNERS write access) are unverified,
+  for the reason in A4r-4.
+- The real `v0.1.0` tag was not built; `--dev` was not re-tested; archives across tar and gzip implementations and across Go
+  patch levels were not compared.
+- No pre-AVX2 or pre-ARMv9 CPU was available, so the SIGILL consequence in A4r-2 is inferred.
+- The auditor did not read this file before the refresh, on instruction, so it did not re-examine the first pass's items except
+  where it re-found them (A4r-1, A4r-3, A4r-4, A4r-5).
+
+Auditors that failed to return: none.
+
+### Final state
+
+- One defect found in the refresh, fixed (A4r-2, `5bd55ce`, FIXED-VERIFIED). With the default environment the release binaries
+  were already reproducible and are unchanged by the fix (inferred: the pinned values are the toolchain defaults, and the
+  fix-skeptic's default and override runs gave identical hashes); with a non-default `GOAMD64` or `GOARM64` they are now too.
+  `GOFLAGS` and `GOEXPERIMENT` remain the builder's, by decision.
+- No dependency, no advisory, no reachable vulnerability, no secret, no internal name in the tree at HEAD.
+- Open, all owner decisions and unchanged in substance from the first pass's ranked action list above: the `LICENSE` and the
+  Go licence notice (A4r-4, A4-5), the history question and what to push (A4r-1, A4-4), the GitHub-side settings (A4r-4,
+  A4-3), and whether the architecture description needs trimming (A4r-5). Optional: tag-format validation (A4r-3, A4-10).
+- Two points to add to the first pass's list: its item 5 says never to push the `stage2/*` branches, and the count is now
+  454 local branches of several kinds, so the rule is to push main and the new tag only, never `--all` or `--mirror`
+  (A4r-1); and the repository must exist, public, at the module path before the README's install line works (A4r-4).
