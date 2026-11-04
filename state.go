@@ -391,6 +391,25 @@ func writeState(fsys fsx.FS, path string, data []byte, perm fs.FileMode) error {
 	return atomicfile.Write(fsys, path, data, perm)
 }
 
+// setStateMode makes the existing state file at path have exactly perm, in place: an fchmod
+// of the file as it is, which needs no free block, where writeState needs one for its temp
+// file. It does nothing when the mode is already right. Only the file's owner can do it.
+func setStateMode(fsys fsx.FS, path string, perm fs.FileMode) error {
+	f, err := fsys.OpenFile(path, fsx.O_RDONLY, 0) // never follows a link at the final component
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if info.Mode().Perm() == perm {
+		return nil
+	}
+	return f.Chmod(perm)
+}
+
 // ReadPolicy reads quill.policy, the settings the writer last opened the log with, as a
 // Config with only those fields set (Retention, SegmentBytes, SegmentMaxAge, MaxBytes,
 // MinFreeBytes, MaxRecords, MaxPayloadBytes, ConsumerTTL, ProtectedConsumers). ok is false

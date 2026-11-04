@@ -457,6 +457,14 @@ func (l *Log) load() error {
 	// way: an empty log's marker is the zero value, equal to what is found, and a write was
 	// what used to set markerAt (MarkerAge read 0).
 	l.marker, l.markerAt = tl, l.cfg.clock()
+	// Config.Perm is the marker's mode, and a restart may give a different one. The write that
+	// used to apply it at every Open is gone, so change the mode of the file as it is: an
+	// fchmod needs no free block, where a rewrite would. A Reader takes its own mode from this
+	// file, so a log that stays idle must not keep the old one. A mode that cannot be changed
+	// (not the owner) does not fail the Open, as with quill.lock: the data is intact.
+	if err := setStateMode(l.fs, l.tailPath, l.cfg.Perm); err != nil {
+		l.logf(slog.LevelWarn, "quill.tail could not be given the mode in Config.Perm", "path", l.tailPath, "perm", l.cfg.Perm, "error", err)
+	}
 	// From here l.active owns the descriptor (publishLocked may even have rotated it): a
 	// failure is returned with it open, and Open closes whatever l.active holds.
 	if err := l.publishLocked(); err != nil {

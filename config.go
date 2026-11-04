@@ -113,7 +113,7 @@ type Config struct {
 	//     once);
 	//   - from Open: a Warn when it cuts the newest segment past the marker (with the segment, the
 	//     offset, the bytes cut and whether the first rejected frame was incomplete or damaged), a Warn
-	//     when it cannot tighten quill.lock, a Warn for each consumer whose offset is above Head + 1 (a
+	//     when it cannot tighten quill.lock or give quill.tail the mode in Perm, a Warn for each consumer whose offset is above Head + 1 (a
 	//     log restored to an older state; with the consumer, the offset and the head), and the policy
 	//     Warn above if its first write fails.
 	//
@@ -127,7 +127,9 @@ type Config struct {
 	// returns, before there is a Log, with no lock held.
 	Logger *slog.Logger
 	// Perm is the file mode (0600); directories get the matching execute bits (0700). State
-	// files (quill.format, quill.tail, quill.policy, consumer offsets) are exactly Perm. The
+	// files (quill.format, quill.tail, quill.policy, consumer offsets) are exactly Perm; Open
+	// gives an existing quill.tail the mode of its Perm in place (a restart with another Perm
+	// changes it at once, even on an idle log, and needs no free block). The
 	// writer's segments, its consumers' lock files and every directory are created through the
 	// process umask, so under umask 022 Perm 0660 gives 0640 segments and 0750 directories.
 	// quill.lock is always 0600, whatever Perm says, so a reader-only process cannot take the
