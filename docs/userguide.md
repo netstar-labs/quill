@@ -49,7 +49,15 @@ about 10 ms on macOS (`F_FULLFSYNC`, measured on the build machine). Batch when 
 
 **When a write fails** (decisions 37, 60). A short write or `ENOSPC` truncates the file back
 to the durable offset and keeps the records buffered; the next flush retries from the same
-offset, and space exhaustion recovers by itself. An **fsync** error is fatal: every later
+offset, and space exhaustion recovers by itself. **A restart on a full disk:** `Open` of a cleanly
+closed log writes no file, so it succeeds with no free block and the `MinFreeBytes` and `MaxBytes`
+sweeps then run. After a crash that left `quill.tail` behind the data (decision 39) `Open` has to
+write the marker; if that write fails (`ENOSPC`), `Open` still returns the log, with the publish
+pending: `Err()` wraps the cause, `Config.Logger` has the `marker publish` `Warn`, a `Reader` sees the
+older head, and the flusher, `Close` or a prune pass writes the marker once a block is free (until
+then a prune pass deletes the sealed segments below the one the stale marker names and keeps the rest, so the sweeps still free space; decision 65). A caller that
+treats a nil error from `Open` as "the marker is published" should check `Err()`; `quill recover`,
+`roll`, `prune` and `append` exit 1 with the write error when `Close` cannot publish it (a `prune` that freed a block before `Close` publishes it and exits 0). An **fsync** error is fatal: every later
 valid `Append` and `Flush` on the open log, and every `Sync` of a sequence not already durable, returns an error wrapping `ErrFailed` until the log is closed and
 reopened (`Sync` of a sequence that became durable before the failure returns nil, and `Sync` of an unassigned sequence is `ErrBadSeq`), and a `ReadWait` or `Follow` at the head returns it too (a goroutine already waiting is woken to return it; records that exist stay readable), because a retried fsync can report success for data that never reached the disk. The moment the log fails it writes one `Error` record on `Config.Logger`, "log failed: it accepts no more writes and every later call returns ErrFailed", with `error` (the first cause) and `op` (`flush`, `rotation`, `segment delete` or `lock check`); a later failure changes neither `Err()` nor the log, so there is never a second line, and `Err()` returns an error wrapping `ErrFailed`. With no `Logger` there is no line: poll `Err()`. An
 error from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still
@@ -447,7 +455,7 @@ the log); the fix is a newer binary, never an edit to `quill.format`.
 
 A writable open (`Open`, or `quill recover`) performs recovery: it verifies every sealed
 segment, parses the newest segment forward from the marker's offset, truncates a torn tail,
-and republishes `quill.tail`. A torn tail after a crash needs nothing else.
+and rewrites `quill.tail` if it was behind the data. A torn tail after a crash needs nothing else.
 
 Whenever that truncation removes bytes, the open reports it: a `Warn` record on `Config.Logger`
 ("cut the newest segment past the marker", with `segment`, `offset`, `bytes` and `kind`), and on
@@ -491,7 +499,7 @@ v0.1.0 (decision 64). The procedure:
    the last valid sequence from step 2 (`0` if no frame is left), keeping the one-line form
    and the trailing newline:
    `{"seq":<last valid sequence>,"seg":<newest segment id>,"off":<truncation length>,"maxseg":<highest id on disk>}`.
-6. `quill recover -dir <log>`, which reopens the log, verifies, and republishes the marker.
+6. `quill recover -dir <log>`, which reopens the log, verifies, and rewrites the marker if it was behind.
 7. `quill check -dir <log>` again, then restart the writer.
 
 A damaged `quill.tail` or `quill.format` is refused outright; restore them from a backup (the

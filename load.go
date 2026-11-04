@@ -307,7 +307,7 @@ func reason(err error) string {
 }
 
 // load reads the state files, scans the directory and recovers the newest segment (decision
-// 39), then republishes the marker. The lock is held and creation is complete.
+// 39), then republishes the marker if recovery moved it. The lock is held and creation is complete.
 func (l *Log) load() error {
 	id, err := loadFormat(l.fs, l.path(formatName))
 	if err != nil {
@@ -450,14 +450,25 @@ func (l *Log) load() error {
 	l.active, l.sealed, l.holes, l.head = a, sealed, holes, head
 	l.nextSeq = head + 1
 	l.maxSeg = max(tl.MaxSeg, newest)
-	// Republish the marker from what was really on disk, and make it durable.
-	// Force a write. Setting l.marker = tail{} did not for an empty log, whose marker is that
-	// zero value, and left markerAt unset (MarkerAge read 0).
-	l.pendingPublish = true
+	// The marker on disk is the one just decoded. When it already names what was really found
+	// there is nothing to republish, and Open writes no file, so it needs no free block on a
+	// full filesystem (L3b-8). Only a recovery that moved the head, the segment, the offset or
+	// the highest segment id makes publishLocked write. The marker age counts from Open either
+	// way: an empty log's marker is the zero value, equal to what is found, and a write was
+	// what used to set markerAt (MarkerAge read 0).
+	l.marker, l.markerAt = tl, l.cfg.clock()
 	// From here l.active owns the descriptor (publishLocked may even have rotated it): a
 	// failure is returned with it open, and Open closes whatever l.active holds.
 	if err := l.publishLocked(); err != nil {
-		return err
+		if l.failed != nil {
+			return l.failed
+		}
+		// A marker that could not be written, a segment that could not be created: the data is
+		// durable and the marker is a lower bound (decision 39), so the log opens as it would
+		// after the same failure in a flush. pendingPublish is set, Err() and the logger report
+		// it, and the flusher, Close and every prune pass retry it (decision 60 d).
+		l.openUnpublished = l.bg[bgPublish] != nil
+		return nil
 	}
 	return l.fs.SyncDir(l.dir)
 }

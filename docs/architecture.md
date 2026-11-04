@@ -81,7 +81,10 @@ Sealed segments are verified whole and in parallel at open. Holes are found by c
 each segment's first sequence with the previous one's last; an overlap is corruption. The
 next sequence is the last valid frame's plus one, or `quill.tail.seq + 1` when the log holds no
 frames; a marker above the last valid frame means acknowledged data is missing, and `Open`
-refuses.
+refuses. `Open` rewrites the marker only when recovery found a different position (decision 39,
+L3b-8): a clean restart writes no file, so it works on a full filesystem, and a republish that
+cannot be written leaves the publish pending, as after a failed flush, for the flusher, `Close`
+and prune passes to retry.
 
 ## 5. The read path
 

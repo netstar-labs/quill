@@ -30,7 +30,8 @@ type Stats struct {
 	// StaleConsumers are protected consumers that stopped protecting segments under
 	// ConsumerTTL at the last prune pass. Only Log.Stat knows them.
 	StaleConsumers []string
-	// MarkerAge is how long ago quill.tail was last written.
+	// MarkerAge is how long ago quill.tail was last written. For a writer that opened a log whose
+	// marker was already right, and so wrote none, it counts from Open.
 	MarkerAge time.Duration
 	// DiskFull is true while MinFreeBytes cannot be met and nothing is left to delete: every
 	// append fails with an error wrapping ENOSPC until a later pass finds room. Err() reports

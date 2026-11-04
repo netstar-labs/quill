@@ -307,8 +307,9 @@ func (l *Log) capsLocked(n int) int {
 }
 
 // deleteLocked unlinks the first n sealed segments, oldest first: the marker is published and
-// the directory fsynced before each unlink (decision 65). offsets are the consumers' offsets,
-// for Dropped.
+// the directory fsynced before each unlink (decision 65). When the marker cannot be published
+// only the segments below the one it names on disk are unlinked. offsets are the consumers'
+// offsets, for Dropped.
 //
 // The publish may seal an active segment that outgrew SegmentBytes after a failed rotation
 // (decision 60 d), and that seal runs the caps (decision 24), which delete a prefix of
@@ -323,7 +324,28 @@ func (l *Log) deleteLocked(n int, offsets []consumerOffset) error {
 		chosen[s] = true
 	}
 	if err := l.publishLocked(); err != nil {
-		return err
+		// The marker that Open could not write (a full disk has no block for its temp file)
+		// must not stop the sweeps that free space. The marker on disk is l.marker, a lower
+		// bound recovery parses forward from (decision 39), and it names a segment that
+		// stays, so the segments below that one can go: every segment from it on is kept, and
+		// a crash after an unlink leaves a marker whose segment exists with all its records,
+		// which is what decision 65 protects. The error stays in Err(). A publish that fails
+		// in a running writer, with Open's done, still stops the pass here (decision 60 d).
+		if l.failed != nil || !l.openUnpublished || l.bg[bgPublish] == nil {
+			return err
+		}
+		kept := 0
+		for _, s := range l.sealed {
+			if chosen[s] && s.id >= l.marker.Seg {
+				delete(chosen, s)
+			}
+			if chosen[s] {
+				kept++
+			}
+		}
+		if kept == 0 {
+			return err
+		}
 	}
 	n = 0
 	for n < len(l.sealed) && chosen[l.sealed[n]] {

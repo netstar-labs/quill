@@ -55,6 +55,10 @@ type Log struct {
 	// pendingPublish is set when the data is durable but the marker could not be published
 	// (or the next segment created); the next flush retries (decision 60 d).
 	pendingPublish bool
+	// openUnpublished is set when the republish at Open failed to write the marker, and cleared by
+	// the first marker write that succeeds. While it is set a prune pass whose own publish fails
+	// still deletes the sealed segments below the one the marker on disk names (decision 65).
+	openUnpublished bool
 	// rotErr is the error of the last rotation due at a flush, while it keeps failing; nil once one
 	// succeeds. While set, an append is refused at the ceiling (decision 60 d).
 	rotErr error
@@ -148,6 +152,17 @@ func (l *Log) path(name string) string { return filepath.Join(l.dir, name) }
 // always someone else's. A caller that wants to detect a live writer treats both as "not this
 // account's log, or a writer may be live". Archive differs: it only refuses, so it reports the
 // same condition as an error that is both ErrLocked and fs.ErrPermission.
+//
+// Open of an existing log writes quill.tail only when recovery found a position other than the
+// one it names, so it needs no free block after a clean shutdown, even on a full filesystem.
+// When the marker has to move (a crash left it behind the data) and cannot be written, Open
+// still returns the log: the records are durable, the marker publish is pending, and Err()
+// reports it (an error wrapping the cause, ENOSPC for a full disk) and Config.Logger gets the
+// "marker publish" Warn. A Reader sees the older head until the flusher, a Flush, Close or a
+// prune pass publishes it. Until then a prune pass still runs, but deletes only the sealed
+// segments below the one the marker on disk names (decision 65), so the sweeps that free space
+// are not blocked. A caller that takes a nil error from Open to mean "the marker is published"
+// should check Err().
 func Open(cfg Config) (*Log, error) {
 	cfg = cfg.withDefaults()
 	if err := cfg.validate(); err != nil {

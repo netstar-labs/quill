@@ -117,7 +117,7 @@ func init() {
 		{name: "archive", summary: "copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer; exit 3 when the source had lost records", lock: "consumer",
 			flags: func(fs *flag.FlagSet, c *cli) { fs.StringVar(&c.to, "to", "", "the destination directory") },
 			run:   cmdArchive},
-		{name: "recover", summary: "open the log writable, which repairs a torn tail and republishes quill.tail, then close it; refuses a -dir that is not a log", lock: "log",
+		{name: "recover", summary: "open the log writable, which repairs a torn tail and rewrites quill.tail if recovery found it behind the data, then close it; refuses a -dir that is not a log", lock: "log",
 			run: cmdRecover},
 		{name: "help", summary: "print this list, or a verb's flags", lock: "none", noDir: true, args: true, run: cmdHelp},
 		{name: "version", summary: "print the version", lock: "none", noDir: true,

@@ -184,6 +184,7 @@ func (l *Log) publishLocked() error {
 			return err
 		}
 		l.marker, l.markerAt = m, l.cfg.clock()
+		l.openUnpublished = false
 		l.clearBg(bgPublish)
 		if sealed {
 			// The marker naming the new segment is made durable at rotation (decision 65).

@@ -21,7 +21,7 @@
 | `prune` | log | run a retention pass now with the policy in quill.policy or the flags; needs the writer's lock; refuses a -dir that is not a log |
 | `roll` | log | seal the active segment now; needs the writer's lock; refuses a -dir that is not a log |
 | `archive` | consumer | copy sealed segments not yet archived to -to, verifying every CRC; runs beside a live writer; exit 3 when the source had lost records |
-| `recover` | log | open the log writable, which repairs a torn tail and republishes quill.tail, then close it; refuses a -dir that is not a log |
+| `recover` | log | open the log writable, which repairs a torn tail and rewrites quill.tail if recovery found it behind the data, then close it; refuses a -dir that is not a log |
 | `help` | none | print this list, or a verb's flags |
 | `version` | none | print the version |
 
@@ -202,7 +202,7 @@ Lock: the consumer's lock only (runs beside a live writer).
 
 ## `quill recover`
 
-Open the log writable, which repairs a torn tail and republishes quill.tail, then close it; refuses a -dir that is not a log.
+Open the log writable, which repairs a torn tail and rewrites quill.tail if recovery found it behind the data, then close it; refuses a -dir that is not a log.
 
 Lock: the writer's lock (fails with ErrLocked beside a live writer).
 

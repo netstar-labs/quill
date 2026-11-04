@@ -156,7 +156,7 @@ by length and CRC, and framing costs about 14–18 bytes per record.
 
 Inspect and manage; no server. Verbs: `ls` (logs under a parent directory), `stat`, `read`, `tail`, `cat`,
 `append`, `consumers`, `commit`, `register`, `unregister`, `check`, `prune`, `roll`, `archive`, and `recover`
-(open writable, repair a torn tail, republish `quill.tail`, close). `roll` and `prune` need the writer's
+(open writable, repair a torn tail, rewrite `quill.tail` if recovery moved it, close). `roll` and `prune` need the writer's
 lock, so they run only when no writer is live; a live writer calls `Roll()` itself. `archive` runs beside a
 live writer (see Disk safety and archiving). `ls` shows each log's bytes, segments, retention and caps from
 `quill.policy`; it skips a subdirectory that is not a log, and gives a log it cannot open an `error:` row and exit 1. Global flag `-dir` (the log). `cat`, `read` and `tail` open the log with `OpenReader`, so they work
@@ -301,7 +301,14 @@ shared budget is the `Set` helper on the roadmap.
 **When the disk is full anyway.** A flush that fails keeps its records buffered; past `MaxBufferBytes`
 appends fail fast with the flush error; nothing already flushed is touched; the writer recovers on its own
 when space returns. The reference derived this from its code but never ran it on a real full disk
-(**reported**); quill tests it in a container with a small `tmpfs` mount.
+(**reported**); quill tests it in a container with a small `tmpfs` mount. A restart on a full disk works:
+`Open` of a cleanly closed log writes no file (the marker is already right), so the `MinFreeBytes` and
+`MaxBytes` sweeps can run and free space. If the marker has to move (a crash left it behind the
+data, decision 39) and cannot be written, `Open` still succeeds with the publish pending: `Err()` and
+`Config.Logger` report it, readers see the older head, and the next flush, `Close` or prune pass that can
+write it publishes it; until then a prune pass (and the `MinFreeBytes` sweep) deletes the sealed
+segments below the one the marker on disk names and keeps that one and every later one, so space is still
+freed (decision 65) (Stage 2 audit, owner-approved 2026-11-03, L3b-8).
 
 **Managing logs individually.** Everything is per directory: `ls`, `stat`, `check`, `prune`, `roll`,
 `archive`; moving, renaming or deleting a log is a directory operation done while no writer holds it.
@@ -417,7 +424,8 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
 11. **Bounded disk.** With `MaxBytes` set, a log's segment bytes stay within `MaxBytes + SegmentBytes + MaxBufferBytes + max(MaxBatchBytes, MaxPayloadBytes + 34)`; with `MinFreeBytes` set, a log deletes its own oldest sealed segments before it lets the filesystem
     fall below the floor, even if a protected consumer has not read them: the floor overrides protection, so that consumer can lose
     records (the `Warn` naming it says so). A full disk never corrupts a log: appends fail with an error, and flushed records
-    stay intact. The floor is only as good as its input: when `statfs` fails the floor is not enforced for that pass,
+    stay intact; a writer can be restarted on a full disk, since `Open` of a clean log writes nothing (see "When the disk is
+    full anyway"). The floor is only as good as its input: when `statfs` fails the floor is not enforced for that pass,
     and `Err()` says so until a pass can read the free space.
 12. **A stale consumer cannot pin the disk.** With `ConsumerTTL` set, a protected consumer that is behind and silent for
     the TTL stops protecting segments, its offset is preserved, and `Stat` reports it. "Silent" is judged by the offset file's mtime and the
