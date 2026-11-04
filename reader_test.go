@@ -882,6 +882,38 @@ func TestAReaderCallsAnActiveSegmentThatFailsTheMarkerCorruptNotAnIOError(t *tes
 	}
 }
 
+// A marker that names the active segment and a positive offset but a sequence below that
+// segment's first frame disagrees with the bytes: the segment holds records the marker says do
+// not exist yet. The writer never publishes that triple, so it is damage, and the Reader says
+// ErrCorrupt rather than serving the older, shorter log as if it were healthy (guarantee 6).
+func TestAReaderCallsAMarkerBelowTheActiveSegmentsFirstFrameCorrupt(t *testing.T) {
+	s := fsx.NewSim()
+	l := openSim(t, s, func(c *Config) { c.SegmentBytes = 1 << 20 })
+	appendN(t, l, 5)
+	if err := l.Roll(); err != nil {
+		t.Fatal(err)
+	}
+	appendN(t, l, 3) // sequences 6 to 8 open the active segment
+	mustFlush(t, l)
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tl := readTail(t, s, "/log")
+	if tl.Seg == 0 || tl.Off == 0 || tl.Seq != 8 {
+		t.Fatalf("marker %+v: want an active segment after the first, with bytes, at sequence 8", tl)
+	}
+	tl.Seq = 3 // below the active segment's first frame (6), segment and offset kept
+	writeFile(t, s, "/log/"+tailName, encodeTail(tl))
+	r := openReaderSim(t, s)
+	defer r.Close()
+	if _, err := r.Read(1, 10); !errors.Is(err, ErrCorrupt) {
+		t.Errorf("Read: %v; want ErrCorrupt", err)
+	}
+	if _, err := r.Stat(); !errors.Is(err, ErrCorrupt) {
+		t.Errorf("Stat: %v; want ErrCorrupt", err)
+	}
+}
+
 func TestReaderCheckReportsUnboundedOnlyWhenNeitherCapIsSet(t *testing.T) {
 	sf := &statfsSeam{free: 1 << 30}
 	for _, tc := range []struct {
