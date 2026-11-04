@@ -83,7 +83,7 @@ text of those that name a script- or library-visible behaviour, and `git log --o
 them `stage2` commits).
 
 ```sh
-awk '/^### Entries/{f=1;next} /^## /{f=0} f && /^- /{n++} END{print n}' CHANGELOG.md   # 144
+awk '/^### Entries/{f=1;next} /^## /{f=0} f && /^- /{n++} END{print n}' CHANGELOG.md   # 144 when this table was derived (e8909b6); 146 at 2893a3f (see below)
 ```
 
 The count starts at the "Entries" heading, not at "Unreleased", because the "Breaking changes and upgrade notes" list above
@@ -104,6 +104,18 @@ a row below and 58 are not user-visible.** An entry is identified by the line it
 - tests (1): 139; a latent bug no path reaches (1): 147; a data race and a cache-growth fix with no changed result (2):
   370, 374;
 - the entry that records this change (1): line 58.
+
+**Update 2026-11-04 (pre-tag batch).** The command above prints **146** at `2893a3f` (verified, run in the worktree of this record's commit),
+not 144: two entries were added after the table was derived, both documentation only and both after the last covered
+line (428), so no row's line number moved: line 431 (audit L4b-4, `be9adfb`) and line 432 (audit L4b-3, `e51c2e3`). The counts
+therefore read **146 entries, 86 with a row, 60 not user-visible** (the 58 above plus lines 431 and 432). `CHANGELOG.md`
+lines 10 and 58 still say "144" and "the other 58"; this record's commit does not edit `CHANGELOG.md` (the owner's wave
+limited it to the files named under `docs/audits/`), so those two figures are stale by two entries until a later commit
+corrects them. One more change since the table was derived has **no** `CHANGELOG.md` entry and no row: `2893a3f`
+(`reader.go`, a `Reader` view overtaken by a rotation and a deletion starts over instead of returning the raw path error; the
+same window exists at `v0.1.0`; verified: its diffstat names no `CHANGELOG.md` and a search of the file for the error text
+finds nothing). It is a fix that turns a rare `lstat` error into a retry, not a break, and it carries a dated note on decision
+101; whether it needs a line before the tag is the owner's.
 
 Each of the 86 is named in the "Recorded" column (row 16 also cites line 66, a documentation-only entry that states the permission-error behaviour; coverage was checked by script). (Inferred: the classification of the 58
 rests on each entry's own words, "documentation only", "no behaviour change", or a measured speed-up with the result
@@ -348,6 +360,8 @@ behave, not run here). Then the answer is a new tag (say `v0.2.1`) plus a `retra
 - **Signature verification**: there is no signature to verify.
 - **Anything on a platform quill does not support** (Windows; FreeBSD is refused by the gate's vet step by design).
 - **A fresh run of govulncheck after the database moves.** It reads a live database; run it again at tag time.
+- **The Linux ext4 filesystem matrix and the power-cut replays, for the tag.** Deferred by the owner on 2026-11-04 (no
+  power-off is possible); the Linux gate of the pre-tag batch ran on tmpfs only. See "What was not run at the tag" below.
 
 ## Public-flip checklist
 
@@ -373,23 +387,34 @@ What the audit left open, accepted or deferred, and what was not run, collected 
 list before the tag. Each entry has the id with the section of the record that holds it, one sentence, a state and who
 decides. States: **open** (a defect or a wrong sentence that stays unless someone acts), **accepted** (decided, deliberately
 not changed), **deferred** (to after the release), **not run**. Labels as at the top of this record: every entry is read from
-the record it names, as the tree is at `e8909b6`, unless it says it was run here (two entries were: `quill -h` and the
-architectures). "Owner" is the owner of the repository.
+the record it names, as the tree was at `e8909b6`, unless it says it was run here (two entries were: `quill -h` and the
+architectures). "Owner" is the owner of the repository. **Updated 2026-11-04 at `2893a3f`** (pre-tag batch, audit pass L4b; see
+"Pre-tag batch 2026-11-04" in [stage2-owner-decisions.md](stage2-owner-decisions.md)): the L4b-3 row and A3-10 point 2 now say
+what became of the two wrong sentences; nothing else in this section was re-derived at `2893a3f`.
+
+**Raised by the wave 6 completeness critic, not approved for change (state: open).** The owner's approval of 2026-11-04 covered
+documentation only. Three things the critic raised need a code change or a change to a message, an exit code or a build
+constraint, so none was touched and each stays open, for the owner's decision: (1) `quill -h` and `quill --help` print
+`flag: help requested` and exit 2 (row L3b-15 below); (2) the `quill archive` message "the archive holds the same hole",
+inaccurate when the destination starts after the lost records (row L4b-3 below); (3) the module builds for 32-bit and
+big-endian Linux targets that the documents do not list, and the tests do not compile for 32-bit (section "Platforms" below).
+Each has a held-item section, with a recommended answer, in [stage2-owner-decisions.md](stage2-owner-decisions.md) ("Held after
+the pre-tag batch").
 
 ### Behaviour and documentation that stay as they are
 
 | id and record | what | state | who decides |
 |---|---|---|---|
-| L4b-3: "`quill check -dir <dest>` keeps reporting the hole after archiving a source with a damaged oldest segment" ("Follow-up to open point 2 (L4b-3, owner-approved 2026-11-04)" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | The documents are corrected (documentation only). The message `the source lost records N to M; the archive holds the same hole` that `quill archive` prints is still inaccurate when the destination starts after the lost records (a new destination, or a damaged oldest segment): the destination then holds no hole and `check` on it is HEALTHY. Reproduced on a build of the tree at `bdb1522` (exit 3, then `check -dir <dest>` HEALTHY exit 0, a second `archive` exit 0). | open (message text unchanged) | owner |
+| L4b-3: "`quill check -dir <dest>` keeps reporting the hole after archiving a source with a damaged oldest segment" ("Follow-up to open point 2 (L4b-3, owner-approved 2026-11-04)" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | The documents are corrected (documentation only; fixed in `e51c2e3`, fix-skeptic FIXED-VERIFIED, 6 of 6 lenses, reported, with the reproduction run again by the skeptic). The message `the source lost records N to M; the archive holds the same hole` that `quill archive` prints is still inaccurate when the destination starts after the lost records (a new destination, or a damaged oldest segment): the destination then holds no hole and `check` on it is HEALTHY. Reproduced on a build of the tree at `bdb1522` (exit 3, then `check -dir <dest>` HEALTHY exit 0, a second `archive` exit 0). | open (message text unchanged; a change to it is not approved) | owner |
 | A1d-1: "a live retention pass syncs the directory once per deleted segment while holding the log's lock" ([a1-diff-scoped.md](a1-diff-scoped.md); "Not held, but worth the owner's eye: A1d-1" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | A live pass fsyncs the directory once per deleted segment (`retention.go:363`) with the log's lock held, so `Append`, `Read`, `Stat` and `Head` wait for the whole pass. **Reported by the auditor, not re-run here:** for 401 expired sealed segments, 2.128 s on macOS APFS against 31.3 ms at `v0.1.0`, and 203.9 ms on Linux ext4 against 15.6 ms (about 5 ms and 0.5 ms per segment), on shared machines, "indicative, not a benchmark" in that record; a live pass deletes at most a quarter of the sealed segments. Decisions 61 and 65, the user guide and the Latency section of `scope.md` say nothing about a pass blocking the log (verified: a search of those files for the words finds nothing about a retention pass); the record recommends saying so if the code stays. | accepted (decided in round 1, decision 65); the lock-held cost is undocumented | owner |
-| A3-7: "a symlinked `consumers/` directory is followed" ([threat-model.md](threat-model.md); "A3-7 (code hardening)" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | `register`, `recover` and `Open` still follow a symlinked `consumers/`; only the wording changed (`b765290`, `SECURITY.md:28-32`, decision 51). The `O_NOFOLLOW` or `Lstat` hardening was not approved; the recommended answer is to leave the code, because the exposure needs write access to the log directory. | open (held, no fix written) | owner |
+| A3-7: "a symlinked `consumers/` directory is followed" ([threat-model.md](threat-model.md); "A3-7 (code hardening)" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | `register`, `recover` and `Open` still follow a symlinked `consumers/`; only the wording changed (`b765290`, `SECURITY.md:27-32` (corrected from 28-32: the symlink sentence starts at line 27), decision 51). The `O_NOFOLLOW` or `Lstat` hardening was not approved; the recommended answer is to leave the code, because the exposure needs write access to the log directory. | open (held, no fix written) | owner |
 | A3-24: "`-json` passes bidi and format controls raw; the time field is unchecked" ([threat-model.md](threat-model.md); "A3-24 (`time` field)" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | The `time` field is `time.Unix(rec.At, 0).UTC()` with no range check: `At` 253402300800 prints year 10000 and `MinInt64` prints the same string as `MaxInt64`; `at` stays exact and only a hand-crafted file reaches it. The escape set was fixed (`d15ac45`); the range check was not approved. | open (held, no fix written) | owner |
 | A3-26 (merges A3-2): "unlinking `quill.lock` under a live writer lets a second writer open" ([threat-model.md](threat-model.md); "A3-26" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | An unlinked or replaced `quill.lock` still lets a second writer open until the first writer's next flush or prune pass, where `6acc23e` fails the first writer (`ErrFailed`); records the two acknowledge in that window can overwrite each other. Reported by the threat-model note of 2026-11-03, from the commit, not re-run. | open (held; the window is what remains after the refuted verdict) | owner |
 | A3-18: "a Reader's read cost scales with the log, not the request" ([stage2-owner-decisions.md](stage2-owner-decisions.md); [threat-model.md](threat-model.md)) | A `Reader` read with no iterator cursor re-walks the active segment from byte 0 to the offset and rebuilds the sealed-segment view on every call (the auditor's figures, reported and not re-run: `Reader.Read(2,999,000,1)` 379 ms against 112 us for `Log.Read`, in a 343 MB active segment). `3c36fc0` reworded `scope.md` and decision 63; caching sealed refs as `Log` does (decision 103) is deferred. | deferred (after the release) | owner |
 | L1-12, the optional `Archive` refusal ("`quill archive` into a new destination copies only a suffix and exits 0"; [stage2-owner-decisions.md](stage2-owner-decisions.md)) | `Archive` into a new destination after the `_archive` offset advanced copies only the suffix and exits 0; the wording is fixed (`be8cb15`); the optional refusal, an error that is not a `*GapError`, is not implemented and needs its own decision. | open (optional, not approved) | owner |
 | A5-5: "a long-lived Reader does not notice that its directory was replaced by another log" ([silent-degradation.md](silent-degradation.md); "Not held, but worth the owner's eye" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | A `Reader`'s plain `Read` and `Scan` are not re-checked and serve a replacement log from the old cursor; `Commit` and a Reader's wait return `ErrWrongLog` (`495e457`). The owner declined the check on cost on 2026-11-02 (decision 83); the record says decision 83 declines a per-segment check, not one `quill.format` read per view (the recorder's inference). | accepted (declined, no code change) | owner |
 | A4r-3: "`build/quill` accepts any tag, not only `v0.y.z`" ([supply-chain.md](supply-chain.md)) | A stray tag on `HEAD` makes a release-named build; the release engineer must spell the tag `v0.2.0`. The one-line check is in the record. | accepted (deliberately not changed) | owner |
-| L3b-15: "`quill --version` and `--help` are usage errors" ([live-integration.md](live-integration.md)) | `quill -h` and `quill --help` print `quill: flag: help requested` and exit 2 (**verified here** on a build of this tree: both exit 2, `quill help` exits 0); `quill --version` exits 2. The verbs `help` and `version` work and no document promises the flags. | accepted (deliberately not changed) | owner |
+| L3b-15: "`quill --version` and `--help` are usage errors" ([live-integration.md](live-integration.md)) | `quill -h` and `quill --help` print `quill: flag: help requested` and exit 2 (**verified here** on a build of this tree: both exit 2, `quill help` exits 0); `quill --version` exits 2. The verbs `help` and `version` work and no document promises the flags. The wave 6 critic raised `-h` exiting 2; a change to an exit code or a message is not within the documentation-only approval of 2026-11-04. | open (not changed; a change is not approved) | owner |
 
 ### Open points of the A3-10 fix
 
@@ -400,7 +425,7 @@ skeptic on `18662b6`, not re-run here. The behaviour change itself is owner-appr
 | id and record | what | state | who decides |
 |---|---|---|---|
 | A3-10 point 1 | When every sealed segment of the source is damaged, `Archive` copies nothing, so it never commits and every run exits 3 until `quill commit -name _archive -offset N` goes past the gap (it exited 0 before the fix); the user guide says so. | open | owner |
-| A3-10 point 2 | After an archive of a source with a damaged oldest segment, **`quill check -dir <archive>` reports HEALTHY, exit 0**, because a hole from 1 leaves no damaged file in the destination. `docs/userguide.md:393-394` says `quill check -dir <dest>` "keeps reporting the hole (exit 3)" and `scope.md:339` says `quill check` on the destination "keeps reporting it" (the A3-10 record cites `scope.md:321`; the sentence is at line 339 now). Both hold only when a damaged file was copied, so both are wrong for this case until they are reworded or the code changes. | open (two sentences are wrong for this case) | owner |
+| A3-10 point 2 | After an archive of a source with a damaged oldest segment, **`quill check -dir <archive>` reports HEALTHY, exit 0**, because a hole from 1 leaves no damaged file in the destination. `docs/userguide.md:393-394` said `quill check -dir <dest>` "keeps reporting the hole (exit 3)" and `scope.md:339` said `quill check` on the destination "keeps reporting it" (the A3-10 record cites `scope.md:321`; the sentence was at line 339). Both held only when a damaged file was copied. **Corrected 2026-11-04 in `e51c2e3` (documentation only, audit L4b-3, FIXED-VERIFIED):** the user guide, `scope.md`, decision 85 and the `Archive` godoc now say that `check` on the destination reports the hole only when the destination already held records below it, and prints HEALTHY when the destination starts after the lost records, so the exit 3 of the run that found the loss is the only report. A reader of this record at `e8909b6` or earlier will find the old sentences; they are gone at `e51c2e3` (verified by reading `docs/userguide.md:387-399` at `2893a3f`). The behaviour itself is unchanged and the message text is still open (row L4b-3 above). | fixed (wording, `e51c2e3`); behaviour and message unchanged | owner |
 | A3-10 point 3 | `quill tail -n 21` on a log with 10 records in a hole from 1 and 20 readable records exits 1 ("records 10 to 10 are unavailable"), because 21 reaches one record into the hole; that follows the rule, no test pins it, and the owner's wording ("reaching the oldest record") is looser. | open | owner |
 | A3-10 point 4 | The A5-18 notes (decision 36, the user guide, `scope.md`) say a consumer behind `First` means the log is intact and `check` stays HEALTHY; with a damaged oldest segment `check` is UNHEALTHY for the hole and also warns of the new consumer at 1. | open | owner |
 
@@ -441,7 +466,13 @@ between stating "64-bit, untested elsewhere" and refusing the other architecture
 ### What was not run at the tag
 
 "The tag" means the commit it will sit on. It is 41 commits after `ba30fee`, the last commit [live-integration.md](live-integration.md)
-names, as of `e8909b6` (verified: `git rev-list --count ba30fee..HEAD`).
+names: 41 commits as of `e8909b6`, 45 as of `2893a3f` (verified: `git rev-list --count ba30fee..HEAD` at each).
+
+**The Linux gate of the pre-tag batch (2026-11-04) ran on tmpfs only** (reported by the owner's conditions for the batch, as
+given with the task: the box is used through the harness script, which keeps the snapshot, `TMPDIR` and the Go cache on a RAM
+tmpfs; not re-derived here). This record's own commit changes documentation only and ran nothing heavy. The ext4 filesystem
+matrix and the power-cut replays were **deferred by the owner** (no power-off is possible) and were not run for this batch; the
+first two rows below are therefore not new evidence for the tag.
 
 | what | what exists | state | who decides |
 |---|---|---|---|

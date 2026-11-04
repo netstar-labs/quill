@@ -9,7 +9,7 @@ Labels: **verified** (run, or the exact lines read, by an auditor or skeptic nam
 it; the source is named), **inferred** (constructed from what is named). This file is a record: the recorder read the ledger the
 auditors and skeptics produced and the commits' messages and diffstats, and ran nothing. Every "verified" below is the
 auditor's or skeptic's, not the recorder's. Companion files: [stage2-owner-decisions.md](stage2-owner-decisions.md) (the one
-item held for the owner, section "Held after pass A1d"), [a1-round2-findings.md](a1-round2-findings.md) (the earlier A1
+item that was held for the owner until 2026-11-04, section "Held after pass A1d"), [a1-round2-findings.md](a1-round2-findings.md) (the earlier A1
 passes), [live-integration.md](live-integration.md), [gap-audit.md](gap-audit.md), [mutation-hardening.md](mutation-hardening.md)
 and [verification-optimization.md](verification-optimization.md) (the ledgers this pass's items cite).
 
@@ -18,12 +18,22 @@ and [verification-optimization.md](verification-optimization.md) (the ledgers th
 Fourteen items. Nine are CONFIRMED, one is REFUTED, and four were not put to a vote because an earlier pass had already decided
 the same question (round 1 of A1, or the gap audit A7). No item is PLAUSIBLE.
 
-| Verdict | Items | Disposition | Items |
-|---|---|---|---|
-| CONFIRMED | 9: A1d-2, 3, 4, 5, 6, 7, 9, 10, 12 | fixed, fix-skeptic FIXED-VERIFIED | 8: A1d-2, 3, 4, 5, 6, 7, 10, 12 |
-| REFUTED | 1: A1d-8 | fix written, rejected by the fix-skeptic, not merged; held for the owner | 1: A1d-9 |
-| decided in an earlier pass, not voted | 4: A1d-1, 11, 13, 14 | deliberately not changed (earlier decision stands) | 4: A1d-1, 11, 13, 14 |
-| PLAUSIBLE | 0 | refuted, nothing changed | 1: A1d-8 |
+Counts as updated 2026-11-04, after the owner approved the answer for A1d-9 (the 2026-11-03 version of this table showed A1d-9 as
+held for the owner, with eight fixes). The two tables count the same fourteen items, by verdict and by disposition.
+
+| Verdict | Items |
+|---|---|
+| CONFIRMED | 9: A1d-2, 3, 4, 5, 6, 7, 9, 10, 12 |
+| REFUTED | 1: A1d-8 |
+| decided in an earlier pass, not voted | 4: A1d-1, 11, 13, 14 |
+| PLAUSIBLE | 0 |
+
+| Disposition | Items |
+|---|---|
+| fixed, fix-skeptic FIXED-VERIFIED | 9: A1d-2, 3, 4, 5, 6, 7, 9, 10, 12 |
+| refuted, nothing changed | 1: A1d-8 |
+| deliberately not changed (earlier decision stands) | 4: A1d-1, 11, 13, 14 |
+| held for the owner | 0 (A1d-9 was held from 2026-11-03 until the owner's answer of 2026-11-04) |
 
 - **By kind** (the kind is what the finding is about; the lens that raised it is inferred from the kind: code lens for bug and
   compat, tests lens for test, docs lens for doc and hygiene). bug 1 (A1d-1), compat 2 (A1d-2, 3), test 4 (A1d-4, 5, 6, 7), doc 6 (A1d-8, 9, 10,
@@ -36,16 +46,19 @@ the same question (round 1 of A1, or the gap audit A7). No item is PLAUSIBLE.
   with its output). Seven of the ten voted items have at least one reproducing vote: A1d-2, 3, 4, 5, 6, 7 and 12. A1d-3 has one
   reproducing vote of two, the other read the struct definitions. The three voted items with none (A1d-8, 9, 10) are documentation
   items settled by reading code and documents. A1d-1, which was not voted, was reproduced by its auditor.
-- **Fix-skeptics.** 8 fixes, 8 FIXED-VERIFIED, 50 lens verdicts (7 each for A1d-2 and A1d-3, 6 each for the other six), all
-  pass (reported by the fix-skeptics, who ran the tests and the gate's checks on copies of the tree; not re-run by the
-  recorder). The ninth fix, for A1d-9, was rejected by its fix-skeptic and is not merged (see the item). Fixes before the
-  accepted ones: A1d-2 and A1d-9 each had an earlier attempt rejected (reported by the fix summaries; neither earlier
-  commit is named in the ledger).
-- **Fix commits.** All eight are in the tree (verified by `git log`): `d45f1f2` (A1d-4), `6eb1bdd` (A1d-5), `96588fb`
-  (A1d-2), `65b7cb0` (A1d-3), `ae71dba` (A1d-6), `41aaef3` (A1d-7), `652154f` (A1d-10), `85fecc9` (A1d-12). `f2287c7` (A1d-9) exists in
-  the repository and is not an ancestor of the tip (verified by `git merge-base --is-ancestor`).
+- **Fix-skeptics (updated 2026-11-04).** 9 fixes, 9 FIXED-VERIFIED, 56 lens verdicts (7 each for A1d-2 and A1d-3, 6 each for the
+  other seven), all pass (reported by the fix-skeptics, who ran the tests and the gate's checks on copies of the tree; not re-run
+  by the recorder). The ninth fix, for A1d-9, is the owner-approved documentation-only change of 2026-11-04 (`03b61eb`, 6 of 6
+  lenses); the earlier attempt `f2287c7` was rejected by its fix-skeptic and is not merged (see the item). Fixes before the
+  accepted ones: A1d-2 and A1d-9 each had an earlier attempt rejected (reported by the fix summaries; for A1d-9 the first attempt,
+  a longer list, is not named in the ledger and the second is `f2287c7`; for A1d-2 neither earlier commit is named).
+- **Fix commits.** All nine are in the tree (verified by `git log`): `d45f1f2` (A1d-4), `6eb1bdd` (A1d-5), `96588fb`
+  (A1d-2), `65b7cb0` (A1d-3), `ae71dba` (A1d-6), `41aaef3` (A1d-7), `03b61eb` (A1d-9), `652154f` (A1d-10), `85fecc9` (A1d-12).
+  `f2287c7` (the rejected A1d-9 attempt) exists in the repository (`git cat-file -t` gives `commit`) and was not an ancestor of
+  the tip on 2026-11-03 (verified then by `git merge-base --is-ancestor`; the 2026-11-04 fix was written afresh, not merged from it).
 - **What changed in production behaviour.** One fix changes the program: A1d-2 (Open sets an existing `quill.tail` to
-  `Config.Perm` in place). The other seven are tests (A1d-4, 5, 6, 7) or CHANGELOG text (A1d-3, 10, 12). None touches an on-disk byte.
+  `Config.Perm` in place). The other eight are tests (A1d-4, 5, 6, 7), CHANGELOG text (A1d-3, 10, 12) or documentation and one doc
+  comment in `config.go` (A1d-9). None touches an on-disk byte.
 - **No defect in the log format, in recovery or in the guarantees was found by this pass.** What it found is one behaviour
   regression of low reach (A1d-2, fixed), one cost under a lock that an earlier decision accepted (A1d-1), four gaps in tests that
   leave a reintroduced defect unnoticed or make a test flaky, and documentation that is stale or inaccurate.
@@ -186,7 +199,7 @@ These were looked at and not filed; each has no reproduction unless stated.
 | A1d-6 | test | low | CONFIRMED | 2 of 2 | 2 of 2 | fixed in `ae71dba`, FIXED-VERIFIED (6 of 6) |
 | A1d-7 | test | low | CONFIRMED | 2 of 2 | 2 of 2 | fixed in `41aaef3`, FIXED-VERIFIED (6 of 6) |
 | A1d-8 | doc | low | REFUTED | 1 CONFIRMED, 2 REFUTED | none | refuted, nothing changed |
-| A1d-9 | doc | low | CONFIRMED | 2 of 2 | none | fix written (`f2287c7`), rejected, not merged; owner-approved 2026-11-04 as documentation only, applied afresh in the `fix(stage2 A1d-9)` commit (see the item) |
+| A1d-9 | doc | low | CONFIRMED | 2 of 2 | none | fixed in `03b61eb` (owner-approved 2026-11-04, option 1, documentation only), FIXED-VERIFIED (6 of 6); the earlier attempt `f2287c7` was rejected and is not merged |
 | A1d-10 | doc | low | CONFIRMED | 2 of 2 | none | fixed in `652154f`, FIXED-VERIFIED (6 of 6) |
 | A1d-11 | doc | low | decided in A7, not voted | none | none | deliberately not changed |
 | A1d-12 | doc | low | CONFIRMED | 2 of 2 | 2 of 2 | fixed in `85fecc9`, FIXED-VERIFIED (6 of 6) |
@@ -365,7 +378,7 @@ whose active segment is segment 2 holding 41 to 43 at offset 69, with `quill.tai
 
 **Disposition.** Refuted, nothing changed. The optional one-line dated note proposed by the auditor was not written.
 
-### A1d-9: the logger documentation's list of records Open gives itself is incomplete (low, CONFIRMED, fix rejected)
+### A1d-9: the logger documentation's list of records Open gives itself is incomplete (low, CONFIRMED, fixed 2026-11-04)
 
 **Claim.** The `Config.Logger` rule in `docs/userguide.md` (the `Logger` row, near line 242) and decision 50 lists four records `Open` gives itself (a cut newest segment, a `quill.lock` it cannot tighten, an ahead consumer, a failing first
 `quill.policy` write) as the exceptions to "every record above runs with the lock held". After L3b-8 `Open` also gives the marker-publish Warn ("cannot publish quill.tail...") and, if `publishLocked` rotates, a rotation Warn; like the other four, they run before `Open` returns with no lock held. By the list's own wording they would run under the lock.
@@ -380,9 +393,9 @@ whose active segment is segment 2 holding 41 to 43 at offset 69, with `quill.tai
 
 **Verdict.** CONFIRMED, 2 of 2, neither reproduced (read only).
 
-**Disposition.** Fix written, rejected by the fix-skeptic, not merged: held for the owner (see [stage2-owner-decisions.md](stage2-owner-decisions.md), section "Held after pass A1d"). A first attempt (a longer list adding the new records) was rejected because the enumeration would go stale again (reported by the fix summary). The second, `f2287c7`, states the exception by where a record is written rather than as a list, in the user guide, `scope.md`, decision 50 and the `config.go` doc. The fix-skeptic's objection: the dated A1d-9 note on decision 50 lists "the consumer-passed Warn" among the records `Open` writes through the seal its recovery makes, and the code cannot produce it (`l.offsets` is nil until `log.go:217`, after `load()` has run `publishLocked` and its seal; the fix-skeptic ran a protected consumer at offset 1 plus a seal at `Open` and got only the "deleted segment" Info). The same sentence also still enumerates `Open`'s own warnings and omits the `quill.tail` mode Warn added by `96588fb`. `f2287c7` is not an ancestor of the tip (verified).
+**Disposition as of 2026-11-03 (superseded by the Resolution below).** Fix written, rejected by the fix-skeptic, not merged: held for the owner (see [stage2-owner-decisions.md](stage2-owner-decisions.md), section "Held after pass A1d"). A first attempt (a longer list adding the new records) was rejected because the enumeration would go stale again (reported by the fix summary). The second, `f2287c7`, states the exception by where a record is written rather than as a list, in the user guide, `scope.md`, decision 50 and the `config.go` doc. The fix-skeptic's objection: the dated A1d-9 note on decision 50 lists "the consumer-passed Warn" among the records `Open` writes through the seal its recovery makes, and the code cannot produce it (`l.offsets` is nil until `log.go:217`, after `load()` has run `publishLocked` and its seal; the fix-skeptic ran a protected consumer at offset 1 plus a seal at `Open` and got only the "deleted segment" Info). The same sentence also still enumerates `Open`'s own warnings and omits the `quill.tail` mode Warn added by `96588fb`. `f2287c7` is not an ancestor of the tip (verified).
 
-**Resolution (2026-11-04, owner-approved, documentation only).** Not `f2287c7`: a fresh change that states the exception by where a record is written and lists no record. The records `Open` itself writes run on the caller's goroutine before `Open` returns, before there is a `Log`, with no lock held; every other record runs with the lock held; the handler rule (do not call the `Log`, do not block) still applies to both. The user guide's `Logger` row, `scope.md`'s `Logger` row, decision 50 (with a dated A1d-9 note) and the `Config.Logger` doc say so. Before the wording was written, `Open` was run in a scratch copy under a recording handler that tried the log's lock at each record (verified; a control record after `Open` saw it held). Records seen, all with the lock free: the cut-newest-segment Warn; the `quill.lock` untightenable Warn; the `quill.tail` mode Warn; the ahead-consumer Warn; the first `quill.policy` write Warn; the "cannot publish quill.tail" Warn (injected ENOSPC on the temp file, stale marker); the "cannot create the next segment" Warn (rotation failing during recovery); and, for a seal during recovery (a stale marker, a reopen with a smaller `SegmentBytes`), the "deleted segment" Info (`MaxRecords` 3) and the "cannot read free space" Warn (`MinFreeBytes` unreachable). The consumer-passed Warn did not appear (a protected consumer at offset 1 with a seal at `Open` gave only the "deleted segment" Info), so it is not named.
+**Resolution (2026-11-04, owner-approved, documentation only; fixed in `03b61eb`, fix-skeptic FIXED-VERIFIED, 6 of 6 lenses, reported).** Not `f2287c7`: a fresh change that states the exception by where a record is written and lists no record. The records `Open` itself writes run on the caller's goroutine before `Open` returns, before there is a `Log`, with no lock held; every other record runs with the lock held; the handler rule (do not call the `Log`, do not block) still applies to both. The user guide's `Logger` row, `scope.md`'s `Logger` row, decision 50 (with a dated A1d-9 note) and the `Config.Logger` doc say so. Before the wording was written, `Open` was run in a scratch copy under a recording handler that tried the log's lock at each record (verified; a control record after `Open` saw it held). Records seen, all with the lock free: the cut-newest-segment Warn; the `quill.lock` untightenable Warn; the `quill.tail` mode Warn; the ahead-consumer Warn; the first `quill.policy` write Warn; the "cannot publish quill.tail" Warn (injected ENOSPC on the temp file, stale marker); the "cannot create the next segment" Warn (rotation failing during recovery); and, for a seal during recovery (a stale marker, a reopen with a smaller `SegmentBytes`), the "deleted segment" Info (`MaxRecords` 3) and the "cannot read free space" Warn (`MinFreeBytes` unreachable). The consumer-passed Warn did not appear (a protected consumer at offset 1 with a seal at `Open` gave only the "deleted segment" Info), so it is not named.
 
 ### A1d-10: the CHANGELOG pool entry says Open now allocates about 1 MB, the ledger says 2.1 MB (low, CONFIRMED, fixed)
 

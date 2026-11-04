@@ -152,6 +152,41 @@ unsupported and not covered.
 
 **Coverage (pass L3c).** This is a fix-and-record pass with no auditors: the ledger lists no auditor clean checks and no auditor that failed to return, and nothing was audited afresh. What the fix-skeptics checked and found clean (reported): for L3b-7, the new test fails when the error is wrapped with `ErrLocked` (the rejected runner-up, applied as a mutation), the documented behaviour on the Linux box matches the text for `roll`, `recover` and `prune` as another uid and for root, golden bytes and testdata untouched, `gofmt`, `go vet` and `go test -race -count=1 ./...` clean, `go doc -all .` differs only in the added paragraphs, no internal product named. For L3b-8, 7 of the 8 new tests fail with the fix reverted and mutations of the clamp and its guard are caught, the full gate with `FUZZTIME=20s bash hack/gate.sh` exited 0 (gofmt, vet on linux and darwin, race tests, staticcheck, deadcode, fuzz, `go mod tidy`), the race tests passed on macOS and on the Linux box, golden bytes untouched, no new exported symbol, flag or config field, a live run on a real 8 MiB tmpfs at zero free bytes with the CLI verbs and the public API, and `hack/topology.sh run -fill` for 90 s on the final commit (ok, 725 writer restarts, 4 fills, no violations). Not covered: the L3b-7 fix-skeptic did not run `staticcheck`, `deadcode` or the gate for that commit (it changes comments and one test; inferred from the diff), did not run `append` as another uid (script slip) and did not run the unreadable-`quill.policy` `prune` case live (read from the code); the L3b-8 fix-skeptic ran only the pending-publish and zero-free-block cases on tmpfs, not the other filesystems of the L3b matrix (xfs, f2fs, overlay, btrfs), which is where the harness first hit L3b-8; the recorder ran nothing and read the two commits' diffs only. Open points the fix-skeptics left, none blocking, are in the two sections (L3b-7: the `docs/reference.md` and `verbs.go` help text; L3b-8: a rotation due at `Open` still frees nothing, as in a running writer, and four wording and coverage nits).
 
+**Update 2026-11-04 (pre-tag batch, pass L4b).** Five items, recorded in the section "Pre-tag batch 2026-11-04" near the end of this
+file. One is A1d-9, the item held since 2026-11-03: the owner took option 1 on 2026-11-04 (fix it, by wording that cannot go stale).
+The other four, L4b-1 to L4b-4, are documentation items the wave 6 completeness critic raised; the owner said "go" for the batch on the
+condition that the Linux box is used on tmpfs only. All five are documentation only: no code change, and no change to a CLI message,
+an exit code or an exported API. Three things the critic raised that do need a code change or a message change are **not** approved
+and are held, each with a recommended answer, in "Held after the pre-tag batch" at the end of this file. This update does not
+say that every finding was fixed or that every fix was skeptic-validated; see the last paragraph below.
+
+| counted over the 5 items | |
+|---|---|
+| verdict | 5 CONFIRMED (the ledger labels them so; A1d-9 was voted 2 of 2 in pass A1d, the other four carry no votes); 0 PLAUSIBLE; 0 REFUTED |
+| disposition | 5 fixed, each in its own commit on `main`, each FIXED-VERIFIED by a fix-skeptic: A1d-9 `03b61eb`, L4b-1 `e8909b6`, L4b-2 `bdb1522`, L4b-3 `e51c2e3`, L4b-4 `be9adfb`; 0 fix-failed; 0 held; 0 deliberately not changed. Three further things from the critic are held (below) and are not counted as items of this batch |
+| skeptic votes on the items | 0 in this batch (the ledger carries no votes); the 2 of 2 for A1d-9 are in [a1-diff-scoped.md](a1-diff-scoped.md) |
+| fix-skeptic lens verdicts | 30, all pass (6 lenses each: test-fails-without-fix, root-cause, behaviour-preserved, no-new-gap, reachable, ladder), reported by the fix-skeptics. For a documentation-only commit the first lens reads "not applicable" and the skeptic checked the text against the code or a run instead; the outcomes record that |
+| reproduced by execution | Something was run for each item, but only L4b-3's defect is a run that shows the old text wrong: **L4b-3** (CLI built from the tree: archive exit 3, then `check` HEALTHY exit 0, second archive exit 0; run by the fixer and again by the fix-skeptic). **A1d-9**: `Open` was run under a recording handler for nine cases (listed in its entry) to write the new rule; the finding itself was settled by reading in pass A1d. **L4b-1**: the fix-skeptic ran 7 CLI cases against builds of `v0.1.0` and the fixed tree; about 30 of the 38 table rows were not re-run. **L4b-2**: the fix-skeptic ran `quill -h`, `quill --help`, and 32-bit and big-endian builds. **L4b-4**: every count was recomputed by a command |
+
+**Coverage (pre-tag batch).** This is a fix-and-record batch with no auditors: the ledger lists no auditor clean checks and no
+auditor that returned nothing (both lists are empty, verified from the ledger given to the recorder), so no area is recorded as
+audited afresh and "an auditor failed to return" is not claimed for any. The items came from the owner's approval (A1d-9) and from
+the wave 6 completeness critic (L4b-1 to L4b-4; reported, the critic's own text is not in the tree). What the fix-skeptics checked
+and found clean (reported): `gofmt` and `go vet` green on the fixed tree for all five; `go test -race -count=1 ./...` green for A1d-9, L4b-1,
+L4b-3 and L4b-4 (the L4b-2 skeptic did not run it, because only a Markdown file changed); golden bytes and testdata untouched in all five; `go doc -all` identical, or differing only in
+the `Config.Logger` and `Archive` comments; no new exported symbol, flag, file or config field; no internal product name in the added
+text. Not covered: `staticcheck` and `deadcode` were not run by any of the five fix-skeptics (documentation and comments cannot
+change them; the skeptics' reasoning, inferred). The Linux gate for this wave ran on **tmpfs only**; the ext4 filesystem matrix and
+the power-cut replays are **deferred by the owner** (no power-off is possible) and were not run. L4b-1: the classification of 58 of the 144
+CHANGELOG entries as "not user-visible" is inferred from each entry's own words, and about 30 table rows were not re-run. L4b-2: the
+statement that the Linux gate ran on tmpfs only is reported, not re-derived. Windows is unsupported and not covered.
+
+**What this record does not say.** Not every finding of the stage 2 audit was fixed, and not every fix was skeptic-validated. Fixes
+finished by hand with no fix-skeptic re-run are recorded in this file: L1-3, L1-4, L1-10, A7-18, A7-19, the `ed518a2` comments, and
+commits `badb254`, `0aa9659` and `8e45aa0`. Findings held with no fix written: the A3-7 code hardening, the A3-24 range check on the
+`time` field and any change for A3-26 (see "Held after pass A3r"). The release record's "Known limitations and open items at the tag"
+rolls these up, with what was not run.
+
 | id | sev | one line | recommended | status 2026-10-30 |
 |----|-----|----------|-------------|----|
 | A1-67 | high | the documented `quill commit` rewind of an ahead consumer fails with ErrAhead | fix the doc now; approve letting `commit` rewind | approved 2026-10-31; fixed ba7c650 (FIXED-VERIFIED, 7 of 7) |
@@ -2391,7 +2426,7 @@ before the flip.
 
 Pass A1d (adversarial audit of the v0.1.0..HEAD diff, 2026-11-03; the full record is [a1-diff-scoped.md](a1-diff-scoped.md)) came to
 fourteen items. Eight were fixed, each FIXED-VERIFIED by a fix-skeptic, and one was refuted; four were decided in an earlier pass and
-left unchanged. One item is held for the owner: a documentation fix was written and rejected by its fix-skeptic and is not merged.
+left unchanged. One item is held for the owner: a documentation fix was written and rejected by its fix-skeptic and is not merged. **Update 2026-11-04: the owner answered it (option 1) and it is fixed in `03b61eb`; see the end of this section and "Pre-tag batch 2026-11-04".**
 
 ### A1d-9: the logger documentation's list of records `Open` gives itself is incomplete (low)
 
@@ -2419,6 +2454,14 @@ consumer-passed Warn" from the note and from the commit's summary, and either dr
 re-run on the corrected commit.
 
 **Resolved 2026-11-04.** The owner approved the documentation-only answer. It was applied as a fresh `fix(stage2 A1d-9)` commit (not by merging `f2287c7`) that lists no record: the records `Open` itself writes run with no lock held, every other record with the lock held (see the item in [a1-diff-scoped.md](a1-diff-scoped.md) for the records run to check it).
+
+**Owner's answer 2026-11-04: option 1, fix by general wording.** The owner approved the recommended answer above in its documentation-only form: state the
+exception by where a record is written and list no record, so that it cannot go stale. `f2287c7` was not merged and not cherry-picked, and the
+first attempt (a longer list) was not reused. The fix is `03b61eb`, `fix(stage2 A1d-9)`; its fix-skeptic returned FIXED-VERIFIED, 6 of 6 lenses
+(reported). It changed the user guide's `Logger` row, `scope.md`'s `Logger` row, the `Config.Logger` doc in `config.go` (a comment, so `go doc -all`
+differs only there), decision 50 (a dated note, "Stage 2 audit, owner-approved 2026-11-04, A1d-9"), `CHANGELOG.md` (a "Changed: documentation only" line
+under Unreleased) and the A1d-9 row and resolution paragraph of [a1-diff-scoped.md](a1-diff-scoped.md). The full entry for this item, with the
+records that were run, is in "Pre-tag batch 2026-11-04" below.
 
 ### Not held, but worth the owner's eye: A1d-1 (medium)
 
@@ -2497,5 +2540,220 @@ what the project says publicly about its origin and the comparison review.md mak
 **Recommended answer.** The owner reads review.md's tables once with the question "does this identify the product?". If it does,
 generalise rows 3, 4 and 13 to a sentence each and the other mentions likewise; if not, leave it and record in decisions.md that
 the policy is names and figures only.
+
+**Fix written.** None.
+
+## Pre-tag batch 2026-11-04
+
+Pass L4b. Date 2026-11-04, against `main` as it stood after the wave 6 fixes. Five items, all documentation only: no code change, and no
+change to a CLI message, an exit code or an exported API. A1d-9 is here because the owner answered it (option 1, fix it by wording that cannot go
+stale). L4b-1 to L4b-4 are here because the wave 6 completeness critic raised them against the release record and the audit records, and the owner
+said "go" for the batch on the condition that the Linux box is used on tmpfs only (this wave's harness does). The top-line counts and the coverage
+statement are in "Update 2026-11-04 (pre-tag batch, pass L4b)" near the head of this file. Labels: **verified** (the recorder read the lines or ran the
+command in this tree), **reported** (the fixer's or the fix-skeptic's account, or the task text; the source is named), **inferred**. The recorder
+ran nothing heavy: commits, diffstats and the files as they are at `2893a3f` were read, and the counting command of L4b-1 was run.
+
+| id | kind | severity | verdict | owner's answer or reason in the batch | commit | fix-skeptic |
+|---|---|---|---|---|---|---|
+| A1d-9 | doc | low | CONFIRMED | owner, option 1, 2026-11-04 | `03b61eb` | FIXED-VERIFIED, 6 of 6 |
+| L4b-1 | doc | medium | CONFIRMED | critic item, batch approved 2026-11-04 | `e8909b6` | FIXED-VERIFIED, 6 of 6 |
+| L4b-2 | doc | medium | CONFIRMED | critic item, batch approved 2026-11-04 | `bdb1522` | FIXED-VERIFIED, 6 of 6 |
+| L4b-3 | doc | medium | CONFIRMED | critic item, batch approved 2026-11-04 | `e51c2e3` | FIXED-VERIFIED, 6 of 6 |
+| L4b-4 | doc | low | CONFIRMED | critic item, batch approved 2026-11-04 | `be9adfb` | FIXED-VERIFIED, 6 of 6 |
+
+The ledger's Warrant, Backing and Rebuttal fields for all five read "See the record" (they point at the records named in each entry), and the
+ledger carries no skeptic votes for them. Where an entry says "Rebuttal: none raised", that is what the ledger holds; the strongest objection
+the fix-skeptic could build against the fix is given under Disposition, and is not a rebuttal of the finding.
+
+### A1d-9: the `Config.Logger` rule lists the records `Open` gives itself, and the list is incomplete (low)
+
+**Claim.** The rule said `Open` gives itself four or five enumerated warnings and that every other record runs under the log's lock. `Open` also gives the
+marker-publish Warn and a rotation Warn, so the enumeration is incomplete (and it would go stale again). Documentation only.
+
+**Grounds.** The finding, its two skeptic votes (CONFIRMED, 2 of 2, read from the code) and the rejected attempts are in [a1-diff-scoped.md](a1-diff-scoped.md) and in
+"Held after pass A1d" above.
+
+**Warrant, Backing.** A rule with an exception list is false for any record the list omits (decision 50, restated at L1-10). Rebuttal: none raised in the ledger;
+`config.go` already said generically "except those Open gives itself", so a handler written to the documented rule was safe either way.
+
+**Verdict.** CONFIRMED.
+
+**Reproduction (reported, from the commit message of `03b61eb`; run by the fixer in a scratch copy, not re-run by the recorder).** `Open` was run under a
+recording `slog` handler that tried the log's lock at each record; a control record written after `Open` saw the lock held. Every record below saw the lock
+free, so the new text says the records `Open` itself writes run with no lock held:
+
+| case | record | lock free at the record |
+|---|---|---|
+| a cut newest segment | Warn "cut the newest segment past the marker" | yes |
+| `quill.lock` it cannot tighten | Warn "quill.lock is wider than 0600 and could not be tightened" | yes |
+| `quill.tail` it cannot give the `Perm` mode | Warn "quill.tail could not be given the mode in Config.Perm" | yes |
+| an ahead consumer | Warn "consumer offset is ahead of the head; rewind it with quill commit" | yes |
+| a first `quill.policy` write that fails | Warn "quill.policy could not be written; ..." | yes |
+| a marker publish that fails (injected `ENOSPC`, stale marker) | Warn "cannot publish quill.tail; ..." | yes |
+| a rotation that fails during recovery | Warn "cannot create the next segment; ..." | yes |
+| a seal during recovery (`MaxRecords` 3) | Info "deleted segment" | yes |
+| a seal during recovery (`MinFreeBytes` unreachable) | Warn "cannot read free space" | yes |
+| a seal during recovery with a protected consumer at offset 1 | only the "deleted segment" Info; no consumer-passed Warn (`l.offsets` is nil until after `load`), so it is not named | yes |
+
+**Owner's answer 2026-11-04.** Option 1, fix by general wording (the section "Held after pass A1d" above carries the same answer).
+
+**Disposition.** Fixed in `03b61eb`; fix-skeptic FIXED-VERIFIED, 6 of 6 lenses (reported). The wording now says: the records `Open` itself writes run on the caller's
+goroutine before `Open` returns, before there is a `Log`, with no lock held; every other record runs with the lock held; the handler rule (do not call the
+`Log`, do not block) still applies to both. Changed in the user guide's `Logger` row, `scope.md`'s `Logger` row, the `Config.Logger` doc, decision 50 (dated note)
+and `CHANGELOG.md`. The fix-skeptic checked in the code (reported) that no record `Open` writes holds `l.mu` (`Open` calls the lock-tighten, create, load,
+stale-temp cleanup, policy and ahead-consumer steps and only then starts the flusher) and that every other record is written under it; it ran
+`go test -race -count=1 ./...` (all packages ok), and `TestTheLoggerRunsUnderTheLogsLockAsDocumented`, which pins the lock-held half, is unchanged. No regression
+test was added: one would need a production hook to see the `*Log` before `Open` returns. The fix-skeptic's only objection was cosmetic: the pass summary and
+the item heading of [a1-diff-scoped.md](a1-diff-scoped.md) still described the state before approval; this batch's record updates them (counts, the row, the heading).
+
+### L4b-1: the release record's migration table lists 8 breaking changes and omits changes `CHANGELOG.md` records (medium)
+
+**Claim.** The migration table of [release-v0.2.0.md](release-v0.2.0.md) listed 8 breaking changes, omitted script-visible and library-visible changes that
+`CHANGELOG.md` records, and called the unkeyed-literal break on two types "the only compile-time break".
+
+**Grounds.** The critic compared the record with `CHANGELOG.md` Unreleased and `git log --oneline v0.1.0..HEAD` (reported). The fix-skeptic re-derived it: at the
+fixed commit the count command gave 144 entries; a `go/parser` dump of the exported declarations of `v0.1.0` (from `git archive`) against the fixed tree
+showed exactly four exported structs changed: `ConsumerOptions` (new `Rewind`), `Problem` (new unexported `refused`), `SegmentError` (new unexported `oversize`)
+and `Stats` (six new exported fields); no function, method, constant or variable was added, removed or changed (reported by the fix-skeptic).
+
+**Warrant, Backing.** A migration table is what an upgrader acts on; one that omits a change they must act on, or that understates the compile break, fails its
+purpose. Backing: the type diff above and `CHANGELOG.md`'s own entries. Rebuttal: none raised.
+
+**Verdict.** CONFIRMED.
+
+**Reproduction (reported, by the fix-skeptic).** Seven CLI cases run against builds of `v0.1.0` and the fixed tree, all matching their rows: `tail -n 010`
+(8 lines, then 10); `read 5` (exit 0, then 2); `stat -json` holes (`null`, then `[]`); `roll` on a non-log directory (exit 0 and 5 entries created, then exit
+1 and none); `archive` into a populated non-log directory (files added, then exit 1 and unchanged); `cat -json` with byte 0x7f (raw, then `\u007f`); `read -from
+0x2` (exit 0, then 2). Not run: a closed standard output and `/dev/full`, and about 30 of the 38 rows.
+
+**Why in the batch.** The record is the upgrade guide the release will carry; a wrong "only" is a wrong sentence in it.
+
+**Disposition.** Fixed in `e8909b6` (the earlier attempt, `8984539`, was cherry-picked and its over-claim and count command corrected, per the fixer's summary);
+fix-skeptic FIXED-VERIFIED, 6 of 6 lenses (reported). The record now has a 38-row migration table, each row with what changed, who is affected, what to do and
+the `CHANGELOG.md` line or commit; the same list heads the Unreleased section of `CHANGELOG.md` as "Breaking changes and upgrade notes"; and the compile break
+is stated as the four types above. `CHANGELOG.md`'s own line says the list is "a best effort, not a proof of completeness", and the heading stays
+`## Unreleased`. The 86 of 144 entries that have a row and the 58 listed by line as not user-visible are the fixer's classification, **inferred** from each
+entry's words and mostly not re-run. Skeptic's nits, not fixed: the 64 KiB `cat`/`read` buffer entry (line 90) is classed performance-only though a killed
+process can lose up to 64 KiB of already-read output; `CHANGELOG.md:10` summarises the 58 as "documentation, tests, performance or internal tooling" though the record
+also lists a latent bug (147) and a race and a cache-growth fix (370, 374). **Drift since the fix-skeptic's check (verified by the recorder at `2893a3f`):** the count
+command now prints 146, because `be9adfb` and `e51c2e3` each added a documentation-only entry (lines 431 and 432, after the last covered line); the release record
+carries the corrected counts (146 entries, 86 with a row, 60 not user-visible), and `CHANGELOG.md` lines 10 and 58 still say 144 and 58 (not edited here).
+
+### L4b-2: the release record does not roll up the items still held or deferred for the owner (medium)
+
+**Claim.** [release-v0.2.0.md](release-v0.2.0.md) had a checklist (licence, history, branches, metadata) but no list of the audit findings that stayed open, accepted or
+deferred, nor of what was not run at the tag. Two small errors were also in it: `SECURITY.md:34-36` is at `SECURITY.md:31-32`, and the gate log it quoted
+covers macOS only, not both platforms.
+
+**Grounds.** The critic read the release record against the records (reported). The fix-skeptic checked each entry against its source: A1d-1 (the 2.128 s,
+204 ms and 401-segment figures are labelled reported, not re-run), A3-7, A3-24, A3-26, A3-18, L1-12 and the optional `Archive` refusal, the four A3-10 open
+points, the hand-finished fixes, A4r-3 and L3b-15 (all matched), and ran `quill -h`, `quill --help`, `quill help`, `quill version`, `quill --version` and 32-bit and
+big-endian builds (reported). Verified by the recorder: `SECURITY.md:31-32` holds the "Stage 2 audit ... A3-7" cite.
+
+**Warrant, Backing.** An owner reading the release record before the tag needs one list of what is still open; the records hold it in six files. Rebuttal: none raised.
+
+**Verdict.** CONFIRMED.
+
+**Reproduction (reported, by the fix-skeptic).** `quill -h` and `quill --help` print `quill: flag: help requested` and exit 2; `quill help` and `quill version` exit 0; `quill
+--version` exits 2. `GOOS=linux go build ./...` exits 0 for 386, arm, riscv64 and s390x and `GOOS=freebsd go build ./...` exits 1; `go test -c` exits 1 for 386 and arm
+(`log_test.go:195`, `math.MaxInt64` overflows `int`) and compiles for riscv64 and s390x.
+
+**Why in the batch.** The release record is what the owner reads before the tag.
+
+**Disposition.** Fixed in `bdb1522`; fix-skeptic FIXED-VERIFIED, 6 of 6 lenses (reported). The section "Known limitations and open items at the tag" was added to the release
+record (26 table rows in four tables and a paragraph on platforms, counted by the recorder; the fixer's summary said 36 entries, which the file does not bear out, and the
+section itself states no count). Each entry has the id and record, one sentence, a state (open, accepted, deferred, not run) and who decides. The `SECURITY.md` anchor
+was corrected and a paragraph under the pre-flight table says the gate was a macOS run. `CHANGELOG.md` was not touched, as the item says; no decision was amended. Skeptic's
+objections, none blocking: the `Linux gate ran on tmpfs only` statement is reported from the critic, not re-derived; the A3-7 row cited `SECURITY.md:28-32` where the
+symlink sentence starts at line 27 (corrected to 27-32 in this batch's commit); items such as A4r-1, A4r-4, A4r-5 and A7-15 are covered by the public-flip checklist and the ranked list
+rather than the new section.
+
+### L4b-3: `userguide.md` says `quill check -dir <dest>` keeps reporting the hole after archiving a source with a damaged oldest segment; it reports HEALTHY (medium)
+
+**Claim.** The user guide (and `scope.md`, decision 85 and the `Archive` godoc) said `check` on an archive destination keeps reporting a hole that the archive copied
+past. It does so only when the destination already held records below the hole.
+
+**Grounds.** Open point 2 of the A3-10 fix-skeptic (the section "A3-10" above, and its follow-up paragraph), which the critic re-raised.
+
+**Warrant, Backing.** A script that relies on `check` to remember the loss would lose track of it. Backing: the reproduction below. Rebuttal: none raised; the existing
+test `TestArchiveExitsUnhealthyWhenTheSourceLostRecordsTheArchiveNeverCopied` pins the other case (records already archived below the hole: `check` exits 3), which the new
+text keeps.
+
+**Verdict.** CONFIRMED.
+
+**Reproduction (reported, run by the fixer on a CLI built from the tree at `bdb1522` and again by the fix-skeptic on the fixed tree).** A log of three sealed segments of 500
+records, byte 0 of the first segment damaged. `quill check -dir <log>`: UNHEALTHY. `quill archive -dir <log> -to <dest>`: `quill: the source lost records 1 to 500; the archive holds
+the same hole`, exit 3. `quill stat -dir <dest>`: `first 501`, `records 1000`, `segments 2`. `quill check -dir <dest>`: HEALTHY, exit 0. A second `quill archive`: nothing printed, exit 0.
+(A damage in the middle of segment 0 makes `archive` fail with exit 1 at that segment, a different path.)
+
+**Why in the batch.** A wrong sentence about when the loss is reported is a data-loss-visibility claim, though only in the documents.
+
+**Disposition.** Fixed in `e51c2e3` (documentation and one doc comment in `archive.go`; no code, message or exit-code change); fix-skeptic FIXED-VERIFIED, 6 of 6 lenses (reported). The user
+guide, `scope.md`, decision 85 (an in-place amendment and a dated note, "Stage 2 audit, owner-approved 2026-11-04, L4b-3") and the `Archive` godoc now say that `archive`'s exit 3 is the only
+report of such a loss, that the destination starts after the lost records, and that a script that must not lose track of the hole acts on that exit 3 itself. `CHANGELOG.md` has a "Changed:
+documentation only" line. **Not changed and not approved:** the message "the archive holds the same hole" is inaccurate in this case (the destination holds no hole, it begins later); it
+is held in "Held after the pre-tag batch" below and stays open in the release record. Skeptic's wording nits, not fixed: `userguide.md:387` and `scope.md:339` still open with "the same hole" before the
+qualifier, decision 85's original body is left as written with the correction as notes, and a stray capital "What" follows a semicolon at `userguide.md:393`.
+
+### L4b-4: records cite figures that no longer reproduce at HEAD (low)
+
+**Claim.** `docs/design/review.md:96` gave quill's own size as 5,370 lines (5,399 one commit later), and [a1-diff-scoped.md](a1-diff-scoped.md) stated commit counts (137 commits touching
+non-test, non-hack Go files; a 113 / 74 split) that do not reproduce under any definition the record states.
+
+**Grounds.** The critic's recount (137 only with `examples/` also excluded, 138 without, 139 at the later tip; 124 / 69 for the split, because "production" was undefined) (reported). The fix-skeptic
+re-derived every number in the quill repository (reported): `git log --format=%H v0.1.0..e2d35d1 -- '*.go' ':!*_test.go'` gives 144; with `'*_test.go'` it gives 187, of which 113 are in both and 74 in the second only; adding `build` and
+`hack/*.sh` to the first list gives 152 (119 in both, 68 test-only); `-- '*.go' ':!*_test.go' ':!hack'` gives 138, and with `':!examples'` also 137. `ls *.go | grep -v _test.go | xargs wc -l | tail -1` gave 5405 on the fixed tree.
+
+**Warrant, Backing.** A figure in an audit record that cannot be reproduced is an unsupported claim. Backing: the commands above. Rebuttal: none raised.
+
+**Verdict.** CONFIRMED.
+
+**Why in the batch.** The release record points readers at these records as evidence.
+
+**Disposition.** Fixed in `be9adfb`; fix-skeptic FIXED-VERIFIED, 6 of 6 lenses (reported). `review.md:96` now says "about 5,400 lines" and names the counting command, so it does not go stale. In
+[a1-diff-scoped.md](a1-diff-scoped.md) each commit count is stated beside the command that gives it: 138 at the audited tree (137 only with `examples/` excluded too), and the 113 / 74 split holds only
+when "production" means any non-test `.go` file (119 / 68 with `build/` and `hack/*.sh`). Decision 90 and `CHANGELOG.md` carry dated notes. The 83, 12, 18 and 60 figures in the same record were flagged as
+not recounted. Skeptic's cosmetic nits, not fixed: "drifts by tens of lines per commit" (`review.md:97`) is slightly strong, and `a1-diff-scoped.md:158` still says "the 5,370-line count reproduces", which is the auditor's own dated statement and the item said not
+to change other statements in that file.
+
+**A later commit under the same label (verified by the recorder from `git log`; not part of this ledger).** `2893a3f`, titled `fix(stage2 L4b-4)`, is a **code** change: it makes a `Reader` view overtaken by a rotation and a deletion rebuild from the newer marker (up to five attempts) instead of
+returning the raw `lstat` error, adds `reader_stale_marker_test.go` (stated in its commit message to fail on the previous code), and adds a dated note to decision 101. The ledger of this batch carries no fix-skeptic outcome for it,
+so none is claimed here, and it has no `CHANGELOG.md` entry. It is outside the documentation-only scope of this batch's approval as the task states it; the owner should see it as a separate change (the release record notes it).
+
+## Held after the pre-tag batch
+
+Three things the wave 6 completeness critic raised need a code change or a change to a CLI message, an exit code or a build constraint. The owner's approval of 2026-11-04 was for documentation only, so none
+was approved, none was touched, and none has a fix written. Each stays open in the release record ([release-v0.2.0.md](release-v0.2.0.md), "Known limitations and open items at the tag"). The recommended
+answers are the recorder's reading (inferred) and are recommendations, not decisions. The critic's own text is not in the tree, so the items have no id of their own beyond the ones noted.
+
+### L3b-15 (re-raised by the critic): `quill -h` and `quill --help` print `flag: help requested` and exit 2 (low)
+
+**Claim.** `quill -h` and `quill --help` print `quill: flag: help requested` and exit 2, and `quill --version` exits 2. Verified by the L4b-2 fix-skeptic on a build of the tree (reported); the record of the earlier finding is "L3b-15" in
+[live-integration.md](live-integration.md).
+
+**Why held.** The fix changes an exit code and a message of the CLI, which the owner's approval did not cover. Documents promise only the verbs `help` and `version`, which work and exit 0, so no sentence is false.
+
+**Recommended answer.** Leave it for v0.2.0 and decide after the release: it is a convention nobody depends on yet. If the owner wants it, accept `-h`, `--help` and `--version` at the top level as the verbs, print the same text and exit 0, and add tests that pin the exit code of each. Alternative, if no change is wanted: say in the user guide that the verbs are `help` and `version`, and that the flag forms are usage errors.
+
+**Fix written.** None.
+
+### The `quill archive` message "the archive holds the same hole" is inaccurate when the destination starts after the lost records (low; follow-up of L4b-3)
+
+**Claim.** When the destination starts after the lost records (a new destination, or a source whose damaged oldest segment is a hole from 1), the destination holds no hole; it begins later. The message nevertheless says "the archive holds the same hole".
+Reproduced under L4b-3 above (the documents were corrected; the message text was not).
+
+**Why held.** The fix changes the text of a CLI message (and the library `GapError` text if it is shared), which scripts may match on; the owner approved documentation only.
+
+**Recommended answer.** Change the message for the case where the destination starts after the loss, for example "the source lost records N to M; the archive begins after them", and keep the old wording where the destination already held records below the hole (where the hole is real). Pin both messages in a test, and say in the CHANGELOG that the text changed (a script that matches it would break). If the owner prefers not to change text, leave the message and keep the user-guide paragraph added by `e51c2e3`, which already tells readers it is loose in that case.
+
+**Fix written.** None.
+
+### Platforms: the 64-bit-only claim and the 32-bit build (no id; raised by the L4 critic, recorded in the release record)
+
+**Claim.** `README.md:109` and `scope.md:461` say "Linux and darwin only (arm64, amd64); other platforms fail to build on purpose". Verified by the L4b-2 fix-skeptic with `GOWORK=off` on go1.27.3 (reported): `GOOS=linux go build ./...` exits 0 for 386, arm, riscv64 and s390x, so the module builds for two 32-bit targets and a big-endian one that the documents do not list; `GOOS=freebsd go build ./...` exits 1. `go test -c` exits 1 for 386 and arm (`log_test.go:195`, `math.MaxInt64` overflows `int` in a struct literal) and compiles for riscv64 and s390x. Not run: the library or any test on a 32-bit or big-endian target.
+
+**Why held.** Refusing the other architectures at build time (a build constraint) changes what builds, and stating "untested elsewhere" changes the wording of a guarantee in `scope.md`; both are the owner's.
+
+**Recommended answer.** State it as "64-bit, tested on arm64 and amd64, untested elsewhere" in the README and `scope.md` (documentation, low risk), and refuse 32-bit at build time only if the owner wants the claim enforced: the cheapest enforcement is a compile-time check that `int` is 64 bits (for example a build-constrained file that does not compile on 32-bit targets), which the freebsd refusal in `hack/gate.sh` could be extended to prove. Do not add 32-bit support without a test run on a real 32-bit target.
 
 **Fix written.** None.
