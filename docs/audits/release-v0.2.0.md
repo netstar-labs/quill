@@ -3,7 +3,8 @@
 A rehearsal of the v0.2.0 release, run end to end against commit `35d1185b92e357847fc2943420318d2786e77f07` (committed
 2026-11-04T04:57:42Z) in a scratch clone with a local annotated tag `v0.2.0`. Nothing was pushed, no tag was created in
 the real repository (its only tag is still `v0.1.0`) and no release was published. This document is the record of what
-the rehearsal showed, the commands the real release will run, and what stands between the tree and a public repository.
+the rehearsal showed, the commands the real release will run, what stands between the tree and a public repository, and the
+audit findings that are still open at the tag ("Known limitations and open items at the tag").
 
 Labels: **verified** means the rehearsal ran it or read the exact lines; **reported** names the document that says it;
 **inferred** says from what. Line anchors are to the tree as of this commit.
@@ -35,6 +36,15 @@ that a single commit fixes, and not publishable, for three reasons that are the 
 
 The gate does not run govulncheck (it reads a live database, so it can go red with no change in the repository;
 `hack/gate.sh` header). It is a separate step in the release procedure below and must be run again at tag time.
+
+**The gate in this table ran on macOS only (corrected: this record had implied it covered both platforms).** `hack/gate.sh`
+vets for linux and darwin and refuses freebsd from any host, but its `go test -race`, its fuzz targets and the rest run on the
+host's own operating system (verified: `hack/gate.sh`). The rehearsal's gate run was on the macOS build machine (inferred: the
+record puts the clones and the release engineer on macOS and names no Linux gate run; the Linux box appears only in the
+build comparison and the smoke test below). The Linux gate for this wave of fixes ran on tmpfs
+only (reported by the critic's review of this record, audit item L4b-2; not re-derived), and the full-disk test on a real
+tmpfs is a CI step the gate omits (`hack/gate.sh` header, verified). So the table is a macOS result: no Linux `go test -race` of
+the tag is recorded here.
 
 ### Refusals of the release build (verified, in a second clone so the gated tree stayed clean)
 
@@ -351,11 +361,98 @@ behave, not run here). Then the answer is a new tag (say `v0.2.1`) plus a `retra
 | No internal names in history | **FAIL** (verified). A history search finds an internal name in main's history: commit `98ff9e7` ("docs(audit): A1 adversarial audit findings") added a scratch path that names an internal product and a home directory, and `0b70e82` removed it. `98ff9e7` is an ancestor of `main` and of `v0.1.0`, so a normal push of either publishes it. Commit and tag messages are clean (verified: zero hits). Also in history: `faa8eaf` added the audit prompt with the operator detail above (still at `HEAD`); commit `da2d638` has the message "x" and a placeholder author; the other 360 commits carry one GitHub noreply identity (owner to confirm it is meant to be public). Decide: publish a fresh squashed or filtered history, or accept the leak. `v0.1.0` contains the same path, so it must not be pushed as it is either. See A4r-1 in [supply-chain.md](supply-chain.md). | owner |
 | Scratch refs must not be pushed | **OPEN** (verified). The local repository has 484 branches (`stage2/*`, `failed/*`, `worktree-*`) and `git log --all` reaches them. Push `main` and the release tag by name, never `--all` or `--mirror` (`docs/audits/gap-audit.md:511` and `supply-chain.md` say the same). | owner |
 | Figures from the reference implementation in `review.md` and `scope.md` | **MOSTLY DONE** (verified by reading; the A7-15 record in [stage2-owner-decisions.md](stage2-owner-decisions.md) lists what was removed). Residue: `review.md:74` keeps "minutes for 100+ GB of never-expiring log", which the record says the owner may delete. `review.md` still describes the reference's architecture in detail without a name (a network fan-in layer with a mutually authenticated transport, collector and shipper daemons, a key set); how much of the origin to describe is an owner call (A4r-5). `scope.md` has no figure taken from the reference. | owner |
-| `SECURITY.md` contact | **OPEN.** `SECURITY.md` relies on GitHub private vulnerability reporting (Security tab) with an "open an issue asking for a private contact" fallback and no email address. It works only if the owner enables private reporting in the repository settings once the repository exists; it cannot be checked before then. `SECURITY.md:34-36` cites "Stage 2 audit, owner-approved 2026-11-03, A3-7", internal process wording; consider softening. | owner |
+| `SECURITY.md` contact | **OPEN.** `SECURITY.md` relies on GitHub private vulnerability reporting (Security tab) with an "open an issue asking for a private contact" fallback and no email address. It works only if the owner enables private reporting in the repository settings once the repository exists; it cannot be checked before then. `SECURITY.md:31-32` cites "Stage 2 audit, owner-approved 2026-11-03, A3-7", internal process wording; consider softening. | owner |
 | Repository metadata (description, topics, homepage, default branch) | **PENDING**, not run. Set a description, topics (`go`, `append-only-log`, `wal`, `embedded`, `durable-log`), a homepage and the default branch `main` (the local default is `main`, verified). `README.md:93` and `go.mod` hard-code `github.com/netstar-labs/quill`: the public repository must live at exactly that path, or the module path, imports and examples change first. | owner |
 | Branch protection and the `ci` aggregator check | **PENDING.** `.github/workflows/ci.yml` defines one `ci` job (`needs:` every other job in the file, `if: always()`, fails unless all results are success; verified). The ruleset must require the check named `ci`, and can only do so after it has run once on a push or pull request to `main`. `pr-issue-link.yml` makes every pull request body carry `Closes #N`: confirm that contributor friction is intended. Rulesets and private reporting do not exist yet. | owner |
 | CI actions pinned | **PASS** (verified). All 10 `uses:` lines are full commit SHAs: `actions/checkout@3d3c42e5...` (v7.0.1) and `actions/setup-go@b7ad1dad...` (v7.0.0); `git ls-remote` against the actions' repositories confirms the SHAs are those tags. Dependabot is configured for GitHub Actions (weekly). Workflow permissions are `contents: read`; `pr-issue-link.yml` has `permissions: {}`. The tool pins in `ci.yml` match `hack/gate.sh` (staticcheck v0.8.2, deadcode v0.52.0), and govulncheck v1.9.0 is pinned in CI. | none |
 | `CHANGELOG.md` ready for the tag | **FAIL** for tagging as the tree stands (verified): `CHANGELOG.md:6` is `## Unreleased`. Retitle it `## v0.2.0` in a commit before the real tag (the migration list is already under it); the tag then sits on that commit and the rehearsal's hashes will differ. | release engineer |
+
+## Known limitations and open items at the tag
+
+What the audit left open, accepted or deferred, and what was not run, collected from the records so that the owner reads one
+list before the tag. Each entry has the id with the section of the record that holds it, one sentence, a state and who
+decides. States: **open** (a defect or a wrong sentence that stays unless someone acts), **accepted** (decided, deliberately
+not changed), **deferred** (to after the release), **not run**. Labels as at the top of this record: every entry is read from
+the record it names, as the tree is at `e8909b6`, unless it says it was run here (two entries were: `quill -h` and the
+architectures). "Owner" is the owner of the repository.
+
+### Behaviour and documentation that stay as they are
+
+| id and record | what | state | who decides |
+|---|---|---|---|
+| A1d-1: "a live retention pass syncs the directory once per deleted segment while holding the log's lock" ([a1-diff-scoped.md](a1-diff-scoped.md); "Not held, but worth the owner's eye: A1d-1" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | A live pass fsyncs the directory once per deleted segment (`retention.go:363`) with the log's lock held, so `Append`, `Read`, `Stat` and `Head` wait for the whole pass. **Reported by the auditor, not re-run here:** for 401 expired sealed segments, 2.128 s on macOS APFS against 31.3 ms at `v0.1.0`, and 203.9 ms on Linux ext4 against 15.6 ms (about 5 ms and 0.5 ms per segment), on shared machines, "indicative, not a benchmark" in that record; a live pass deletes at most a quarter of the sealed segments. Decisions 61 and 65, the user guide and the Latency section of `scope.md` say nothing about a pass blocking the log (verified: a search of those files for the words finds nothing about a retention pass); the record recommends saying so if the code stays. | accepted (decided in round 1, decision 65); the lock-held cost is undocumented | owner |
+| A3-7: "a symlinked `consumers/` directory is followed" ([threat-model.md](threat-model.md); "A3-7 (code hardening)" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | `register`, `recover` and `Open` still follow a symlinked `consumers/`; only the wording changed (`b765290`, `SECURITY.md:28-32`, decision 51). The `O_NOFOLLOW` or `Lstat` hardening was not approved; the recommended answer is to leave the code, because the exposure needs write access to the log directory. | open (held, no fix written) | owner |
+| A3-24: "`-json` passes bidi and format controls raw; the time field is unchecked" ([threat-model.md](threat-model.md); "A3-24 (`time` field)" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | The `time` field is `time.Unix(rec.At, 0).UTC()` with no range check: `At` 253402300800 prints year 10000 and `MinInt64` prints the same string as `MaxInt64`; `at` stays exact and only a hand-crafted file reaches it. The escape set was fixed (`d15ac45`); the range check was not approved. | open (held, no fix written) | owner |
+| A3-26 (merges A3-2): "unlinking `quill.lock` under a live writer lets a second writer open" ([threat-model.md](threat-model.md); "A3-26" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | An unlinked or replaced `quill.lock` still lets a second writer open until the first writer's next flush or prune pass, where `6acc23e` fails the first writer (`ErrFailed`); records the two acknowledge in that window can overwrite each other. Reported by the threat-model note of 2026-11-03, from the commit, not re-run. | open (held; the window is what remains after the refuted verdict) | owner |
+| A3-18: "a Reader's read cost scales with the log, not the request" ([stage2-owner-decisions.md](stage2-owner-decisions.md); [threat-model.md](threat-model.md)) | A `Reader` read with no iterator cursor re-walks the active segment from byte 0 to the offset and rebuilds the sealed-segment view on every call (the auditor's figures, reported and not re-run: `Reader.Read(2,999,000,1)` 379 ms against 112 us for `Log.Read`, in a 343 MB active segment). `3c36fc0` reworded `scope.md` and decision 63; caching sealed refs as `Log` does (decision 103) is deferred. | deferred (after the release) | owner |
+| L1-12, the optional `Archive` refusal ("`quill archive` into a new destination copies only a suffix and exits 0"; [stage2-owner-decisions.md](stage2-owner-decisions.md)) | `Archive` into a new destination after the `_archive` offset advanced copies only the suffix and exits 0; the wording is fixed (`be8cb15`); the optional refusal, an error that is not a `*GapError`, is not implemented and needs its own decision. | open (optional, not approved) | owner |
+| A5-5: "a long-lived Reader does not notice that its directory was replaced by another log" ([silent-degradation.md](silent-degradation.md); "Not held, but worth the owner's eye" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | A `Reader`'s plain `Read` and `Scan` are not re-checked and serve a replacement log from the old cursor; `Commit` and a Reader's wait return `ErrWrongLog` (`495e457`). The owner declined the check on cost on 2026-11-02 (decision 83); the record says decision 83 declines a per-segment check, not one `quill.format` read per view (the recorder's inference). | accepted (declined, no code change) | owner |
+| A4r-3: "`build/quill` accepts any tag, not only `v0.y.z`" ([supply-chain.md](supply-chain.md)) | A stray tag on `HEAD` makes a release-named build; the release engineer must spell the tag `v0.2.0`. The one-line check is in the record. | accepted (deliberately not changed) | owner |
+| L3b-15: "`quill --version` and `--help` are usage errors" ([live-integration.md](live-integration.md)) | `quill -h` and `quill --help` print `quill: flag: help requested` and exit 2 (**verified here** on a build of this tree: both exit 2, `quill help` exits 0); `quill --version` exits 2. The verbs `help` and `version` work and no document promises the flags. | accepted (deliberately not changed) | owner |
+
+### Open points of the A3-10 fix
+
+All four are the fix-skeptic's, from "A3-10: a damaged oldest segment is skipped silently by a default-start read" in
+[stage2-owner-decisions.md](stage2-owner-decisions.md) ("Open points the fix-skeptic left, none fixed here"); reported by that
+skeptic on `18662b6`, not re-run here. The behaviour change itself is owner-approved (2026-11-02).
+
+| id and record | what | state | who decides |
+|---|---|---|---|
+| A3-10 point 1 | When every sealed segment of the source is damaged, `Archive` copies nothing, so it never commits and every run exits 3 until `quill commit -name _archive -offset N` goes past the gap (it exited 0 before the fix); the user guide says so. | open | owner |
+| A3-10 point 2 | After an archive of a source with a damaged oldest segment, **`quill check -dir <archive>` reports HEALTHY, exit 0**, because a hole from 1 leaves no damaged file in the destination. `docs/userguide.md:393-394` says `quill check -dir <dest>` "keeps reporting the hole (exit 3)" and `scope.md:339` says `quill check` on the destination "keeps reporting it" (the A3-10 record cites `scope.md:321`; the sentence is at line 339 now). Both hold only when a damaged file was copied, so both are wrong for this case until they are reworded or the code changes. | open (two sentences are wrong for this case) | owner |
+| A3-10 point 3 | `quill tail -n 21` on a log with 10 records in a hole from 1 and 20 readable records exits 1 ("records 10 to 10 are unavailable"), because 21 reaches one record into the hole; that follows the rule, no test pins it, and the owner's wording ("reaching the oldest record") is looser. | open | owner |
+| A3-10 point 4 | The A5-18 notes (decision 36, the user guide, `scope.md`) say a consumer behind `First` means the log is intact and `check` stays HEALTHY; with a damaged oldest segment `check` is UNHEALTHY for the hole and also warns of the new consumer at 1. | open | owner |
+
+### Fixes finished by hand, with no fix-skeptic re-run
+
+Each was rejected by its fix-skeptic on one stated objection and then finished by the recorder, who closed that objection and
+ran the tests; no fix-skeptic re-ran on the final state. Source: "Open after a rejected fix" and "Held after pass A7" in
+[stage2-owner-decisions.md](stage2-owner-decisions.md) (reported). Each is local and revertible, as its section says.
+
+| id and record | what | state | who decides |
+|---|---|---|---|
+| A7-18 ("A7-18: no upgrade, migration or rollback note for an operator"; [gap-audit.md](gap-audit.md)) | The user guide's "Upgrading and rolling back" note, `e2f02b6`; whether an operator note is wanted at all was not put to the owner. | open (no re-run) | owner |
+| A7-19 ("A7-19: no install path documented; a go-installed binary reports `dev`"; [gap-audit.md](gap-audit.md)) | The README "Installing" section, `ffae168`; its text can only be true once the repository is public, and whether the owner wants it before the flip was not asked. | open (no re-run) | owner |
+| L1-3 | `GapError.From` is the first unavailable sequence: `0aa9659`, `66c7ec3`, `2aa5a21`. | open (no re-run) | owner |
+| L1-4 | "every later Sync fails" reworded to what the code does: `9c1784d`, `a4ddc8f`; the runtime text of the failed-log `Error` record is left as written on purpose. | open (no re-run) | owner |
+| L1-10 | The `Config.Logger` records: `041cc34`, `8e45aa0`; one point was not checked, that a `Sync` or `Close` flush that rotates runs the caps at that seal (read from `publishLocked`, no test). | open (no re-run) | owner |
+| A3-10 | `badb254` (the second attempt rebased onto main, one `scope.md` conflict resolved by hand) and `ed518a2` (two comments in `archive.go` and a user-guide note). The skeptic of `18662b6` passed the code and tests and rejected on the comments; no skeptic ran on `ed518a2`, whose diff against `18662b6` is comments and documentation only (reported). | open (no re-run of the final state) | owner |
+
+### Platforms: the 64-bit-only claim
+
+`README.md:109` ("Linux and darwin only (arm64, amd64); other platforms fail to build on purpose") and `scope.md:461` ("Linux and
+darwin (arm64, amd64). Other platforms fail to build, on purpose") list two architectures and say other platforms fail to
+build. **Verified here** (go1.27.3 on darwin/arm64, `GOWORK=off`, 2026-11-04):
+
+- `GOOS=linux go build ./...` exits 0 for `GOARCH` 386, arm, riscv64 and s390x: the module builds for architectures the
+  documents do not list, two of them 32-bit (386, arm) and one big-endian (s390x). `GOOS=freebsd go build ./...` exits 1, as
+  the gate requires.
+- `GOOS=linux go test -c .` exits 1 for 386 and arm (`log_test.go:195` onward: `cannot use math.MaxInt64 ... as int value in
+  struct literal (overflows)`), so the test suite does not compile for a 32-bit target. It compiles (exit 0) for riscv64 and
+  s390x.
+- **Not run:** the library or any test on a 32-bit or big-endian target, so nothing here shows the code is correct there. The
+  gap audit says the same: "32-bit and unlisted GOARCH behaviour was not checked beyond building linux/386 and riscv64"
+  ([gap-audit.md](gap-audit.md), Coverage).
+
+State: open (the documents say less than the build allows, and no test covers the extra architectures). Who decides: the owner,
+between stating "64-bit, untested elsewhere" and refusing the other architectures at build time.
+
+### What was not run at the tag
+
+"The tag" means the commit it will sit on. It is 41 commits after `ba30fee`, the last commit [live-integration.md](live-integration.md)
+names, as of `e8909b6` (verified: `git rev-list --count ba30fee..HEAD`).
+
+| what | what exists | state | who decides |
+|---|---|---|---|
+| Power-cut replays: a real `sysrq` cut, `dm-log-writes` crash states, `dm-flakey` cycles | One real cut, 240 `dm-log-writes` states over six journalling filesystems and 64 `dm-flakey` cycles, run on the Linux box in pass L3b against `a63bd6b` and the fixes up to `ba30fee` (reported: "Power loss" in [live-integration.md](live-integration.md)); earlier real cuts of 2026-10-28 ([power-loss.md](power-loss.md)). None re-run on the tag. | deferred by the owner (no power-off is possible); not run | owner |
+| The Linux filesystem matrix (ext4 in four modes, xfs, btrfs, f2fs, tmpfs, overlayfs) and the long topology runs | Ran once in pass L3b on the same tree (reported: "Linux filesystem matrix" in [live-integration.md](live-integration.md)); the longest run was 540 s on Linux and 100 s on macOS ("What the tier does not reach"). Not re-run on the tag. | deferred by the owner; not run | owner |
+| A day-long soak | "No soak of hours" ([live-integration.md](live-integration.md), "Duration"). | not run | owner |
+| A 10^5-segment `Reader` or `Check` run | No record holds one: the largest segment counts in the records are 40,000 one-record segments (a skeptic's `Reader` runs for A3-18 in [stage2-owner-decisions.md](stage2-owner-decisions.md)) and 401 (A1d-1). The `Reader`'s per-call view is O(sealed segments) (A3-18), so the cost at 10^5 is **inferred**, not measured. | not run | owner |
+| `go install github.com/netstar-labs/quill/cmd/quill@v0.2.0` from the module proxy | See "What was not tested, and why" above: the repository is private and unpushed. | not run | owner (it cannot run until the repository is public) |
+| Branch rulesets and private vulnerability reporting | They do not exist until the repository does (public-flip checklist above). | not run | owner |
+
+The deferral in the first two rows is the owner's, given with the request for this section (audit item L4b-2); no earlier record
+states it, so it is reported here and not read from one.
 
 ## Failures and findings, ranked
 
@@ -368,6 +465,9 @@ behave, not run here). Then the answer is a new tag (say `v0.2.1`) plus a `retra
    `SHA256SUMS` is unsigned.
 5. **Not testable.** The real `go install ...@v0.2.0` path, private vulnerability reporting, rulesets and repository
    metadata, until the repository exists.
+6. **Open at the tag, owner's to read.** The audit findings that stayed open, accepted or deferred, the fixes finished by
+   hand without a fix-skeptic re-run, the 64-bit claim and what was not run: "Known limitations and open items at the tag"
+   above.
 
 Deviation from the planned order (verified): the gate ran in the main rehearsal clone, while the two build refusals were
 proven in a separate scratch clone of the same tag, so the refusals did not dirty the gated tree. The clean build and
