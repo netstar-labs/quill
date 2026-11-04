@@ -6,7 +6,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
+
+	"github.com/netstar-labs/quill"
 )
 
 // hostileNames are file names an untrusted party could create: a newline and an ESC sequence
@@ -102,6 +105,59 @@ func TestLsConsumersAndCheckEscapeFileDerivedNames(t *testing.T) {
 			_, out, _ = exec(t, "", "-dir", logDir, "consumers", "-json")
 			if strings.Count(out, "\n") != 1 || strings.ContainsAny(out[:len(out)-1], "\x1b\x07") {
 				t.Errorf("consumers -json is not one escaped line: %q", out)
+			}
+		})
+	}
+}
+
+// The ls success row: a real, openable log in a hostile-named directory (the case above gives its
+// hostile logs no segment, so they take the error row). The name must print quoted, in one row.
+func TestLsSuccessRowEscapesTheLogDirectoryName(t *testing.T) {
+	for _, name := range hostileNames {
+		t.Run(strconv.Quote(name), func(t *testing.T) {
+			parent := t.TempDir()
+			l, err := quill.Open(quill.Config{Dir: filepath.Join(parent, name), Retention: -1, FlushInterval: time.Hour})
+			if err != nil {
+				t.Skipf("the file system refuses the name: %v", err)
+			}
+			if _, err := l.Append([]byte("rec")); err != nil {
+				t.Fatal(err)
+			}
+			if err := l.Close(); err != nil {
+				t.Fatal(err)
+			}
+			code, out, errw := exec(t, "", "-dir", parent, "ls")
+			if code != exitOK {
+				t.Fatalf("ls exit %d: %q %q", code, out, errw)
+			}
+			if n := noRawControl(t, "ls stdout", out) + noRawControl(t, "ls stderr", errw); n != 2 {
+				t.Errorf("ls printed %d lines, want 2 (header and one log):\nstdout %q\nstderr %q", n, out, errw)
+			}
+			if !strings.Contains(out, strconv.Quote(name)) || strings.Contains(out, "error:") {
+				t.Errorf("ls did not print the quoted name of a healthy log: %q", out)
+			}
+		})
+	}
+}
+
+// The common error path: a -dir that is not a log and holds a hostile byte comes back in the
+// message (a path built from the operator's or a script's input), which must be escaped.
+func TestErrorMessageEscapesAHostileDirPath(t *testing.T) {
+	for _, name := range hostileNames {
+		t.Run(strconv.Quote(name), func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), name)
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Skipf("the file system refuses the name: %v", err)
+			}
+			code, out, errw := exec(t, "", "-dir", dir, "stat")
+			if code != exitError {
+				t.Fatalf("stat exit %d, want %d: %q %q", code, exitError, out, errw)
+			}
+			if n := noRawControl(t, "stat stdout", out) + noRawControl(t, "stat stderr", errw); n != 1 {
+				t.Errorf("stat printed %d lines, want 1:\nstdout %q\nstderr %q", n, out, errw)
+			}
+			if !strings.Contains(errw, "not a log") {
+				t.Errorf("stat stderr does not say the directory is not a log: %q", errw)
 			}
 		})
 	}
