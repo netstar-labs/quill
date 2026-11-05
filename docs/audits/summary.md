@@ -64,8 +64,9 @@ release. The full table, with the section of the record that holds each item, is
 ## What was not run
 
 The main items the release record lists as not run (its "What was not tested, and why" and "What was not run at the tag" sections
-have the full list): the power-cut replays and the Linux filesystem matrix were run once, in pass L3b,
-on an earlier tree, and were not re-run on the tag (deferred; a power cut was not possible); there was no soak of hours and no log
+have the full list): the power-cut replays and the Linux filesystem matrix were run in pass L3b on an earlier tree and, after the tag, again on the tag's
+source on 2026-11-05 (see "Re-run at the tag" in [passes/live-integration.md](passes/live-integration.md); that section is by hand, with no skeptic, and the record's
+own sections on the tag are as of the tag commit); there was no soak of hours and no log
 with 10^5 segments; `go install ...@v0.2.0` from the module proxy, branch rulesets and private vulnerability reporting cannot run
 until the repository is public; the library was not run on any 32-bit or big-endian machine, and 64-bit targets other than arm64 and
 amd64 are built but untested; the L5 code fixes were checked by their fix-skeptics with partial checks, not the whole gate; and there

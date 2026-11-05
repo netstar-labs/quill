@@ -28,6 +28,7 @@ own cache honours `fsync` is not known, which is the usual position for a VM.
 | 1 | about 40 min | 44,484,329 (2.5 GB, 2,531 segments) | 44,484,329, stale by 27 records | 44,484,356 contiguous, no holes, `Check` healthy in 60 s | OK |
 | 2 | about 30 min | 33,861,341 (1.9 GB, 1,923 segments) | 33,861,341, fresh | 33,861,341 contiguous, no holes, `Check` healthy in 44 s | OK |
 | 3 | 90 s | 1,758,989 (97 segments) | 1,759,016, fresh | 1,759,016 contiguous, no holes, `Check` healthy | OK |
+| 4 (2026-11-05, the `v0.2.0` tag source; see "Re-run at the tag" in [live-integration.md](../passes/live-integration.md)) | 90 s | 1,742,195 (96 segments) | 1,742,195, stale by 27 records | 1,742,222 contiguous, no holes, `Check` healthy | OK |
 
 Cycle 3 shows the opposite order: the crash lost the last acknowledgement line (written and
 fsynced *after* the flush) while the flush's marker survived, so the marker was 27 records

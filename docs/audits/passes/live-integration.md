@@ -165,6 +165,39 @@ Topology scenarios base (40 s), kill (60 s, about 95 writer SIGKILLs plus reader
 | Same-VM second writer on virtiofs | 1 | refused with `ErrLocked` |
 | Alpine clean-room, no Go | release-flag binary | `version`, `append`, `read`, `stat`, `tail`, `cat`, `check`, `register`, `commit`, `consumers`, `roll`, `recover` behaved as the user guide says |
 
+## Re-run at the tag (2026-11-05 UTC, the evening of 2026-11-04 on the owner's calendar)
+
+Added after the tag, by hand, by the assistant that ran it; no skeptic read this section. The runs below are not part of pass L3b, which examined an earlier tree. They ran on the Linux box (Debian 13,
+Linux 6.12.113, 4 vCPUs, 8 GiB, the box used by this session alone) against the source of the annotated tag `v0.2.0` (`3de354d`), extracted with `git archive v0.2.0`; `quill`, `topology` and
+`powertest` were rebuilt from it (`quill` without `-ldflags`, so it prints `quill dev`). The scripts are the pass L3b ones, unchanged. Counts are read from the box's logs (verified); the
+interpretation of each failure is marked.
+
+| Run | What | Result |
+|---|---|---|
+| ext4 baseline, 180 s | seed 21 | ok; 89,781 records acknowledged, all present; 0 violations |
+| ext4 writer SIGKILL soak, 540 s, a kill every 300 ms | seed 22 | ok; 184,652 acknowledged, 471 writer kills, 656 writer restarts; 0 violations |
+| ext4 soak at a 60 ms kill interval, 150 s, 64 KiB segments | seed 23 | ok; 38,326 acknowledged, 341 writer kills; 0 violations |
+| Filesystem matrix: ext4 ordered, writeback, `data=journal`, `nobarrier`, journal-less, xfs, btrfs, f2fs, tmpfs | base (40 s), kill (60 s), retention (40 s), caps (40 s) | **0 violations in all 36 runs** |
+| The same matrix, full disk (60 s) | `-fill` | ext4 ordered and tmpfs: ok. The other seven: one violation each, the same one (below). No filesystem fails at the verifier's final `Open` (L3b-8) or on a missing consumer file (L3b-4) any more |
+| `dm-log-writes` crash replay, 40 cuts per filesystem (280 cuts) | half at an acknowledgement mark, half mid-write; `fsck` after each | ext4 ordered, writeback and journal, xfs, btrfs, f2fs: **240 of 240 verify OK**, `fsck` clean. Journal-less ext4: 19 of 40 verify OK, 21 failed (below) |
+| `dm-flakey`, 72 cycles | `drop_writes` on seven filesystems (8 cycles each), `error_writes` on four (4 each) | 66 of 72 OK. Every failure is journal-less ext4 `drop_writes` (6 of 8) |
+| One real power cut | `powertest run` for 90 s, then `echo b > /proc/sysrq-trigger` with no sync; ssh answered about a minute after the cut (the cut time is the scheduled 90 s, not logged on the box) | `powertest verify` OK: 1,742,195 acknowledged, all present, 96 segments, `Check` healthy, 1,742,222 records recovered. **The marker was stale by 27 records at the crash**, so this cycle took the parse-forward path of decision 39 (the 2026-11-03 cut did not) |
+
+- **The full-disk violation** is `quill prune` (run with no flags by the harness's pruner) exiting 1 with "quill.policy cannot be read; pass the retention flags explicitly". Mechanism (verified from the
+  source): when the writer cannot write `quill.policy` it removes the old file on purpose and retries at each flush and prune pass (`recordPolicy` in `log.go`, decision 29, user guide "quill.policy could not be
+  written"), so on a full disk an offline prune with no flags refuses. This is the documented behaviour, and the harness counts it as a violation. Beside it the data checks passed (the ext4 writeback run:
+  593 acknowledged, 593 verified, 402 healthy `check` runs). **Not explained:** `recordPolicy` has been in the tree since 2026-10-31, and the 2026-11-03 full-disk runs reported other violations and not this
+  one; why this one is new is not known (inferred, not tested: those runs stopped on the L3b-8 and L3b-4 violations first). The harness was not changed; whether to teach its pruner this refusal is a harness decision, not an audit item.
+- **Journal-less ext4** is L3b-9 (REFUTED: outside the supported-filesystem statement), unchanged in kind: 19 of the 21 replay failures and all 6 `dm-flakey` failures are "not a log: ... has no quill.tail" (the marker
+  lost, the log refused until rebuilt by hand); 2 of the 21 are "segment ... damaged ... bad frame below the durable offset" on the `Open` after the crash (cuts 30 and 40), the variant L3b-9 already records as one
+  case in 60. The rate is lower than on 2026-11-03 (21 of 40, where 40 of 40 failed before in the repeat run), which is sampling and not a change of behaviour (inferred; the cut points are chosen at random).
+- **f2fs replayer:** the full replay again differs from the device image (byte 16,777,217), so the f2fs cuts remain the weaker evidence this record already says they are. The marker was stale by up to about 18,700
+  records on f2fs, as before.
+- **Harness noise:** `flk.sh` printed "kill: No such process" every cycle (the process had already exited); no result depends on it.
+- **Not run in this re-run:** overlayfs, the macOS runs, the containers, a soak longer than 540 s, anything on another kernel. The 4 MiB tmpfs that the full-disk runs of 2026-11-03 used was not remounted after the reboot.
+- **Conclusion (inferred from the counts above):** on a supported filesystem no acknowledged record was lost or altered, no log was left unreadable and recovery succeeded in every crash state run on the tag source. The full-disk
+  harness violation is a refusal the documents describe.
+
 ## What the tier does not reach
 
 Stated explicitly so a later pass does not read a pass here as coverage:
