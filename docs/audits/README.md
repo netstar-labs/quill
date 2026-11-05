@@ -14,6 +14,7 @@ documents cite, so they are the ones to keep current; two of them, the threat mo
 ```
 README.md, summary.md        this file; the one-page outcome
 release-v0.2.0.md            the release record: rehearsal, public-flip checklist, known limitations, what was not run
+release-v0.1.0.md            what the v0.1.0 tag is, which passes examined it, what is not recorded for it
 commit-map.txt               old to new commit hashes (see "Hashes" below)
 reference/                   what the code and the other documents cite: threat model, format and version skew,
                              benchmark baselines, power-loss runs, what the tests cannot show, test ledger, harness inventory
@@ -26,7 +27,7 @@ decisions/                   the ledger of items held for the owner, with an ind
 | Pass | What it examined | Date | Record |
 |---|---|---|---|
 | Build self-review | The recovery path and the reader, read hostilely by the build itself before any audit | 2026-10-28 | [passes/self-review-recovery-and-reader.md](passes/self-review-recovery-and-reader.md) |
-| A1, round 1 | Adversarial audit of v0.1.0 in four lenses: simplify, dedup, correctness, docs. `audit-findings.md` is the synthesis | 2026-10-29 | [passes/a1-round1/](passes/a1-round1/) |
+| A1, round 1 | Adversarial audit, in four lenses (simplify, dedup, correctness, docs), of the tree on the way to v0.1.0 (`b52b746`; its fixes are in the tag, see [release-v0.1.0.md](release-v0.1.0.md)). `audit-findings.md` is the synthesis | 2026-10-29 | [passes/a1-round1/](passes/a1-round1/) |
 | A1, round 2 | The same four dimensions again with fresh auditors; includes pass A1h, the held items the owner approved on 2026-10-30. `a1-round2-findings.md` is the synthesis | 2026-10-29 to 30 | [passes/a1-round2/](passes/a1-round2/) |
 | A4 (refreshed as A4r) | Dependencies, supply chain and release hygiene of the tree and its history | 2026-10-29; A4r 2026-11-03 | [passes/supply-chain.md](passes/supply-chain.md) |
 | A3 | Security review and threat model | 2026-10-31 | [reference/threat-model.md](reference/threat-model.md) |
