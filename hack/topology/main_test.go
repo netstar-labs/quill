@@ -102,8 +102,36 @@ func TestRunWithRetentionAndCaps(t *testing.T) {
 	c := &config{Dir: t.TempDir(), Quill: buildQuill(t), Duration: 6 * time.Second, Readers: 2, Consumers: 3, Segment: 32 << 10,
 		Retention: 2 * time.Second, MaxBytes: 256 << 10, KillEvery: 500 * time.Millisecond, Pace: 5 * time.Millisecond, Seed: 7, NoUnregister: true}
 	s := execute(c)
-	if !s.OK || s.Verified == 0 || s.Counters["chaos.kills_writer"] == 0 {
+	if !didWork(s) {
 		t.Fatalf("run failed or did nothing: %+v", s)
+	}
+}
+
+// didWork says whether a run that verified did anything: writers were killed and acknowledged
+// records, and the log either holds records that verify read or was emptied after them. A run
+// under a 2 s retention and a cap can end with the log empty (First is Head+1), which verify
+// accepts, so an empty log is not a run that did nothing.
+func didWork(s *summary) bool {
+	return s.OK && s.Acked > 0 && s.Counters["chaos.kills_writer"] > 0 && (s.Verified > 0 || s.First == s.Head+1)
+}
+
+func TestDidWork(t *testing.T) {
+	kills := map[string]int64{"chaos.kills_writer": 6}
+	for _, c := range []struct {
+		name string
+		s    summary
+		want bool
+	}{
+		{"records verified", summary{OK: true, Head: 6326, First: 6271, Acked: 6326, Verified: 56, Counters: kills}, true},
+		{"emptied by retention, as a tmpfs run did", summary{OK: true, Head: 7888, First: 7889, Acked: 7888, Counters: kills}, true},
+		{"records in the log that verify did not read", summary{OK: true, Head: 7888, First: 7800, Acked: 7888, Counters: kills}, false},
+		{"nothing acknowledged", summary{OK: true, Head: 0, First: 1, Counters: kills}, false},
+		{"no writer was killed", summary{OK: true, Head: 10, First: 1, Acked: 10, Verified: 10}, false},
+		{"a violation", summary{Head: 10, First: 1, Acked: 10, Verified: 10, Counters: kills}, false},
+	} {
+		if got := didWork(&c.s); got != c.want {
+			t.Errorf("%s: didWork = %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 
