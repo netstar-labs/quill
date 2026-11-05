@@ -84,7 +84,7 @@ text of those that name a script- or library-visible behaviour, and `git log --o
 them `stage2` commits).
 
 ```sh
-awk '/^### Entries/{f=1;next} /^## /{f=0} f && /^- /{n++} END{print n}' CHANGELOG.md   # 144 when this table was derived (e8909b6); 146 at 2893a3f; 152 after pass L5 (see below)
+awk '/^### Entries/{f=1;next} /^## /{f=0} f && /^- /{n++} END{print n}' CHANGELOG.md   # 144 when this table was derived (e8909b6); 146 at 2893a3f; 152 after pass L5; 153 after pass L5b (see below)
 ```
 
 **Update 2026-11-04 (pass L5: counts and line numbers re-derived).** Pass L5 (`cfa7bf7`, `4ffd425`, `27cbbb1`, `29f785c`) added four entries to `CHANGELOG.md`
@@ -94,15 +94,15 @@ that the `LICENSE` commit (`ef46b90`) added at the top: the `Added:` entry for `
 `2893a3f`). The count is reproduced this way: 144 at the derivation, plus 2 (the two doc-only entries at old lines 431 and 432, `2893a3f`), plus 2 (`LICENSE`, `Reader` restart), plus 4 (L5-1, L5-2,
 L5-3, L5-4) is 152.
 
-**Update 2026-11-04 (L5-5).** The `--version` fix adds one `Added:` entry at the top of "Entries" and no line to the breaking-changes list (its note is appended to the L5-1 line), and row 39a to the table: the command above prints **153**, entries with a row are **90**, entries with no row stay **63**, the list stays at **38** lines. Every entry line cited below by number sits one line lower than the numbers in this record (the new entry is above them all).
+**Update 2026-11-04 (L5-5).** The `--version` fix adds one `Added:` entry at the top of "Entries" and no line to the breaking-changes list (its note is appended to the L5-1 line), and row 39a to the table: the command above prints **153**, entries with a row are **90**, entries with no row stay **63**, the list stays at **38** lines (all re-derived by the recorder of pass L5b with `awk` on the file as it is: 153, 38 and 191 for the whole section; 153 minus 63 is 90; verified). The fix is commit `cf7d789`, FIXED-VERIFIED by one fix-skeptic, 7 of 7 lenses (reported). Every entry line cited below by number sits one line lower than the numbers in this record (the new entry is above them all).
 
 | | derivation (`e8909b6`) | now |
 |---|---|---|
-| entries under "Entries" (the command above) | 144 | **152** |
-| entries with a row in the table | 86 | **89** (86 plus L5-1, L5-2, L5-3, rows 39, 40, 41) |
+| entries under "Entries" (the command above) | 144 | **153** (152 after pass L5, plus L5-5) |
+| entries with a row in the table | 86 | **90** (86 plus L5-1, L5-2, L5-3, rows 39, 40, 41, plus L5-5, row 39a) |
 | entries with no row | 58 | **63** (the 58, plus the two doc-only entries of the pre-tag batch, the `Reader` restart fix, the `LICENSE` entry and the `THIRD-PARTY-NOTICES` entry) |
 | `- ` lines in the "Breaking changes and upgrade notes" list | 35 | **38** (verified with `awk`) |
-| the command applied to the whole "Unreleased" section | 179 | **190** (152 plus 38) |
+| the command applied to the whole "Unreleased" section | 179 | **191** (153 plus 38) |
 
 The 86 and the 58 were reproduced from the table itself (verified, a script over the "Recorded" column of rows 1 to 38 and the entry lines of `CHANGELOG.md` as of `31ae18f`, the commit that
 derived them): the column cites 87 distinct entry lines, all of them entries; line 66 is the extra one row 16 cites, and it is one of the 58, so 86 entries have a row and 58 do not, 144 in all. The
@@ -111,11 +111,11 @@ derived them): the column cites 87 distinct entry lines, all of them entries; li
 entries is the recorder's reading of their own text, not a re-run.
 
 **Line numbers.** Every `CHANGELOG.md` line number cited in this section, in the table rows 1 to 38 and in the lists of entries with no row is the number in the file at the derivation. Matching each of the 144
-entries by its text between `31ae18f` and the tree now (verified, a script), all 144 sit exactly **9 lines lower** (3 for the new list lines and 6 for the six entries added above them: L5-1 to L5-4, `LICENSE` and the `Reader` restart). Add 9 to any such citation to find the entry now. Rows 39 to 41 cite the lines as they are in the file now: line 63 (L5-1), line 62 (L5-2) and line 61 (L5-3); L5-4 is line 64. The
+entries by its text between `31ae18f` and the tree now (verified, a script), all 144 sit exactly **9 lines lower** (10 lower after pass L5b, which added one entry above them) (3 for the new list lines and 6 for the six entries added above them: L5-1 to L5-4, `LICENSE` and the `Reader` restart). Add 9 to any such citation to find the entry now. Rows 39 to 41 cite the lines as they are in the file now: line 63 (L5-1), line 62 (L5-2) and line 61 (L5-3); L5-4 is line 64. The
 two entries added at the bottom by the pre-tag batch (old lines 431 and 432) are lines 440 and 441 now.
 
 The count starts at the "Entries" heading, not at "Unreleased", because the "Breaking changes and upgrade notes" list above
-it also has lines that start with `- ` (35 of them at the derivation, 38 now: the command prints 179, now 190, if it scans the whole section, and 143 on the
+it also has lines that start with `- ` (35 of them at the derivation, 38 now: the command prints 179, now 191, if it scans the whole section, and 143 on the
 file before this change, which had no such list). It would stop working if that heading were retitled; the number
 is what to compare, not the command.
 
@@ -190,7 +190,7 @@ unchanged; none of them was re-run. A reviewer who disagrees moves a line betwee
 | 37 | `quill append`'s oversize-stdin message reads `stdin would be a batch over MaxBatchBytes (...); each line is counted as its length plus 34 bytes` and stdin is bounded while it is read; the limit, `ErrPayloadTooLarge` and exit 1 are unchanged. A library error prints one `quill:` prefix (it printed two), and a failed `quill commit` leaves no new consumer behind | script | a script that matched the old text must change | lines 85, 179, 339; `c2cddb7`, `8449425` |
 | 38 | Release builds: `build/quill` pins the toolchain to `go.mod`'s, `GOAMD64=v1` and `GOARM64=v8.0`, and puts the commit time, not the clock or the builder, into the archives and the SBOM, whose components now carry a `bom-ref`; `--dev` works on a clean tree | operator (the releaser, a verifier) | a third-party verifier builds with `-buildvcs=false` or inside a checkout of the tag | lines 61, 188, 308, 311, 401; `5bd55ce`, `988f1e5`, `10e8062`, `1b17ea5`, `df7af4f` |
 | 39 | `quill -h` and `quill --help` before a verb print the usage of `quill help` and exit 0, where they printed `quill: flag: help requested` and exited 2; a bare `quill` still exits 2 | script | a script that read exit 2 from `quill -h` as "help is not supported" now sees 0 | line 63 (current numbering) and the "Command line" list; audit L5-1; `cfa7bf7` |
-| 39a | `quill --version` and `quill -version` print what `quill version` prints and exit 0, where they exited 2 with `flag provided but not defined: -version`; `quill read -version` (a version flag after a verb) is still a usage error | script | a script that relied on `--version` failing (exit 2) must change; it now succeeds | the "Command line" list; audit L5-5 (owner-approved 2026-11-04) |
+| 39a | `quill --version` and `quill -version` print what `quill version` prints and exit 0, where they exited 2 with `flag provided but not defined: -version`; `quill read -version` (a version flag after a verb) is still a usage error | script | a script that relied on `--version` failing (exit 2) must change; it now succeeds | the "Command line" list (the note is on the L5-1 line, not a line of its own); audit L5-5 (owner-approved 2026-11-04); `cf7d789` |
 | 40 | The line `quill archive` prints for a source gap reads `quill: the source lost records N to M; the archive does not have them`, where it read `...; the archive holds the same hole` (wrong when the destination starts after the lost records); exit 3 and the stream are unchanged, and the library's `*GapError` text is unchanged | script | a script that matched the text "same hole" must change; match the exit code 3 instead | line 62 (current numbering) and the "Command line" list; audit L5-2; `4ffd425` |
 | 41 | The module refuses to build for a 32-bit target (linux 386, arm, mips, mipsle) with `invalid array length quillRequires64BitPlatform - 1 (constant -1 of type int)`, where it built; every 64-bit target still builds | library (and operator: a 32-bit release build or cross-compile) | a caller or packager that built quill for a 32-bit target now fails at compile time; build for a 64-bit target, there is no 32-bit port | line 61 (current numbering) and the first line of "Go callers"; audit L5-3; `27cbbb1` |
 
@@ -425,7 +425,7 @@ architectures). "Owner" is the owner of the repository. **Updated 2026-11-04 at 
 what became of the two wrong sentences; nothing else in this section was re-derived at `2893a3f`.
 **Updated 2026-11-04 after pass L5** (pre-tag code batch; "Pre-tag code batch 2026-11-04" in
 [stage2-owner-decisions.md](stage2-owner-decisions.md)): the three items below that the critic raised are resolved (rows L3b-15 for `-h` and `--help`, L4b-3 and "Platforms"), `THIRD-PARTY-NOTICES` closes the
-Go licence caveat (A4-5), and one new open point is added in row L3b-15 (the test that pins `quill --version`). Everything else in this section is as it was at `2893a3f`.
+Go licence caveat (A4-5), and one new open point was added in row L3b-15 (the test that pins `quill --version`); that point was closed the same day by audit L5-5 (`cf7d789`, see row L3b-15). Everything else in this section is as it was at `2893a3f`.
 
 **Raised by the wave 6 completeness critic, not approved for change (state: open).** The owner's approval of 2026-11-04 covered
 documentation only. Three things the critic raised need a code change or a change to a message, an exit code or a build
@@ -449,7 +449,7 @@ the pre-tag batch"). *(Update 2026-11-04, L5-3: item (3), the 32-bit build, is r
 | L1-12, the optional `Archive` refusal ("`quill archive` into a new destination copies only a suffix and exits 0"; [stage2-owner-decisions.md](stage2-owner-decisions.md)) | `Archive` into a new destination after the `_archive` offset advanced copies only the suffix and exits 0; the wording is fixed (`be8cb15`); the optional refusal, an error that is not a `*GapError`, is not implemented and needs its own decision. | open (optional, not approved) | owner |
 | A5-5: "a long-lived Reader does not notice that its directory was replaced by another log" ([silent-degradation.md](silent-degradation.md); "Not held, but worth the owner's eye" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | A `Reader`'s plain `Read` and `Scan` are not re-checked and serve a replacement log from the old cursor; `Commit` and a Reader's wait return `ErrWrongLog` (`495e457`). The owner declined the check on cost on 2026-11-02 (decision 83); the record says decision 83 declines a per-segment check, not one `quill.format` read per view (the recorder's inference). | accepted (declined, no code change) | owner |
 | A4r-3: "`build/quill` accepts any tag, not only `v0.y.z`" ([supply-chain.md](supply-chain.md)) | A stray tag on `HEAD` makes a release-named build; the release engineer must spell the tag `v0.2.0`. The one-line check is in the record. | accepted (deliberately not changed) | owner |
-| L3b-15: "`quill --version` and `--help` are usage errors" ([live-integration.md](live-integration.md)) | **Resolved for `-h` and `--help` (owner-approved 2026-11-04, audit L5-1; commit `cfa7bf7`):** `quill -h`, `quill --help` and `quill -help` print the usage of `quill help` and exit 0 (they printed `quill: flag: help requested` and exited 2). **`quill --version` was left unchanged by that fix, and the test that pinned it was held. Resolved 2026-11-04 (audit L5-5, owner-approved):** `quill --version` and `quill -version` print what `quill version` prints and exit 0, and `{"--version"}` is gone from `TestBareQuillAndOtherGlobalFlagErrorsStayUsageErrors`; `TestGlobalVersionFlagIsTheVersionVerb` covers the flag, stamped and unstamped. | resolved (`-h`, `--help` and `--version`) | owner |
+| L3b-15: "`quill --version` and `--help` are usage errors" ([live-integration.md](live-integration.md)) | **Resolved for `-h` and `--help` (owner-approved 2026-11-04, audit L5-1; commit `cfa7bf7`):** `quill -h`, `quill --help` and `quill -help` print the usage of `quill help` and exit 0 (they printed `quill: flag: help requested` and exited 2). **`quill --version` was left unchanged by that fix, and the test that pinned it was held. Resolved 2026-11-04 (audit L5-5, owner-approved; commit `cf7d789`, FIXED-VERIFIED, 7 of 7 lenses, reported):** `quill --version` and `quill -version` print what `quill version` prints and exit 0, and `{"--version"}` is gone from `TestBareQuillAndOtherGlobalFlagErrorsStayUsageErrors`; `TestGlobalVersionFlagIsTheVersionVerb` covers the flag, stamped and unstamped. | resolved (`-h`, `--help` and `--version`) | owner |
 
 ### Open points of the A3-10 fix
 

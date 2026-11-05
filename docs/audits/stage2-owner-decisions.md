@@ -11,6 +11,8 @@ the per-dimension reports: [correctness](a1-round2-correctness.md), [docs](a1-ro
 
 **Latest update: 2026-11-04, pass L5 (four code fixes): see "Update 2026-11-04 (pre-tag code batch, pass L5)" below and the section "Pre-tag code batch 2026-11-04" at the end of this file.**
 
+**Then, later on 2026-11-04, pass L5b (one code fix, L5-5, `quill --version`): see "Update 2026-11-04 (pass L5b)" below, which follows the L5 update.**
+
 The recommended answers are the recorder's reading of the auditor's proposed fix and the skeptics' notes; they were
 recommendations when written. Ranked by severity, then reach.
 
@@ -220,6 +222,33 @@ big-endian machine; the 64-bit targets other than arm64 and amd64 build and are 
 records themselves were found while writing this one, and are corrected here: (1) the entry counts in the release record's migration section had been advanced by one per fix from the pre-tag batch's figure of 146 and
 missed the two `CHANGELOG.md` entries the `LICENSE` commit added, so they read 150 where the command prints 152; the corrected counts (152 entries, 89 with a row, 63 without) are in
 [release-v0.2.0.md](release-v0.2.0.md); (2) the L5-1 fix's second test pins `quill --version` as a usage error, which the owner said not to do (see "Held after the pre-tag code batch").
+
+**Update 2026-11-04 (pass L5b).** One item, L5-5, recorded in "Pre-tag code batch 2026-11-04" at the end of this file. The owner asked on 2026-11-04 why `quill --version` was left out of pass L5 and approved it
+as the same finding as L3b-15 (reported: the owner's message relayed with the task, "fix these things, take the recommendations as stated, and only 64-bit builds"; the task text names `quill --version` and
+`quill -version` as approved in this wave). The paragraph and the table above are as they were written after pass L5 and are kept; they say `--version` was not approved, and that was true when they were written.
+Passes L5 and L5b together are 5 items.
+
+| counted over the 1 item of pass L5b | |
+|---|---|
+| verdict | 1 CONFIRMED (the ledger labels it so; it was not put to a vote); 0 PLAUSIBLE; 0 REFUTED. The finding it follows, L3b-15, was REFUTED 2 of 3 on 2026-11-03 as a request for new CLI surface ([live-integration.md](live-integration.md)); the owner then approved the change, and that record's verdict is kept as it was |
+| disposition | 1 fixed, in `cf7d789` on `main`, FIXED-VERIFIED by one fix-skeptic, 7 of 7 lenses (reported); 0 fix-failed; 0 held; 0 deliberately not changed |
+| skeptic votes on the item | 0 (the ledger carries none) |
+| reproduced by execution | 1 of 1, by the fix-skeptic (reported): with the parent's `cmd/quill/verbs.go` put over the fixed tree, `TestGlobalVersionFlagIsTheVersionVerb` failed for all four argument forms (`--version`, `-version`, `-dir X --version`, `--version -dir X`) and both stamps (`dev`, `v0.2.0`) with exit 2, empty standard output and `quill: flag provided but not defined: -version`; after the fix the built binary printed `quill dev` and exited 0. The recorder ran nothing |
+| totals for passes L5 and L5b | 5 items, 5 CONFIRMED, 5 fixed, each FIXED-VERIFIED by one fix-skeptic (33 lens verdicts, all pass: the 26 of pass L5 and 7 for L5-5, reported), 0 skeptic votes, 4 of 5 defects reproduced by execution before the fix (L5-1, L5-2, L5-3, L5-5; L5-4 is shown by reading the licence text) |
+
+**Coverage (pass L5b).** No auditors: the ledger lists no auditor clean checks and no auditor that returned nothing (both lists are empty, verified from the ledger given to the recorder), so no area is recorded
+as audited afresh. What the fix-skeptic checked and found clean (reported): the new test is red when `verbs.go` is put back to the parent's; the built binary gives exit 0, `quill dev` on standard output and an
+empty standard error for `--version`, `-version`, `-dir /nope --version`, `--version -dir /nope`, `--version version` and `--version foo`, and the bytes equal those of `quill version` (checked with `od -c`);
+`quill read -version` and `quill version -version` are still the verb's "flag provided but not defined" usage error, exit 2; `-dir` with no value, `--version=bogus` and `--version=false` keep their old
+behaviour; `gofmt -l` prints nothing, `go vet ./...` and `go test -race -count=1 ./...` pass for every package; the golden bytes and testdata are untouched; `quill reference` equals `docs/reference.md`; the
+CHANGELOG entry count was re-derived (153). **Not covered:** `staticcheck` and `deadcode` from `hack/gate.sh` were not run by the fix-skeptic (the commit adds no function, so `deadcode` has nothing to flag; the
+skeptic's reasoning, inferred), so a lint finding in the three changed lines of `verbs.go` is not ruled out; `hack/gate.sh` was not run as a whole script; the Linux box was not used (inferred: the dispatch
+code has no platform-specific part), so the check ran on macOS only. The ext4 filesystem matrix and the power-cut replays are **deferred by the owner** and were not run. The recorder of this section ran
+`awk` over `CHANGELOG.md` and read the diff of `cf7d789`; it did not run the tests or the gate.
+
+**What this record does not say (pass L5b).** Not every finding of the stage 2 audit was fixed, and not every fix was skeptic-validated; this pass covers the one item the owner approved. No new item is held by
+this pass, so no new held-item section is added: the three items that remain held (A3-7, A3-24 and the L3b-7 permission error) are in "Held after the pre-tag code batch", each with its recommended answer, and
+none was touched.
 
 | id | sev | one line | recommended | status 2026-10-30 |
 |----|-----|----------|-------------|----|
@@ -2826,7 +2855,7 @@ on a mirror clone first. Not decided here: the placeholder author of `da2d638`, 
 
 ## Pre-tag code batch 2026-11-04
 
-Pass L5. Date 2026-11-04, against `main` as it stood after `c56e960` (the commit map). Four items, each approved by the owner on 2026-11-04 and each fixed in its own commit with a regression test or a gate step, a CHANGELOG
+Pass L5 (pass L5b, item L5-5, is the last entry of the list). Date 2026-11-04, against `main` as it stood after `c56e960` (the commit map). Four items, each approved by the owner on 2026-11-04 and each fixed in its own commit with a regression test or a gate step, a CHANGELOG
 line, an entry in the "Breaking changes and upgrade notes" list where a user can see the change, a migration-table row in [release-v0.2.0.md](release-v0.2.0.md), and the decisions amended in place with a dated note
 ("Stage 2 audit, owner-approved 2026-11-04"). The top-line counts and the coverage statement are in "Update 2026-11-04 (pre-tag code batch, pass L5)" near the head of this file. Labels: **verified** (the recorder
 read the lines in this tree, or ran the command), **reported** (a fix-skeptic's or a fixer's account in the ledger, or the task text; the source is named), **inferred**. The recorder ran `awk` and `grep`
@@ -2838,6 +2867,7 @@ over the tree and read the four diffs; it did not run the tests or the gate.
 | L5-2 | doc (a message) | low | CONFIRMED | 2026-11-04, one text true in both cases | `4ffd425` | FIXED-VERIFIED, 6 of 6 |
 | L5-3 | bug | medium | CONFIRMED | 2026-11-04, "only 64-bit builds" | `27cbbb1` | FIXED-VERIFIED, 7 of 7 |
 | L5-4 | doc (a shipped notice; A4-5) | low | CONFIRMED | 2026-11-04, the recommended answer of A4-5 | `29f785c` | FIXED-VERIFIED, 6 of 6 |
+| L5-5 | bug (follow-up of L3b-15) | low | CONFIRMED | 2026-11-04, `--version` and `-version` | `cf7d789` | FIXED-VERIFIED, 7 of 7 |
 
 The ledger's Warrant, Backing and Rebuttal fields for all four read "See the record" (they point at the records named in each entry), and it carries no skeptic votes for them. Where an entry says
 "Rebuttal: none raised", that is what the ledger holds; the strongest objection the fix-skeptic could build against the fix is under Disposition, and is not a rebuttal of the finding.
@@ -2940,7 +2970,45 @@ and reproducibility are unchanged apart from the one new member (two runs, ident
 entry, not a breaking one: nobody has to act) are updated. **Not done, as the task said:** the userguide and `scope.md` do not list archive contents, so there was nothing to change in them (reported, the fix-skeptic).
 The fix-skeptic's objection: only the release record's stale counts, corrected in this pass.
 
+### L5-5 (follow-up of L3b-15): `quill --version` and `quill -version` are usage errors (low)
+
+Pass L5b. Date 2026-11-04, on `main` after the record of pass L5 (`8210d86`).
+
+**Claim.** `quill --version` and `quill -version` print `quill: flag provided but not defined: -version` on standard error and exit 2; only the verb `quill version` works. The finding is the second half of
+L3b-15 ([live-integration.md](live-integration.md)), which pass L5 fixed for `-h` and `--help` only and listed in "Held after the pre-tag code batch" below.
+
+**Grounds.** `dispatch` in `cmd/quill/verbs.go` defined one global flag, `-dir`, so `-version` was an unknown flag and its parse error went to `c.usage` (verified: `verbs.go:181-198` now, the flag at line 184).
+**Reproduction (reported, fix-skeptic, lens `test-fails-without-fix`):** the new test run against the parent's `verbs.go` failed for all four forms (`--version`, `-version`, `-dir X --version`,
+`--version -dir X`) and both stamps (`dev`, `v0.2.0`), each with exit 2, empty standard output and `quill: flag provided but not defined: -version`. L3b-15's own reproduction (verified by two skeptics and the
+auditor on 2026-11-03, on a clean-room Alpine run and the host build) is the same behaviour.
+
+**Warrant.** A script that probes `--version` gets a usage error that looks like a broken install, and a user's first try is `--version`. The owner asked on 2026-11-04 why it had been left out, and approved
+it as the same finding as L3b-15.
+
+**Backing.** Decision 53 (CLI exit codes; a dated note, "Stage 2 audit, owner-approved 2026-11-04, L5-5"). The L3b-15 verdict (REFUTED, 2 of 3, "a request for new CLI surface, not a divergence from a
+document"; the dissent noted that an internal audit instruction expects `quill --version` to work) was a judgement about scope, not about correctness, and the owner overrode it. Rebuttal: "by design the CLI
+takes verbs" costs a script that relied on `--version` failing (the CHANGELOG says so in one line) and nothing else.
+
+**Verdict.** CONFIRMED.
+
+**Owner's approval 2026-11-04.** `quill --version` and `quill -version` print exactly what `quill version` prints, on the same stream, and exit 0. **Not approved, not touched (the task text):** A3-7, A3-24,
+wrapping the L3b-7 permission error, the exit code or text of any other message, any exported API.
+
+**Disposition.** Fixed in `cf7d789`, FIXED-VERIFIED, 7 of 7 lenses (reported: `test-fails-without-fix`, `root-cause`, `behaviour-preserved`, `no-new-gap`, `reachable`, `ladder`, `independent-route`). The change
+is `wantVersion := global.Bool("version", false, "print the version")` and a three-line branch that runs the `version` verb's own `run` (`verbs.go:184` and `191-193`, verified), the smaller of the two
+options the task allowed; the output is shared with the verb by construction, so stamped (`quill <tag>`) and unstamped (`quill dev`) cannot drift. `-dir` may accompany it and need not name a directory; a
+version flag after a verb (`quill read -version`, `quill version -version`) is still that verb's unknown-flag usage error, exit 2; `quill version` is byte-identical; every other global-flag error is as it
+was (`-bogus`, a `-dir` with no value, `--version=bogus`). Tests: `TestGlobalVersionFlagIsTheVersionVerb` (red on the parent; `cmd/quill/help_flag_test.go:44`, verified), and `{"--version"}` was removed from
+`TestBareQuillAndOtherGlobalFlagErrorsStayUsageErrors` with `{"-dir"}` added in its place (line 29), which clears the discrepancy recorded under L5-1. Documents updated: `docs/reference.md` and the text
+`quill reference` generates, `docs/userguide.md`, `README.md`, decision 53, [live-integration.md](live-integration.md) (L3b-15), [release-v0.2.0.md](release-v0.2.0.md) (row 39a, the L3b-15 row, the counts) and the
+CHANGELOG (an `Added:` entry, and a clause on the L5-1 line of "Breaking changes and upgrade notes": a command that exited 2 now exits 0, a script that relied on `--version` failing must change). The
+CHANGELOG heading stays `## Unreleased`. Counts re-derived by the recorder (verified, `awk`): 153 entries, 38 list lines, 90 with a row, 63 without.
+The fix-skeptic's objection, which it could not turn into a rejection (reported): `quill --version <anything>` exits 0 and ignores the trailing tokens (`--version foo`, `--version version`), as `-h` already does;
+the approved text does not forbid it and no test pins it. The pinned `staticcheck` and `deadcode` were not run by the skeptic (see the coverage above).
+
 ## Held after the pre-tag code batch
+
+*(Update 2026-11-04, pass L5b: the first of the four, `quill --version`, was approved afterwards and fixed in L5-5; the other three stay held and nothing in them changed.)*
 
 Four things around the batch were not approved and are held; the first is new in this pass, the other three were already held and are repeated here because the owner's message of 2026-11-04 named them
 as not approved. Nothing here was touched. The recommended answers are the recorder's reading (inferred); they are recommendations, not decisions.
