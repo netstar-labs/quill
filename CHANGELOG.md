@@ -3,6 +3,12 @@
 All notable changes to quill. The format follows Keep a Changelog; versions are `v0.y.z`
 for ever, and the on-disk format is versioned separately in `quill.format`.
 
+## Unreleased
+
+### Entries
+
+- Fixed: `Reader.Check` (and so `quill check`) beside a live writer that rolls segments and deletes them under `MaxBytes` or `Retention` could report a fatal `segment` problem (UNHEALTHY, exit 3) on a healthy log: `lstat ...: no such file or directory` for the segment `quill.tail` named when `Check` read it, which the writer had rolled and a cap had deleted before `Check` reached it. When that segment is missing, `Check` now reads the marker again and treats the loss as retention if the marker names a later segment, as a `Reader` already does for a read (decision 101); a marker that has not moved is still reported. Found by the topology harness on a tmpfs disk.
+
 ## v0.2.0 (2026-11-04)
 
 ### Breaking changes and upgrade notes

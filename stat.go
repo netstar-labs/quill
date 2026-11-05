@@ -175,6 +175,12 @@ type CheckResult struct {
 	Problems  []Problem
 }
 
+// markerPast says whether the marker now names a segment after id.
+func (r *Reader) markerPast(id uint64) bool {
+	tl, err := r.readTail()
+	return err == nil && tl.Seg > id
+}
+
 // Check examines a log without a lock: every sealed segment whole (one with no frames is
 // damage, as it is to Open; only the active segment may be empty), the active segment up
 // to the marker, holes, the consumers/ directory and its files, the policy and the clock (decisions 44, 66). It
@@ -225,10 +231,13 @@ func (r *Reader) Check() (CheckResult, error) {
 		o := &outs[i]
 		path := r.path(segmentName(id))
 		if err := o.openErr; err != nil {
-			if id < tl.Seg && errors.Is(err, fs.ErrNotExist) {
+			if errors.Is(err, fs.ErrNotExist) && (id < tl.Seg || r.markerPast(id)) {
 				// Retention deleted a sealed segment after the listing (decision 101). It
 				// deletes oldest first, so what was scanned before it is going too: start
-				// the contiguity test again at the next survivor.
+				// the contiguity test again at the next survivor. The segment the marker
+				// named when Check read it can be rolled and deleted too: the marker is
+				// published before every unlink (decision 65), so one that now names a later
+				// segment says so, and one that still names this one says damage.
 				havePrev = false
 				continue
 			}

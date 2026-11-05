@@ -81,3 +81,46 @@ func TestCheckStillReportsAHoleAndAMissingActiveSegment(t *testing.T) {
 		}
 	})
 }
+
+// The segment the marker names is the active one, and a writer that rolls it and a cap that
+// deletes it can both happen between Check's read of the marker and its read of the file.
+// Retention publishes the marker before every unlink (decision 65), so a missing segment that
+// the marker no longer names is retention, not damage. One the marker still names is damage
+// (TestCheckStillReportsAHoleAndAMissingActiveSegment).
+func TestCheckTreatsTheMarkersSegmentRolledAndDeletedAfterTheReadAsRetentionNotDamage(t *testing.T) {
+	s := fsx.NewSim()
+	clk := newClock()
+	l := openRetention(t, s, clk, func(c *Config) { c.Retention = -1; c.MaxBytes = 120 }) // the smallest cap: two segments
+	t.Cleanup(func() { _ = l.Close() })
+	appendN(t, l, 6)
+	mustFlush(t, l)
+	r := openReaderSim(t, s)
+	t.Cleanup(func() { _ = r.Close() })
+	segs := segmentPaths(t, s)
+	active := segs[len(segs)-1]
+	var once sync.Once
+	var werr error
+	s.Inject = func(op fsx.Op, name string) error {
+		if op == fsx.OpOpen && name == active {
+			once.Do(func() { // the writer moves on while Check is between the marker and the file
+				for range 12 {
+					if _, werr = l.Append(payloadFor(l.nextSeqForTest())); werr != nil {
+						return
+					}
+				}
+				werr = l.Flush()
+			})
+		}
+		return nil
+	}
+	res, err := r.Check()
+	if werr != nil {
+		t.Fatalf("the writer: %v", werr)
+	}
+	if _, serr := s.Lstat(active); serr == nil {
+		t.Fatal("setup: the segment the marker named is still there")
+	}
+	if err != nil || !res.Healthy {
+		t.Fatalf("Check: %+v, %v", res, err)
+	}
+}
