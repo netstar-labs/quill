@@ -9,6 +9,15 @@ import (
 	"github.com/netstar-labs/quill/internal/fsx"
 )
 
+// quillRequires64BitPlatform is 1 where int is 64 bits and 0 where it is 32. The array type
+// below has length quillRequires64BitPlatform-1, which the compiler refuses when it is -1, so
+// quill does not build for a 32-bit target (386, arm, mips, mipsle). Size and byte-count
+// fields in Config and the segment limits assume a 64-bit int; the tests do not compile on a
+// 32-bit target either. Decision 19.
+const quillRequires64BitPlatform = int(^uint(0) >> 63)
+
+var _ [quillRequires64BitPlatform - 1]struct{}
+
 // Config configures a Log. The zero value of every field but Dir is the default below.
 type Config struct {
 	// Dir is the log's directory, created if missing. Its base name is the topic name. A

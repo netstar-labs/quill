@@ -458,7 +458,9 @@ avoid it; a polling consumer should use them. `Commit` now writes a file (one fs
 
 ### Platforms
 
-Linux and darwin (arm64, amd64). Other platforms fail to build, on purpose.
+64-bit only; tested on arm64 and amd64; other platforms and 32-bit targets fail to build on purpose. Linux and darwin are the
+supported operating systems; any 64-bit architecture on them builds (arm64 and amd64 are the ones tested), and a 32-bit target
+(386, arm, mips, mipsle) is refused at compile time (decision 19).
 
 ## Format stability
 

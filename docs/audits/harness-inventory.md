@@ -99,7 +99,7 @@ can fail the CLI's own file operations except by a real file system trick (a non
 
 ## 8. The gate and CI
 
-`hack/gate.sh` is the commit gate: no `require` line in `go.mod`, `gofmt -l`, `go vet`, `go build`, `go vet` for `GOOS=linux` and `darwin`, a `freebsd` build that must fail, `go test -race -count=1 ./...`,
+`hack/gate.sh` is the commit gate: no `require` line in `go.mod`, `gofmt -l`, `go vet`, `go build`, `go vet` for `GOOS=linux` and `darwin`, a `freebsd` build and a `linux/386` and `linux/arm` build that must fail, `go test -race -count=1 ./...`,
 staticcheck `v0.8.2`, deadcode `v0.52.0 -test`, `hack/fuzz.sh` at 20 s per target (`FUZZTIME=0` skips it and the gate then ends PARTIAL), and `go mod tidy` with no diff. The Go toolchain is the one `go.mod` pins
 (`toolchain go1.27.3`). `.github/workflows/ci.yml` runs the same steps as separate jobs on `ubuntu-latest` and `macos-latest`, plus `govulncheck`, the full-disk job, the examples and the release build script.
 The gate cannot show: anything the machine it runs on does not have (a real power cut, a small filesystem other than the CI tmpfs), and `govulncheck` (it reads a live database, which a commit gate must not do).

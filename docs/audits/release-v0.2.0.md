@@ -91,6 +91,8 @@ awk '/^### Entries/{f=1;next} /^## /{f=0} f && /^- /{n++} END{print n}' CHANGELO
 
 **Update 2026-11-04 (L5-2).** Row 40 and one "Entries" line at the top of the section (a `Changed:` entry) and one line in the "Command line" list were added for the reworded `quill archive` message. They are a user-visible entry with a row, so the counts above read 148 entries and 88 with a row with this change, and the `CHANGELOG.md` line numbers cited in the table below row 40 moved down by two more; those citations and counts were not re-derived here.
 
+**Update 2026-11-04 (L5-3).** Row 41 and one "Entries" line at the top of the section (a `Changed:` entry) and one line in the "Go callers" list were added for the refusal of 32-bit builds. They are a user-visible entry with a row, so the counts above read 149 entries and 89 with a row with this change, and the `CHANGELOG.md` line numbers cited in the table below row 41 moved down by three more (one for the new list line, two for the new entry and the blank line it displaced); those citations and counts were not re-derived here.
+
 The count starts at the "Entries" heading, not at "Unreleased", because the "Breaking changes and upgrade notes" list above
 it also has lines that start with `- ` (35 of them: the command prints 179 if it scans the whole section, and 143 on the
 file before this change, which had no such list). It would stop working if that heading were retitled; the number
@@ -168,6 +170,7 @@ unchanged; none of them was re-run. A reviewer who disagrees moves a line betwee
 | 38 | Release builds: `build/quill` pins the toolchain to `go.mod`'s, `GOAMD64=v1` and `GOARM64=v8.0`, and puts the commit time, not the clock or the builder, into the archives and the SBOM, whose components now carry a `bom-ref`; `--dev` works on a clean tree | operator (the releaser, a verifier) | a third-party verifier builds with `-buildvcs=false` or inside a checkout of the tag | lines 61, 188, 308, 311, 401; `5bd55ce`, `988f1e5`, `10e8062`, `1b17ea5`, `df7af4f` |
 | 39 | `quill -h` and `quill --help` before a verb print the usage of `quill help` and exit 0, where they printed `quill: flag: help requested` and exited 2; a bare `quill` and `quill --version` still exit 2 | script | a script that read exit 2 from `quill -h` as "help is not supported" now sees 0; use the verb `quill version` for the version | the first line of the "Entries" section; audit L5-1 (branch `stage2/L5-1-a1`, `fix(stage2 L5-1)`) |
 | 40 | The line `quill archive` prints for a source gap reads `quill: the source lost records N to M; the archive does not have them`, where it read `...; the archive holds the same hole` (wrong when the destination starts after the lost records); exit 3 and the stream are unchanged, and the library's `*GapError` text is unchanged | script | a script that matched the text "same hole" must change; match the exit code 3 instead | the first line of the "Entries" section; audit L5-2 (branch `stage2/L5-2-a1`, `fix(stage2 L5-2)`) |
+| 41 | The module refuses to build for a 32-bit target (linux 386, arm, mips, mipsle) with `invalid array length quillRequires64BitPlatform - 1 (constant -1 of type int)`, where it built; every 64-bit target still builds | library (and operator: a 32-bit release build or cross-compile) | a caller or packager that built quill for a 32-bit target now fails at compile time; build for a 64-bit target, there is no 32-bit port | the first line of the "Entries" section and the first line of "Go callers"; audit L5-3 (branch `stage2/L5-3-a1`, `fix(stage2 L5-3)`) |
 
 Nothing in the table changes a file's bytes: the on-disk format is `quill/1` and the encoders are untouched (reported:
 `CHANGELOG.md` header; `hack/skew.sh` was not run here). The readers are stricter about a few malformed shapes (row 11).
@@ -365,7 +368,7 @@ behave, not run here). Then the answer is a new tag (say `v0.2.1`) plus a `retra
   None of them exist until the repository does; the gate is the local equivalent of CI's checks (`hack/gate.sh`
   header). The CI workflow's action pins were checked against the remote tags (see the checklist).
 - **Signature verification**: there is no signature to verify.
-- **Anything on a platform quill does not support** (Windows; FreeBSD is refused by the gate's vet step by design).
+- **Anything on a platform quill does not support** (Windows; FreeBSD and the 32-bit Linux targets are refused at build time by design, and the gate checks it).
 - **A fresh run of govulncheck after the database moves.** It reads a live database; run it again at tag time.
 - **The Linux ext4 filesystem matrix and the power-cut replays, for the tag.** Deferred by the owner on 2026-11-04 (no
   power-off is possible); the Linux gate of the pre-tag batch ran on tmpfs only. See "What was not run at the tag" below.
@@ -406,7 +409,7 @@ constraint, so none was touched and each stays open, for the owner's decision: (
 inaccurate when the destination starts after the lost records (row L4b-3 below; resolved 2026-11-04, audit L5-2, the message now reads "the archive does not have them"); (3) the module builds for 32-bit and
 big-endian Linux targets that the documents do not list, and the tests do not compile for 32-bit (section "Platforms" below).
 Each has a held-item section, with a recommended answer, in [stage2-owner-decisions.md](stage2-owner-decisions.md) ("Held after
-the pre-tag batch").
+the pre-tag batch"). *(Update 2026-11-04, L5-3: item (3), the 32-bit build, is resolved: the module now refuses a 32-bit target at compile time; see "Platforms" below.)*
 
 ### Behaviour and documentation that stay as they are
 
@@ -467,8 +470,27 @@ build. **Verified here** (go1.27.3 on darwin/arm64, `GOWORK=off`, 2026-11-04):
   gap audit says the same: "32-bit and unlisted GOARCH behaviour was not checked beyond building linux/386 and riscv64"
   ([gap-audit.md](gap-audit.md), Coverage).
 
-State: open (the documents say less than the build allows, and no test covers the extra architectures). Who decides: the owner,
-between stating "64-bit, untested elsewhere" and refusing the other architectures at build time.
+State: **resolved 2026-11-04 (owner-approved, audit L5-3; branch `stage2/L5-3-a1`, `fix(stage2 L5-3)`)**. The owner chose
+enforcement: only 64-bit builds. `config.go` declares `quillRequires64BitPlatform = int(^uint(0) >> 63)` and an array type of
+length `quillRequires64BitPlatform - 1`, which the compiler rejects when `int` is 32 bits, so the root package, and with it
+`cmd/quill`, does not compile for a 32-bit target. The refusal is for the width of `int`, not an architecture allow-list.
+
+**Run for the fix (verified, go1.27.3 on darwin/arm64, `GOWORK=off`, 2026-11-04), `GOOS=linux GOARCH=<arch> go build ./...` for
+every `linux/*` pair in `go tool dist list`:**
+
+- Fail, with `config.go:19:8: invalid array length quillRequires64BitPlatform - 1 (constant -1 of type int)`: 386, arm, mips,
+  mipsle (exactly the four 32-bit pairs).
+- Build, exit 0: amd64, arm64, loong64, mips64, mips64le, ppc64, ppc64le, riscv64, s390x.
+- `GOOS=darwin GOARCH=amd64` and `arm64` build; `go vet ./...` passes for `GOOS=linux` and `GOOS=darwin`; `GOOS=freebsd go build
+  ./...` still exits 1; `GOOS=linux GOARCH=386 go build ./cmd/quill` fails with the same message, through the import.
+- `hack/gate.sh` and `.github/workflows/ci.yml` now assert that linux/386 and linux/arm do not build.
+
+**Still not run (stated, not hidden):** the library or any test on any target but the host's arm64 and, in earlier waves,
+Linux amd64 and arm64. The 64-bit targets other than arm64 and amd64 build and are untested; the documents say "tested on arm64
+and amd64". For s390x, the only big-endian 64-bit target that builds here: `codec.go` encodes the frame with
+`encoding/binary` varints and `binary.BigEndian` for the CRC, and a search of the non-test code finds no `unsafe` and no
+`NativeEndian` (verified by `grep`), so the frame bytes do not depend on the host's byte order by that reading; no test ran on
+a big-endian machine, so this is inferred from the code, not shown.
 
 ### What was not run at the tag
 

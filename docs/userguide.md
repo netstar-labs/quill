@@ -419,7 +419,7 @@ lock, not the word "mount". Overlay filesystems are used at the operator's risk;
 the stage 2 live runs. What those runs did not exercise: NFS, SMB and FUSE filesystems (what is said here about them is the
 documented limit, not a measurement); on virtiofs they saw two writers, between two VMs and between a VM and the macOS host,
 open the same directory without `ErrLocked` and lose acknowledged records
-([live-integration.md](audits/live-integration.md), L3b-11). Linux and macOS only.
+([live-integration.md](audits/live-integration.md), L3b-11). Linux and macOS only, and 64-bit only (a 32-bit target does not build).
 
 **Checking.** `quill check` verifies every sealed segment whole (a sealed segment with no frames, for
 example one emptied by a tmp cleaner or a bad restore, is damage and makes it UNHEALTHY; only the

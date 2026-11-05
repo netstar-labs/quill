@@ -34,6 +34,8 @@ jobs:
         run: GOOS=${{ matrix.os == 'ubuntu-latest' && 'darwin' || 'linux' }} go vet ./...
       - name: an unsupported platform must not build
         run: "! GOOS=freebsd go build ./..."
+      - name: a 32-bit target must not build
+        run: "! GOOS=linux GOARCH=386 go build ./... && ! GOOS=linux GOARCH=arm go build ./..."
       - name: test (race)
         run: go test -race -count=1 ./...
 

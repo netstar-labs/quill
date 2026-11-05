@@ -50,6 +50,9 @@ else
 	for goos in linux darwin; do step "go vet (GOOS=$goos)"; GOOS=$goos go vet ./...; done
 	step "unsupported platform must not build"
 	! GOOS=freebsd go build ./... >/dev/null 2>&1 || fail "the module builds on freebsd; it must not (decision 19)"
+	step "a 32-bit target must not build"
+	! GOOS=linux GOARCH=386 go build ./... >/dev/null 2>&1 || fail "the module builds for linux/386; it must not (decision 19)"
+	! GOOS=linux GOARCH=arm go build ./... >/dev/null 2>&1 || fail "the module builds for linux/arm; it must not (decision 19)"
 	step "go test -race"; go test -race -count=1 ./...
 	step "staticcheck";   go run honnef.co/go/tools/cmd/staticcheck@"$STATICCHECK" ./...
 	step "deadcode"

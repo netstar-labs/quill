@@ -2762,6 +2762,8 @@ Reproduced under L4b-3 above (the documents were corrected; the message text was
 
 **Fix written.** None.
 
+**Update 2026-11-04 (owner-approved, L5-3; resolved with the commit on branch `stage2/L5-3-a1` titled `fix(stage2 L5-3)`).** The owner took the enforcement option: only 64-bit builds. A compile-time check on the width of `int` in `config.go` (`quillRequires64BitPlatform`) makes the root package, and so `cmd/quill`, fail to compile on a 32-bit target; the compiler prints `invalid array length quillRequires64BitPlatform - 1 (constant -1 of type int)`. The loop over every `linux/*` pair (verified): 386, arm, mips and mipsle fail; amd64, arm64, loong64, mips64, mips64le, ppc64, ppc64le, riscv64 and s390x build; darwin/amd64 and darwin/arm64 build; `go vet` passes for linux and darwin; freebsd still fails. The README and `scope.md` say "64-bit only; tested on arm64 and amd64; other platforms and 32-bit targets fail to build on purpose"; decision 19 has a dated note; `hack/gate.sh` and CI assert the refusal. 32-bit support was not added (no test run on a real 32-bit target).
+
 ## Owner decisions 2026-11-04, after wave 7 (hand finish by the assistant, no fix-skeptic re-run)
 
 **Commit 2893a3f kept.** The wave 7 fixer, working on L4b-4 (a documentation item), also changed `reader.go`: a `Reader` whose view was overtaken

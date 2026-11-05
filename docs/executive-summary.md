@@ -36,7 +36,7 @@ file-system simulator that models power loss.
 ## What it is not
 
 Not a broker: no network, no replication, no consumer groups, no partitions. Not a database:
-no keys, no transactions, no compaction. Not portable beyond Linux and macOS. Several topics
+no keys, no transactions, no compaction. Not portable beyond 64-bit Linux and macOS. Several topics
 are several directories, each with its own writer.
 
 ## Where it stands
