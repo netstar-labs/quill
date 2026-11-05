@@ -4,7 +4,7 @@ Date 2026-10-29, against v0.1.0 (commit 419e15a) and main as it stood when the a
 stage 2 audit, run with fresh eyes before a public release. One auditor covered the module graph, vulnerabilities,
 licence and notice state, the build script, CI and the public-release hygiene of the tree and its history; ten items
 were raised, and every one was attacked by two or three skeptic votes. Fixes were re-attacked by a fix-skeptic. What was
-held back for the owner is in [stage2-owner-decisions.md](stage2-owner-decisions.md).
+held back for the owner is in [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md).
 
 Labels: **verified** means an auditor or skeptic ran it or read the exact lines; **reported** names the document that says
 it; **inferred** says from what. Line anchors are to the audited tree unless a sentence says "now"; the A4 fixes have since
@@ -181,7 +181,7 @@ not honour the documented single pin; CI did (see the Correction in the Claim).
 reads the toolchain line, so nothing in CI changed and the `ci.yml` comment was reworded to say why it is true. The earlier attempts
 did not land: f800bb7 (branch `stage2/A4-1-retry`, based on da2d638) added a workflow-level `GOTOOLCHAIN` literal and a test for
 it, which rested on the false CI claim, and the next attempt (41c8aa4) repeated the false claim. Decision 88, the README, CONTRIBUTING and
-the changelog are amended. See [stage2-owner-decisions.md](stage2-owner-decisions.md).
+the changelog are amended. See [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md).
 
 ### A4-2: go.mod says `go 1.27` while the docs say the iterator API needs Go 1.23 (rated medium by the auditor; REFUTED, 2 votes to 1)
 
@@ -231,14 +231,14 @@ verifiable from the tree, and the file should say so either way. Both voters tho
 is not shown (open an issue asking for a private contact without describing the problem) and states that only the latest release is supported; a
 changelog line says the owner must enable the setting before the flip. No fix-skeptic ran (see the top line), so the outcome is "landed, not
 re-attacked"; the diff is documentation only (verified). What the fix cannot do is enable the setting: that is the owner's action, held in
-[stage2-owner-decisions.md](stage2-owner-decisions.md). Note that the tag v0.1.0 still carries the old wording (verified: `git show v0.1.0:SECURITY.md`).
+[stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md). Note that the tag v0.1.0 still carries the old wording (verified: `git show v0.1.0:SECURITY.md`).
 
 ### A4-4: a tracked document names a personal workspace path (medium; CONFIRMED, 2 votes, both reproduced; tip fixed, history held)
 
-**Claim.** `docs/audits/audit-correctness.md` named an absolute session path that carries a macOS user name and an internal parent-directory name,
+**Claim.** `docs/audits/passes/a1-round1/audit-correctness.md` named an absolute session path that carries a macOS user name and an internal parent-directory name,
 and it was present in every commit since the file was added, including the tagged v0.1.0 tree.
 
-**Grounds.** `docs/audits/audit-correctness.md:6-8` as audited (the path itself is not repeated here). A loop over every commit tree matched only that
+**Grounds.** `docs/audits/passes/a1-round1/audit-correctness.md:6-8` as audited (the path itself is not repeated here). A loop over every commit tree matched only that
 file for the project's forbidden names and for `/Users` and IP patterns, in 75 commits (the auditor's count; one voter counted 120 commits in all, with
 the file added at 98ff9e7, and did not recount the 75). Tracked files at HEAD contained no other match.
 
@@ -454,7 +454,7 @@ pass).
 | disposition | items | ids |
 |-------------|-------|-----|
 | fixed in `5bd55ce`, fix-skeptic FIXED-VERIFIED | 1 | A4r-2 |
-| held for the owner (see [stage2-owner-decisions.md](stage2-owner-decisions.md), "Held after pass A4r") | 3 | A4r-1, A4r-4, A4r-5 |
+| held for the owner (see [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), "Held after pass A4r") | 3 | A4r-1, A4r-4, A4r-5 |
 | deliberately not changed | 1 | A4r-3 |
 
 Severity as the auditor assigned it: medium 2 (A4r-1, A4r-4), low 3 (A4r-2, A4r-3, A4r-5). Nothing in the refresh is a
@@ -565,7 +565,7 @@ and an internal directory name, and the reference implementation's line counts a
 both removed. A push of the history as it stands, or of the `v0.1.0` tag, publishes them.
 
 **Grounds (verified).** (1) `git grep` for the path fragments in the `v0.1.0` tree returns one line, in
-`docs/audits/audit-correctness.md` (line 7). A pickaxe over `git log --all` for the same fragments returns exactly three
+`docs/audits/passes/a1-round1/audit-correctness.md` (line 7). A pickaxe over `git log --all` for the same fragments returns exactly three
 commits: `98ff9e7`, which introduces the path, and `0b70e82` and `007ba0e`, which remove it from the tip. The same pickaxe over
 tracked files at HEAD finds nothing. (2) `git show ee220c8 -- docs/design/review.md` deletes the reference's line counts, its
 component breakdown and a note on a vendored BSD-3 mmap; those are in `v0.1.0` and in every earlier commit (`ee220c8` was A7-15's

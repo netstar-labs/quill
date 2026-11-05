@@ -1,6 +1,6 @@
 # What the tests cannot show, and why
 
-Every guarantee in [scope.md](../design/scope.md) has a test that could falsify it, with two
+Every guarantee in [scope.md](../../design/scope.md) has a test that could falsify it, with two
 kinds of exception recorded here: behaviour that needs hardware the suite does not have, and
 behaviour the suite tests by simulation only. Each entry says what is tested instead and what
 remains an assumption. Updated at every phase.
@@ -80,7 +80,7 @@ rather than tested.
 
 ## Pass L2 (stage 2, 2026-11-03)
 
-Pass L2 ran hand mutation over the whole library and the CLI (530 mutants, see [mutation-hardening.md](mutation-hardening.md)). Every survivor that a test could kill was killed by a committed test. What follows is the
+Pass L2 ran hand mutation over the whole library and the CLI (530 mutants, see [mutation-hardening.md](../passes/l2/mutation-hardening.md)). Every survivor that a test could kill was killed by a committed test. What follows is the
 residue: survivors and uncovered branches that no test in the present harness can see, each with its exact blocker and the artifact that would unblock it. Labels: *verified* (the recorder read it or ran it), *reported*
 (an auditor or skeptic says so), *inferred* (the recorder's proposal, not tried). The harnesses are set out in [harness-inventory.md](harness-inventory.md).
 

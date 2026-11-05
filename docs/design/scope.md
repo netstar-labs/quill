@@ -236,7 +236,7 @@ Three separate things, easy to confuse:
 To make a write durable, the producer calls `Flush` (or `AppendBatch` then `Flush`) and treats the record as
 safe only when it returns. That is the cost: a flush is two fsyncs (the data and the marker), so one record per
 flush is slow and batches amortise it. **Measured** on quill's build machine (macOS, Apple silicon, APFS;
-[audits/benchmark-baselines.md](../audits/benchmark-baselines.md)): about 10 ms per flush, so about 100
+[audits/reference/benchmark-baselines.md](../audits/reference/benchmark-baselines.md)): about 10 ms per flush, so about 100
 durable records/s for one record per flush and about 50 K records/s with 512-record batches; a Linux server
 with a cheaper `fsync` is several times faster (whether its fsync reaches the physical disk is not known).
 Shortening `FlushInterval` narrows the window for callers that do not flush explicitly; it
@@ -375,7 +375,7 @@ kernels (virtiofs, 9p, a host directory bind-mounted into a container). Quill do
 check, no `fstatfs`): two writers there can both believe they hold the lock, and nothing fails at write time. A bind mount
 within one kernel is the same filesystem and the lock stays exclusive. Overlay filesystems are used at the operator's
 risk. The stage 2 live runs saw the double writer on virtiofs and did not exercise NFS, SMB or FUSE
-([live-integration](../audits/live-integration.md), L3b-11). On
+([live-integration](../audits/passes/live-integration.md), L3b-11). On
 macOS `File.Sync` issues `F_FULLFSYNC` (**verified** in the Go source), which is why a durable flush costs about
 10 ms there (the build machine's baselines) against milliseconds on Linux. Directories are created 0700 and files 0600 by default, so a reader
 in another user account needs a group arrangement; a process that only reads needs read access, and one that
@@ -443,7 +443,7 @@ consumer that is ahead of the restored head fails with `ErrAhead` and must be re
 Quill changes shape, not speed. Phase 4 records a baseline for each benchmark — buffered append, append with a
 flush per call, read from the start, read near the tail, read of sealed segments, `ReadWait`, cold start, and
 two new ones (several logs flushing in parallel, a `Reader` following a live writer) — on one machine, six
-runs, in `docs/audits/benchmark-baselines.md`. A later release may not regress one beyond run-to-run noise.
+runs, in `docs/audits/reference/benchmark-baselines.md`. A later release may not regress one beyond run-to-run noise.
 The recorded baselines on the build machine: `Read(limit 100)` at about 21–36 µs depending on the segment,
 a full `ScanAll` at about 21 M records/s over 400 K warm records, and a `Reader` draining a backlog at about
 16 M records/s. The marker write and fsync on every flush, which the reference did not have, is about half

@@ -1,4 +1,4 @@
-// Command powertest is the real power-loss test (docs/audits/power-loss.md): on a machine
+// Command powertest is the real power-loss test (docs/audits/reference/power-loss.md): on a machine
 // that can be crashed without syncing (`echo b > /proc/sysrq-trigger`), `run` writes a log
 // and acknowledges each flushed batch in a separate fsynced file until the machine dies;
 // after the reboot `verify` opens the log and checks that every acknowledged record survived,

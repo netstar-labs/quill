@@ -112,7 +112,7 @@ already presupposes the hole behaviour.
 segment 1 flipped): `Open` succeeded, `Err()` named `/log/0000000001.log`, `holes=[{6 10}]`,
 `Read(6,10)` returned `records 6 to 10 are unavailable`. Corrections to the finding: its line
 anchors were ~25 lines off, and recovery_test.go:225 is a stale-marker test; the reproduction is
-the direct evidence. docs/audits/self-review-recovery-and-reader.md:16 states the same rule.
+the direct evidence. docs/audits/passes/self-review-recovery-and-reader.md:16 states the same rule.
 
 **Correct text (apply now), replacing lines 240-244.** "`Open` fails with **`ErrCorrupt`** when
 the newest segment is damaged below `quill.tail.off`, when the marker names a sequence above the
@@ -280,11 +280,11 @@ argument. Cosmetic: the inline code would not compile if typed.
 
 **Anchors.** README.md:71 lists `hack/gate.sh`, `hack/fuzz.sh`; `find hack -type f` also returns
 hack/powertest/main.go; README.md:35 advertises "the real power-loss runs"; decision 92
-(decisions.md:100) and docs/audits/power-loss.md:6 name `hack/powertest`; `grep powertest
+(decisions.md:100) and docs/audits/reference/power-loss.md:6 name `hack/powertest`; `grep powertest
 README.md` is empty.
 
 **Skeptic (CONFIRMED).** The table is otherwise exhaustive over top-level entries, so the
 omission is a gap, not a summary. Cosmetic.
 
 **Correct text (apply now).** Add after README.md:71: "| `hack/powertest/` | The real
-power-loss harness behind docs/audits/power-loss.md (decision 92); run by hand, not in the gate |".
+power-loss harness behind docs/audits/reference/power-loss.md (decision 92); run by hand, not in the gate |".

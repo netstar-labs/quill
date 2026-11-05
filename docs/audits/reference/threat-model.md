@@ -4,8 +4,8 @@ Date 2026-10-31. Pass A3 of the stage 2 audit, run with fresh eyes before a publ
 (the commit under the first A3 fix; this is stated by one skeptic and inferred for the others, whose line numbers may
 differ by a few lines). The specification is docs/design/scope.md, docs/design/decisions.md and docs/format.md; the
 code was the thing under audit, so a passing test and a doc were both treated as claims, not evidence. The earlier
-passes are recorded in [a1-round2-findings.md](a1-round2-findings.md) and its siblings; what this pass held back for the
-owner is in [stage2-owner-decisions.md](stage2-owner-decisions.md), section "Pass A3".
+passes are recorded in [a1-round2-findings.md](../passes/a1-round2/a1-round2-findings.md) and its siblings; what this pass held back for the
+owner is in [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), section "Pass A3".
 
 Labels: **verified** means an auditor or skeptic ran it or read the exact lines; **reported** names the document that
 says it; **inferred** says from what. Anchors (file:line) are to the audited tree unless marked "now"; the fixes listed
@@ -58,7 +58,7 @@ A3-28). No CRITICAL and no HIGH item. 11 MEDIUM and 18 LOW, as rated by the audi
   and rejected again because decisions 84, 9 and 67 and two user-guide lines still stated the old rule; I then rebased it, fixed
   those and two `archive.go` comments a third skeptic named, gated it on both platforms and landed it (badb254, 18662b6,
   ed518a2). It is counted separately in the table below: no skeptic re-ran on the last commit. The record is in
-  [stage2-owner-decisions.md](stage2-owner-decisions.md), sections "A3-10" and "A3-20". The rest of this file is as recorded
+  [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), sections "A3-10" and "A3-20". The rest of this file is as recorded
   on 2026-10-31 except the two Disposition paragraphs and the two table rows below.
 - **Update 2026-11-03 (pass A3r).** The owner took the recommended answer for the round-1 decisions raised again, and
   approved A3-24 and the wording of A3-7 later the same day. Seven items changed disposition; each has a dated
@@ -69,7 +69,7 @@ A3-28). No CRITICAL and no HIGH item. 11 MEDIUM and 18 LOW, as rated by the audi
   A3-31, A3-32 and A3-7; reported by the skeptics). The verdict labels and the count tables above are as recorded on
   2026-10-31 and were not rewritten: read the verdict column as the verdict at audit time and the disposition column as
   current. Not changed and not approved: the A3-7 code hardening, the A3-24 `time` range check and A3-26 (all three held, see
-  [stage2-owner-decisions.md](stage2-owner-decisions.md), "Held after pass A3r"). The decisions A3-4, A3-9 and A3-11 were
+  [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), "Held after pass A3r"). The decisions A3-4, A3-9 and A3-11 were
   confirmed unchanged on the same day (recorded in that file only, not here).
 
 ## Coverage

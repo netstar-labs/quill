@@ -5,9 +5,9 @@ Date 2026-10-31. Pass A6 of the stage 2 audit, run with fresh eyes before a publ
 the code was the thing under audit, so a passing test and a doc were both treated as claims, not evidence. The question
 of the pass: is every encoded artifact pinned by bytes that were not computed from the code under test, and does a build
 from HEAD read and write what the v0.1.0 tag reads and writes, in both directions, in the mixed-version state a real
-deployment is in? The earlier passes are recorded in [a1-round2-findings.md](a1-round2-findings.md) and its siblings, and
+deployment is in? The earlier passes are recorded in [a1-round2-findings.md](../passes/a1-round2/a1-round2-findings.md) and its siblings, and
 [threat-model.md](threat-model.md) (A3); what this pass held back for the owner is in
-[stage2-owner-decisions.md](stage2-owner-decisions.md), section "Pass A6".
+[stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), section "Pass A6".
 
 Labels: **verified** means an auditor, skeptic or the recorder ran it or read the exact lines; **reported** names the
 document that says it; **inferred** says from what. Anchors (file:line) are to the audited tree unless marked "now"; the
@@ -96,7 +96,7 @@ Checked and found clean (every line below is verified by the auditor named, unle
 
 Not covered (bounds stated by the auditors):
 
-- Power loss: kill -9 only, so the marker and data ordering is exercised and fsync is not (docs/audits/power-loss.md owns
+- Power loss: kill -9 only, so the marker and data ordering is exercised and fsync is not (docs/audits/reference/power-loss.md owns
   that).
 - A segment file at or over 1.5 GiB written by v0.1.0 and opened by HEAD (it needs a rotation failure to produce).
 - A second user account (the access-loss half of A6-9 is inferred from POSIX permission rules; modes were checked, a
@@ -162,7 +162,7 @@ Grounds (verified unless marked):
 
 The frame, tail, format, consumer and policy goldens are pasted bytes (`recordedFrames` hex and files under
 testdata/golden), not computed from the code under test at test time. They were recorded from quill's own encoder
-(golden_test.go record path, docs/audits/test-ledger.md:5); see A6-6 for what that does and does not prove.
+(golden_test.go record path, docs/audits/reference/test-ledger.md:5); see A6-6 for what that does and does not prove.
 
 Mutations the auditor ran against the goldens (root package, `go test -run Golden`; every one failed as intended):
 
@@ -274,7 +274,7 @@ frame-width, CRC and policy faults were caught. The fix the reviewer proposed is
 recover one copy with each version, and `diff -r` the two before the append. The manual kill experiment above does make
 that comparison (recovery by each version of identical torn bytes, results identical), so the verdict above stands; what
 is missing is the harness that would keep proving it. Status: open, listed in
-[stage2-owner-decisions.md](stage2-owner-decisions.md).
+[stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md).
 
 ## Items
 
@@ -451,7 +451,7 @@ half of the proposal) was not done: per-call I/O, not needed while only format 1
 **Claim.** Decision 3 ("the frame bytes are the reference's, unchanged") is proven only against quill's own encoder and
 the specification text, not against a byte sequence from the reference implementation.
 
-**Grounds.** docs/audits/test-ledger.md:5 says the frame goldens "were recorded from quill's encoder"; `recordedFrames`
+**Grounds.** docs/audits/reference/test-ledger.md:5 says the frame goldens "were recorded from quill's encoder"; `recordedFrames`
 and testdata/golden/segment.log were produced by `QUILL_RECORD_GOLDENS` (golden_test.go record path). The auditor decoded
 the three recorded frames in an independent Python program (uvarint, IEEE CRC-32 big-endian) and they equal the golden
 hex and the docs/format.md table, so the goldens are consistent with the spec text (verified).

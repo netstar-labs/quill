@@ -4,7 +4,7 @@ Date 2026-10-29, against HEAD 1da37fc. Dimension report for the dedup lens (and 
 items its duplicate finder surfaced): 12 items, ranked by what the duplication cost (a divergence
 already present first, then invariants, then pure line count). The top line and the coverage
 statement are in [a1-round2-findings.md](a1-round2-findings.md). The one held item is repeated with a
-recommended answer in [stage2-owner-decisions.md](stage2-owner-decisions.md).
+recommended answer in [stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md).
 
 Votes: C confirmed, P plausible, R refuted. Reproduction for a dedup item means the skeptic applied
 the proposed change to a scratch copy and ran the suite (and, where the claim is about cost, the

@@ -132,7 +132,7 @@ with a crash injected before every file operation and asserts that recovery yiel
 contiguous prefix holding every acknowledged record, under every subset of surviving items
 when few and a sample otherwise; the same property is tested under a real `SIGKILL` of a
 writer process. What neither can show is in
-[audits/untestable-without-x.md](audits/untestable-without-x.md).
+[audits/reference/untestable-without-x.md](audits/reference/untestable-without-x.md).
 
 ## 8. Trade-offs, stated
 

@@ -1,7 +1,7 @@
 # Commit map: hashes before and after the 2026-11-04 history rewrite
 
 Before anything was pushed, the history was rewritten once to remove a scratch-directory path that one audit document
-(`docs/audits/audit-correctness.md`) had quoted from commit `98ff9e7` (old hash) until `0b70e82` (old hash) removed it. The
+(`docs/audits/passes/a1-round1/audit-correctness.md`) had quoted from commit `98ff9e7` (old hash) until `0b70e82` (old hash) removed it. The
 rewrite changed that one document's text in those commits and nothing else: every commit keeps its author, dates and
 message, and the tree at `main` is byte-identical to the tree before the rewrite. Every commit from the first changed one
 down to `main` has a new hash, because a hash covers its parents. The `v0.1.0` tag was re-created on the new commit

@@ -5,7 +5,7 @@ path, recovery and retention, reader and CLI, concurrency and crash): 37 items, 
 and then by reachability. The top line and the coverage statement are in
 [a1-round2-findings.md](a1-round2-findings.md); this file carries each item as Claim, Grounds,
 Warrant, Backing and Rebuttal, with its verdict, reproduction and disposition. Held items are
-repeated with a recommended answer in [stage2-owner-decisions.md](stage2-owner-decisions.md).
+repeated with a recommended answer in [stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md).
 
 Verdicts: CONFIRMED, PLAUSIBLE, REFUTED, or prior-deliberate (decided in round 1; no round-2
 votes). Votes: C confirmed, P plausible, R refuted. Reproductions ran in throwaway copies of the

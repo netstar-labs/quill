@@ -12,7 +12,7 @@ and docs/format.md; the code was the thing under audit, so a passing test and a 
 treated as claims, not evidence. The per-dimension reports carry the full items, anchors and
 reproductions: [simplify](a1-round2-simplify.md), [dedup](a1-round2-dedup.md),
 [correctness](a1-round2-correctness.md), [docs](a1-round2-docs.md). What the audit held back for
-the owner is in [stage2-owner-decisions.md](stage2-owner-decisions.md). Round 1 is recorded in
+the owner is in [stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md). Round 1 is recorded in
 audit-findings.md and its siblings.
 
 Labels: **verified** means an auditor or skeptic ran it or read the exact lines; **reported**
@@ -97,7 +97,7 @@ disposition. Whoever records those commits should move them.
 **Update 2026-10-31.** The owner approved the recommended answer for A1-67 and A1-80. Their fixes were already on
 `main` (ba7c650 and b5ad955, committed 2026-10-30; verified from `git log`) with no recorded fix-skeptic outcome. On
 2026-10-31 an independent fix-skeptic per commit, working on a scratch copy of the tree, returned FIXED-VERIFIED on
-every lens (7 of 7 each; the reports are summarised in [stage2-owner-decisions.md](stage2-owner-decisions.md)). The
+every lens (7 of 7 each; the reports are summarised in [stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md)). The
 counts in this table are moved accordingly: A1-67 (docs dimension) and A1-80 (correctness) from held to fixed. A1-62
 and A1-59 are covered by the next paragraph.
 
@@ -448,7 +448,7 @@ verdict, the reproduction, and what was done. "Fix-skeptic" outcomes are FIXED-V
   dropped and the `ci.yml` comment about the patch level is true. Earlier attempts (532f39d, c9e8aa9 and 0b06a86) were
   each found correct in code and test and rejected by their fix-skeptic on the no-new-gap lens only, because they left this record, the
   supply-chain record and the owner-decisions table saying the old thing; this commit corrects all three
-  ([supply-chain.md](supply-chain.md), [stage2-owner-decisions.md](stage2-owner-decisions.md) and this file). The first attempt
+  ([supply-chain.md](../supply-chain.md), [stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md) and this file). The first attempt
   (f800bb7 and 41c8aa4) carried the false CI claim and was not used.
 
 ## Top line at first writing (2026-10-29)

@@ -9,7 +9,7 @@ test that could falsify it.
 - **Standard library only.** `go.mod` has no `require` line and the gate refuses one.
 - **Every guarantee has a test.** A guarantee without a test that could falsify it is not
   done. Recovery behaviour is tested against the crash simulator in `internal/fsx` and under a
-  real `SIGKILL`; see [docs/audits/untestable-without-x.md](docs/audits/untestable-without-x.md)
+  real `SIGKILL`; see [docs/audits/reference/untestable-without-x.md](docs/audits/reference/untestable-without-x.md)
   for what cannot be tested and why.
 - **The format is frozen.** `docs/format.md` is normative and the golden tests pin its bytes.
   A change needs a new version in `quill.format`, a migration note, and new goldens, never a
@@ -45,7 +45,7 @@ release and moves to the next one deliberately, with the pins in `hack/gate.sh` 
 
 ## Benchmarks
 
-`docs/audits/benchmark-baselines.md` records six runs of every benchmark. A change that makes
+`docs/audits/reference/benchmark-baselines.md` records six runs of every benchmark. A change that makes
 the median of six runs more than 10% worse, with the ranges not overlapping, is a regression
 and needs a reason.
 

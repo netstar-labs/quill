@@ -8,9 +8,9 @@ reported only what it could ground. Line numbers below are from the tree as it i
 Labels: **verified** (run, or the exact lines read, by an auditor or skeptic named in the claim), **reported** (a document or an auditor says
 it; the source is named), **inferred** (constructed from what is named). This file is a record: the recorder read the ledger the
 auditors and skeptics produced and the commits' messages and diffstats, and ran nothing. Every "verified" below is the
-auditor's or skeptic's, not the recorder's. Companion files: [stage2-owner-decisions.md](stage2-owner-decisions.md) (the one
-item that was held for the owner until 2026-11-04, section "Held after pass A1d"), [a1-round2-findings.md](a1-round2-findings.md) (the earlier A1
-passes), [live-integration.md](live-integration.md), [gap-audit.md](gap-audit.md), [mutation-hardening.md](mutation-hardening.md)
+auditor's or skeptic's, not the recorder's. Companion files: [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md) (the one
+item that was held for the owner until 2026-11-04, section "Held after pass A1d"), [a1-round2-findings.md](a1-round2/a1-round2-findings.md) (the earlier A1
+passes), [live-integration.md](live-integration.md), [gap-audit.md](gap-audit.md), [mutation-hardening.md](l2/mutation-hardening.md)
 and [verification-optimization.md](verification-optimization.md) (the ledgers this pass's items cite).
 
 ## Summary
@@ -227,7 +227,7 @@ conflicts with the scope document's latency statement (decision 50): a record is
 `CHANGELOG.md` discloses "n directory syncs instead of one" and does not say that they run under the lock.
 
 **Rebuttal.** The per-unlink sync is deliberate: it makes what survives a crash always a suffix (round 1, A1-31, fixed in `e2f7801`; see
-[a1-round2-correctness.md](a1-round2-correctness.md) section 18). A steady-state log deletes one or two segments per pass. The offline
+[a1-round2-correctness.md](a1-round2/a1-round2-correctness.md) section 18). A steady-state log deletes one or two segments per pass. The offline
 `quill prune -force` has no concurrent appender. The scope text speaks of flush-to-visibility latency, not of retention passes.
 
 **Verdict.** Decided in round 1 (decision 65, A1-31), not put to a vote. The auditor's own reproduction is the only evidence. The round-1 record (section 18)
@@ -239,7 +239,7 @@ v0.1.0 and once against the tip. Output above.
 **Disposition.** Deliberately not changed: the earlier decision stands. Recommended answer if the owner wants it reopened (the auditor's proposal): keep
 the sync-before-each-unlink order but do not hold the lock across the loop, deleting in chunks and re-validating the sealed set after reacquiring, or, if left
 as is, state the stall in decisions 61 and 65, the user guide and the Latency section. Not held in this pass's ledger; it is noted under "Not held, but worth the owner's eye" in
-[stage2-owner-decisions.md](stage2-owner-decisions.md).
+[stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md).
 
 ### A1d-2: Open no longer changes `quill.tail`'s mode when `Config.Perm` differs (low, CONFIRMED, fixed)
 
@@ -318,7 +318,7 @@ fix-skeptic re-ran the break against both trees and confirmed the line's text is
 **Grounds.** Mutant G: `reader.go:386` `if ferr != nil || rec.Seq == 0 || rec.Seq > tl.Seq {` to `if ferr != nil || rec.Seq == 0 {`; `go test . ./cmd/quill` passes (the root run skipping the flaky test of A1d-6). The commit that claims to pin it, `786a1c5`
 (`TestAReaderCallsAnActiveSegmentThatFailsTheMarkerCorruptNotAnIOError`) has two cases, a file shorter than the marker offset and a flipped byte in the first frame; neither reaches the `> tl.Seq` term (inferred from the green mutant run). Reproduction (verified by the auditor and both skeptics): a log of 43 records
 whose active segment is segment 2 holding 41 to 43 at offset 69, with `quill.tail` edited to sequence 40, segment and offset kept (one skeptic: marker 23 lowered to 20 on a simulated file system, and another: sequence 0). The tip: zero records and
-`ErrCorrupt: the active segment's first frame does not decode below the marker`, and `Stat` returns `ErrCorrupt`. Mutant G: 40 records (last 38 39 40) with `err == nil`, and `Stat` returns nil. [mutation-hardening.md](mutation-hardening.md) (the line near 631) relies on this check as the backstop that makes another mutant need a hand-damaged tail.
+`ErrCorrupt: the active segment's first frame does not decode below the marker`, and `Stat` returns `ErrCorrupt`. Mutant G: 40 records (last 38 39 40) with `err == nil`, and `Stat` returns nil. [mutation-hardening.md](l2/mutation-hardening.md) (the line near 631) relies on this check as the backstop that makes another mutant need a hand-damaged tail.
 
 **Warrant.** Guarantee 6 (corruption is never served silently) depends on this branch to tell a marker that disagrees with the bytes from a legitimately stale one. Without the branch no test notices that a damaged marker is served as a shorter, healthy-looking log.
 
@@ -364,7 +364,7 @@ whose active segment is segment 2 holding 41 to 43 at offset 69, with `quill.tai
 
 ### A1d-8: silent-degradation.md still describes the A5-40 fix as an unconditional pendingPublish (low, REFUTED)
 
-**Claim.** `docs/audits/silent-degradation.md` (near line 935) says Open's forced write "is now `l.pendingPublish = true` (`load.go:432`)"; `29f5c6c` (L3b-8) removed that line, and the A5-40 section carries no dated note saying so.
+**Claim.** `docs/audits/passes/silent-degradation.md` (near line 935) says Open's forced write "is now `l.pendingPublish = true` (`load.go:432`)"; `29f5c6c` (L3b-8) removed that line, and the A5-40 section carries no dated note saying so.
 
 **Grounds.** The section header says "fixed 906d49c". At the tip `grep` finds `pendingPublish = true` only in `flush.go` (twice) and `retention.go`. `load.go:454-459` now sets `l.marker, l.markerAt = tl, l.cfg.clock()`. `906d49c` is an ancestor of the tip. The A5-40 behaviour (the marker age counts from Open) still holds; the auditor ran the `MarkerAge` and clean-open tests and they passed. The auditor's reading of the live-integration and owner-decision records matches (they name the old line as the L3b-8 defect).
 
@@ -393,7 +393,7 @@ whose active segment is segment 2 holding 41 to 43 at offset 69, with `quill.tai
 
 **Verdict.** CONFIRMED, 2 of 2, neither reproduced (read only).
 
-**Disposition as of 2026-11-03 (superseded by the Resolution below).** Fix written, rejected by the fix-skeptic, not merged: held for the owner (see [stage2-owner-decisions.md](stage2-owner-decisions.md), section "Held after pass A1d"). A first attempt (a longer list adding the new records) was rejected because the enumeration would go stale again (reported by the fix summary). The second, `f2287c7`, states the exception by where a record is written rather than as a list, in the user guide, `scope.md`, decision 50 and the `config.go` doc. The fix-skeptic's objection: the dated A1d-9 note on decision 50 lists "the consumer-passed Warn" among the records `Open` writes through the seal its recovery makes, and the code cannot produce it (`l.offsets` is nil until `log.go:217`, after `load()` has run `publishLocked` and its seal; the fix-skeptic ran a protected consumer at offset 1 plus a seal at `Open` and got only the "deleted segment" Info). The same sentence also still enumerates `Open`'s own warnings and omits the `quill.tail` mode Warn added by `96588fb`. `f2287c7` is not an ancestor of the tip (verified).
+**Disposition as of 2026-11-03 (superseded by the Resolution below).** Fix written, rejected by the fix-skeptic, not merged: held for the owner (see [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), section "Held after pass A1d"). A first attempt (a longer list adding the new records) was rejected because the enumeration would go stale again (reported by the fix summary). The second, `f2287c7`, states the exception by where a record is written rather than as a list, in the user guide, `scope.md`, decision 50 and the `config.go` doc. The fix-skeptic's objection: the dated A1d-9 note on decision 50 lists "the consumer-passed Warn" among the records `Open` writes through the seal its recovery makes, and the code cannot produce it (`l.offsets` is nil until `log.go:217`, after `load()` has run `publishLocked` and its seal; the fix-skeptic ran a protected consumer at offset 1 plus a seal at `Open` and got only the "deleted segment" Info). The same sentence also still enumerates `Open`'s own warnings and omits the `quill.tail` mode Warn added by `96588fb`. `f2287c7` is not an ancestor of the tip (verified).
 
 **Resolution (2026-11-04, owner-approved, documentation only; fixed in `03b61eb`, fix-skeptic FIXED-VERIFIED, 6 of 6 lenses, reported).** Not `f2287c7`: a fresh change that states the exception by where a record is written and lists no record. The records `Open` itself writes run on the caller's goroutine before `Open` returns, before there is a `Log`, with no lock held; every other record runs with the lock held; the handler rule (do not call the `Log`, do not block) still applies to both. The user guide's `Logger` row, `scope.md`'s `Logger` row, decision 50 (with a dated A1d-9 note) and the `Config.Logger` doc say so. Before the wording was written, `Open` was run in a scratch copy under a recording handler that tried the log's lock at each record (verified; a control record after `Open` saw it held). Records seen, all with the lock free: the cut-newest-segment Warn; the `quill.lock` untightenable Warn; the `quill.tail` mode Warn; the ahead-consumer Warn; the first `quill.policy` write Warn; the "cannot publish quill.tail" Warn (injected ENOSPC on the temp file, stale marker); the "cannot create the next segment" Warn (rotation failing during recovery); and, for a seal during recovery (a stale marker, a reopen with a smaller `SegmentBytes`), the "deleted segment" Info (`MaxRecords` 3) and the "cannot read free space" Warn (`MinFreeBytes` unreachable). The consumer-passed Warn did not appear (a protected consumer at offset 1 with a seal at `Open` gave only the "deleted segment" Info), so it is not named.
 

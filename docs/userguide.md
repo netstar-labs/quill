@@ -419,7 +419,7 @@ lock, not the word "mount". Overlay filesystems are used at the operator's risk;
 the stage 2 live runs. What those runs did not exercise: NFS, SMB and FUSE filesystems (what is said here about them is the
 documented limit, not a measurement); on virtiofs they saw two writers, between two VMs and between a VM and the macOS host,
 open the same directory without `ErrLocked` and lose acknowledged records
-([live-integration.md](audits/live-integration.md), L3b-11). Linux and macOS only, and 64-bit only (a 32-bit target does not build).
+([live-integration.md](audits/passes/live-integration.md), L3b-11). Linux and macOS only, and 64-bit only (a 32-bit target does not build).
 
 **Checking.** `quill check` verifies every sealed segment whole (a sealed segment with no frames, for
 example one emptied by a tmp cleaner or a bad restore, is damage and makes it UNHEALTHY; only the
@@ -451,7 +451,7 @@ stop every writer, reader and consumer first, since a running writer, and a read
 `Head`, never re-reads `quill.format` (`Consumer.Commit` and a `Reader`'s waits do, and fail with `ErrFutureVersion`
 after the bump); `docs/format.md` has the rule. Rolling back is the same replacement in reverse, and the same
 holds across v0.1.0 and the current tree: `hack/skew.sh <refA> <refB>` runs each version against a log the other wrote
-and [format-compatibility.md](audits/format-compatibility.md) records the result. The differences between the two
+and [format-compatibility.md](audits/reference/format-compatibility.md) records the result. The differences between the two
 versions are listed under "Unreleased" in the CHANGELOG, which you should read before upgrading. A build that finds a `quill.format`
 newer than it knows refuses the log with `ErrFutureVersion` (the library, and the `quill` command with exit 1 for a verb that opens
 the log); the fix is a newer binary, never an edit to `quill.format`.

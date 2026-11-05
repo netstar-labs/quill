@@ -45,7 +45,7 @@ semantics, not shape).
 
 **Why owner decision.** Unifying the text changes one of the two overlap strings and adding the
 guard changes `Stat().Holes` on hand-crafted input; the finder rated the risk medium. The
-self-review (docs/audits/self-review-recovery-and-reader.md, "What the audit should look at
+self-review (docs/audits/passes/self-review-recovery-and-reader.md, "What the audit should look at
 first", item 2) names the reader's hole bookkeeping as the place most in need of a hostile eye,
 and the writer's copy gets none of that scrutiny today. Recommended answer: approve. Fix: a
 `contiguity` struct in a new holes.go (`prevLast uint64; havePrev, pendingHole bool; holes

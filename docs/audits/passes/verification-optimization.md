@@ -7,7 +7,7 @@ auditors, by file), dead code and debt, operational validation (macOS and Linux)
 `docs/design/scope.md`, `docs/design/decisions.md` and `docs/format.md`; the code was the thing under audit, so a
 passing test and a doc were both treated as claims, not evidence. Every candidate was attacked by two or three
 skeptics, who read the code and re-ran the reproductions, and every fix was re-attacked by a fix-skeptic. What the
-audit held back for the owner is in [stage2-owner-decisions.md](stage2-owner-decisions.md), section "Pass L1".
+audit held back for the owner is in [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), section "Pass L1".
 
 Labels: **verified** means an auditor, skeptic or the recorder ran it or read the exact lines; **reported** names the
 document that says it; **inferred** says from what. File and line anchors are to the audited tree 5a70379 unless a
@@ -55,7 +55,7 @@ state of the 50 items is now:
 The pass L1h fix-skeptics (reported): 9 fixes attacked in this pass, 6 FIXED-VERIFIED (L1-5, 11, 12, 16, 21, 26: 39 lens verdicts,
 all pass, 7 lenses for L1-5, 11 and 26 and 6 for the others) and 3 rejected (L1-3, L1-4, L1-10; the objection of each is
 under its item). No new skeptic votes on the findings. The L1-12 optional refusal is not implemented and stays an open optional
-follow-up (see the L1-12 item and [stage2-owner-decisions.md](stage2-owner-decisions.md)). **Finished by hand, 2026-11-03:** L1-3, L1-4 and L1-10 were each rejected a second time by their fix-skeptic, each on a documentation residual (a changelog entry, a design-prompt sentence and a runtime-message note, an "one record" claim). The recorder cherry-picked the last attempt of each onto `main` and closed exactly the named residual, as for A3-10; the commits are the ones listed in the table. Each is docs and tests only (no non-test code line changed; the mutation check of the new L1-3 tests is recorded in stage2-owner-decisions.md). No fix-skeptic ran on these three final states: their gate result and the recorder's own checks are the only verification, and the record says so in the item sections. Coverage of the fix-skeptics: see the
+follow-up (see the L1-12 item and [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md)). **Finished by hand, 2026-11-03:** L1-3, L1-4 and L1-10 were each rejected a second time by their fix-skeptic, each on a documentation residual (a changelog entry, a design-prompt sentence and a runtime-message note, an "one record" claim). The recorder cherry-picked the last attempt of each onto `main` and closed exactly the named residual, as for A3-10; the commits are the ones listed in the table. Each is docs and tests only (no non-test code line changed; the mutation check of the new L1-3 tests is recorded in stage2-owner-decisions.md). No fix-skeptic ran on these three final states: their gate result and the recorder's own checks are the only verification, and the record says so in the item sections. Coverage of the fix-skeptics: see the
 coverage statement for pass L1h in that file; in short, `staticcheck`, `deadcode` and the fuzz step were not run by the fix-skeptics
 of L1-5, 11, 12 and 26, and the Linux x86-64 box was not used by those of L1-5, 11, 12 and 26. The three sections of this file that
 list items "held" and "rejected" below are the record as written on 2026-11-02; each item carries its updated disposition.
@@ -228,7 +228,7 @@ Functions at 0%: `Consumer.Name`, `Consumer.Scan`, `Reader.ID`, `Reader.Scan`, `
 
 ### Benchmarks against the recorded baselines
 
-The rule (docs/audits/benchmark-baselines.md, decisions 21 and 70): a regression is a median more than 10% worse with
+The rule (docs/audits/reference/benchmark-baselines.md, decisions 21 and 70): a regression is a median more than 10% worse with
 ranges that do not overlap. Six runs each (`-benchmem -count=6`). The recorded tables are for v0.1.0 (2026-10-29).
 
 **macOS.** The machine was shared and loaded during the run (load average reached 20 early), so the ranges are wider
@@ -488,7 +488,7 @@ log (`kill -9` after 15 s), copy it, `rm` the oldest segment file in the copy, `
 so `First` must be 1. *Backing.* Guarantees 3 and 4 ("a crash loses a suffix, not a middle", scope.md:367).
 *Rebuttal.* Needs a pure unlink of segment 0; only an OS-crash harness uses this check. *Disposition.* Fixed in
 7d72dd4, FV (6 of 6): fails with "FAIL: log starts at N, not 1"; the new test runs the real `verify` as a child process
-and fails without the change. Residual: docs/audits/power-loss.md:16 does not list the new check.
+and fails without the change. Residual: docs/audits/reference/power-loss.md:16 does not list the new check.
 
 **L1-24 (low, CONFIRMED, 2 of 2, both reproduced).** *Claim.* The `withReader` comment says a verb checks its usage
 before calling it, so a bad flag still exits 2 when `-dir` cannot be opened; true only for some verbs. *Grounds.*
@@ -639,7 +639,7 @@ run on the attempt tree): `Consumer.Scan` also returns the gap immediately after
 call" is false for `Consumer.Scan`; decisions 101 and 103 and the commit message list "Scan, ScanAll or Reader.Scan" and omit
 `Consumer.Scan`; the test covers only `Reader.Scan` and `ScanAll`. Remaining work: correct that sentence to name
 `Consumer.Read` and `Consumer.ReadWait`, add `Consumer.Scan` to the lists, add a `Consumer.Scan` case. See the owner file.
-*Disposition, updated 2026-11-03.* Owner-approved to finish. Attempt 47df71b documents `From` as the first unavailable sequence for every call form, `Records` and `Follow` included, with a test per form, and was REJECTED again: CHANGELOG.md:197 (an Unreleased `Fixed:` entry) still says a Log's `Read`, `Scan`, `ScanAll`, `Records`, `Follow` and consumer reads return a `GapError` "starting at the offset asked for", which is false for the scans after delivered records and for `Records` and `Follow`, and the new test covers the Reader and a Reader-backed consumer only (the recorder read the changelog line on the branch). Open; remaining work and the rebasing note are in [stage2-owner-decisions.md](stage2-owner-decisions.md), "Open after a rejected fix".
+*Disposition, updated 2026-11-03.* Owner-approved to finish. Attempt 47df71b documents `From` as the first unavailable sequence for every call form, `Records` and `Follow` included, with a test per form, and was REJECTED again: CHANGELOG.md:197 (an Unreleased `Fixed:` entry) still says a Log's `Read`, `Scan`, `ScanAll`, `Records`, `Follow` and consumer reads return a `GapError` "starting at the offset asked for", which is false for the scans after delivered records and for `Records` and `Follow`, and the new test covers the Reader and a Reader-backed consumer only (the recorder read the changelog line on the branch). Open; remaining work and the rebasing note are in [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), "Open after a rejected fix".
 
 **L1-10 (low, PLAUSIBLE; votes CONFIRMED, REFUTED, CONFIRMED).** *Claim.* The `Config.Logger` doc enumerates what is logged but
 omits the MinFreeBytes transitions, "age rotation skipped because the flush failed", the unreadable-consumer-file Warn, the
@@ -652,7 +652,7 @@ says the MinFreeBytes records are "one record per transition, not per pass", but
 (retention.go:268) is written on every pass where `statfs` fails, with no guard; the fix swapped an omission for a false statement
 in three places. Remaining work: say the cannot-read Warn is written on every failing pass and keep "one per transition" only for
 the below-floor Warn and the back-above Info (or add a transition guard in code). See the owner file.
-*Disposition, updated 2026-11-03.* Owner-approved to finish as documentation only (no transition guard in code). Attempt 0a77730 lists every record and says the "cannot read free space" Warn is written on every failing pass and seal, and was REJECTED again: it says a deleted or already-gone segment "is one record when it goes" in four places, but `deleteLocked` logs the Warn "segment was already gone" and then also the deletion record (the skeptic reproduced two records for a segment removed by hand and then pruned; the recorder read the code on the branch, retention.go:345-374). Open; see [stage2-owner-decisions.md](stage2-owner-decisions.md), "Open after a rejected fix".
+*Disposition, updated 2026-11-03.* Owner-approved to finish as documentation only (no transition guard in code). Attempt 0a77730 lists every record and says the "cannot read free space" Warn is written on every failing pass and seal, and was REJECTED again: it says a deleted or already-gone segment "is one record when it goes" in four places, but `deleteLocked` logs the Warn "segment was already gone" and then also the deletion record (the skeptic reproduced two records for a segment removed by hand and then pruned; the recorder read the code on the branch, retention.go:345-374). Open; see [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), "Open after a rejected fix".
 
 **L1-21 (low, CONFIRMED, 2 of 2; reproduced by the auditor).** *Claim.* The O(log segments) cost of `OffsetForTime` holds for a
 Log and a warm Reader; a Reader's first call opens about every sealed segment. *Grounds.* seek.go:11-12; scope.md ("O(log
@@ -668,7 +668,7 @@ Remaining work: that one sentence. See the owner file.
 
 ### Held for the owner (7)
 
-Full sections, with the recommended answer, are in [stage2-owner-decisions.md](stage2-owner-decisions.md), "Pass L1".
+Full sections, with the recommended answer, are in [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), "Pass L1".
 
 **L1-4 (low, CONFIRMED, 2 of 2, neither skeptic ran it; reproduced by the auditor on `fsx.Sim`).** *Claim.* `ErrFailed`'s doc, decision 37 and the
 user guide say "every later Append, Flush and Sync fails" on a failed log; `Sync(seq)` for an already durable sequence
@@ -677,7 +677,7 @@ injected; `Flush`: "log failed; close and reopen: EIO"; `Sync(ctx,1)` nil, `Sync
 `ErrBadSeq`. *Grounds.* flush.go:285-288, 293-295; errors.go:31-36. *Warrant.* The switch tests `l.head >= seq` before
 `l.failed`. *Backing.* Decisions 37, 42 (unless durable). *Rebuttal.* The behaviour is right (those records are durable);
 the wording is wrong. *Disposition.* Held: the reworded guarantee is a spec text change.
-*Disposition, updated 2026-11-03.* Owner-approved (reword; do not change the code). Fix de3cfd4 rewords the claim in errors.go, decision 37, the user guide and scope.md and pins all three `Sync` behaviours on `fsx.Sim`; REJECTED by the fix-skeptic for an unfinished sweep: docs/design/build-prompt.md:300 (T3) and the runtime log message at flush.go:135 with its quotation at docs/userguide.md:53 keep "every later call returns ErrFailed" (the recorder read the lines on the branch). Not on `main`; open. See [stage2-owner-decisions.md](stage2-owner-decisions.md), section L1-4.
+*Disposition, updated 2026-11-03.* Owner-approved (reword; do not change the code). Fix de3cfd4 rewords the claim in errors.go, decision 37, the user guide and scope.md and pins all three `Sync` behaviours on `fsx.Sim`; REJECTED by the fix-skeptic for an unfinished sweep: docs/design/build-prompt.md:300 (T3) and the runtime log message at flush.go:135 with its quotation at docs/userguide.md:53 keep "every later call returns ErrFailed" (the recorder read the lines on the branch). Not on `main`; open. See [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), section L1-4.
 
 **L1-5 (low, CONFIRMED, 2 of 2, neither skeptic ran it; reproduced by the auditor).** *Claim.* `Append` and `AppendBatch` document no error-path return value and the code
 is inconsistent: `appendLocked` returns `(first, ErrFailed)` when an inline flush's fsync fails, `AppendBatch` discards it
@@ -780,7 +780,7 @@ tests). They are low-value cleanups with no behavioural effect; none was applied
 - **L1-41 (low, test; REFUTED, 2 of 3).** `TestOpenAheadWarningAbsentWithoutALogger` "asserts almost nothing". Refuted by mutation: with
   the nil-Logger guard in `logf` removed it panics at ahead_warn_test.go:135, so it pins that path. What survives is a naming
   nit (the title says "warning absent", the body pins "no crash"). One voter, CONFIRMED, found it weak but not vacuous.
-- **L1-44 (low, perf; REFUTED, 2 of 2; reproduced; merged L1-46).** docs/audits/benchmark-baselines.md and CHANGELOG.md "no
+- **L1-44 (low, perf; REFUTED, 2 of 2; reproduced; merged L1-46).** docs/audits/reference/benchmark-baselines.md and CHANGELOG.md "no
   longer describe HEAD": a flush now allocates 10 times (1,256-1,311 B), not 6, and a Reader poll about 80 more per 10 ms.
   Bisected (reported by the auditor) to 6acc23e (A5-16, an `fstat` plus `lstat` of the lock per flush) and 495e457 (A3-30,
   `checkLogID` re-reading `quill.format` per poll). The allocation facts reproduce and no time moved beyond noise

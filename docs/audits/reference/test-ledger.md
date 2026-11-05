@@ -1,12 +1,12 @@
 # Test ledger
 
-Which guarantee and which numbered test ([build prompt](../design/build-prompt.md)) is
+Which guarantee and which numbered test ([build prompt](../../design/build-prompt.md)) is
 covered by which test functions. The reference implementation's behavioural tests were not
 available to this build, so every test here was written from the design; the frame goldens
 were recorded from quill's encoder and equal the bytes the design specifies.
 Updated in pass L2 (2026-11-03): the coverage ledger for both platforms and the tests that pass added are at the end.
 
-## Guarantees ([scope.md](../design/scope.md))
+## Guarantees ([scope.md](../../design/scope.md))
 
 | # | Guarantee | Tests |
 |---|---|---|
@@ -112,12 +112,12 @@ read by the recorder, not run), so this item is closed, and the coverage figure 
 ### Ledger checks (reported by the coverage auditor)
 
 - Every `Test` and `Fuzz` name in the table above resolved to an existing function at the audited base (exact name, or the prefix before an ellipsis; a script run over 372 names). T1 to T27 each had at least one named test.
-- Tests that cannot fail for their stated reason, found by an AST scan, are listed in [defects-log.md](defects-log.md) (D5).
+- Tests that cannot fail for their stated reason, found by an AST scan, are listed in [defects-log.md](../passes/l2/defects-log.md) (D5).
 
 ## Tests added in pass L2
 
 52 commits, one per fixed item, each test-only except three with behaviour-preserving production edits (L2-9, L2-31 wording, L2-56). Each new test was shown by a fix-skeptic to fail under the mutant it names. The per-item
-record, with the mutants and the test names, is [mutation-hardening.md](mutation-hardening.md). By guarantee in this ledger:
+record, with the mutants and the test names, is [mutation-hardening.md](../passes/l2/mutation-hardening.md). By guarantee in this ledger:
 
 | # | Guarantee | Added in pass L2 (item, commit) |
 |---|---|---|

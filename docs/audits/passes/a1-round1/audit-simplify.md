@@ -152,7 +152,7 @@ this loop).
 **Skeptic (CONFIRMED).** Applied the three edits in a copy (gofmt clean, stat.go 245 -> 235,
 build, vet and the full suite green, including the Check tests at reader_test.go:241-301,
 archive_test.go:133-138, retention_test.go:221, backlog_test.go:142 and the cmd/quill exit-3
-test). docs/audits/self-review-recovery-and-reader.md:47 only checks that the marker's segment
+test). docs/audits/passes/self-review-recovery-and-reader.md:47 only checks that the marker's segment
 is bounded by `tl.Off`, which the merged form keeps. `info, err :=` compiles once `var info
 segInfo` at :156 is dropped.
 

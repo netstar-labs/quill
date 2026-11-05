@@ -4,9 +4,9 @@ Date 2026-10-31; updated 2026-10-31 (pass A5h) with the owner's approvals of the
 (the parent of the first A3 fix). The specification is docs/design/scope.md, docs/design/decisions.md and docs/format.md;
 the code was the thing under audit, so a passing test and a doc were both treated as claims, not evidence. The question of
 the pass: for every guarantee, what does the library or the `quill` command do when that guarantee stops holding, and can an
-operator tell that state from health? The earlier passes are recorded in [a1-round2-findings.md](a1-round2-findings.md)
-and its siblings, [threat-model.md](threat-model.md) (A3) and [format-compatibility.md](format-compatibility.md) (A6);
-what this pass held back for the owner is in [stage2-owner-decisions.md](stage2-owner-decisions.md), section "Pass A5".
+operator tell that state from health? The earlier passes are recorded in [a1-round2-findings.md](a1-round2/a1-round2-findings.md)
+and its siblings, [threat-model.md](../reference/threat-model.md) (A3) and [format-compatibility.md](../reference/format-compatibility.md) (A6);
+what this pass held back for the owner is in [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), section "Pass A5".
 
 Labels: **verified** means an auditor, skeptic or the recorder ran it or read the exact lines; **reported** names the
 document or role that says it; **inferred** says from what. In the ledger, `[run]` is verified by execution, `[read]` is

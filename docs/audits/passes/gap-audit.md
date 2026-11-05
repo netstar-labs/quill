@@ -321,7 +321,7 @@ of never-expiring log"; the fixer did not classify it. Inferred: it is the revie
 figure, but the skeptic could not rule out that it came from the reference's operational plan. Left as written; the owner may
 delete it. (2) The 12-byte floor assumes a real Unix-second timestamp; a record with `At` of 0 frames in 8 bytes, and
 `format.md:51` omits that the length prefix also grows; both are covered by "about". Section "A7-15" in
-[stage2-owner-decisions.md](stage2-owner-decisions.md) lists every figure found and what became of each.
+[stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md) lists every figure found and what became of each.
 
 ### A7-23: operator documents quote figures that disagree with the baselines (hygiene, low) CONFIRMED
 
@@ -402,7 +402,7 @@ longer, and the `quill.lock` mode change is in the CHANGELOG but not in that aud
 (the `ErrFutureVersion` behaviour, which calls re-read `quill.format`, the exit code, the `skew.sh` usage, the link, gofmt,
 vet, `-race`). Commit 08553bd exists in the repository (verified, `git cat-file`) but is not an ancestor of this branch.
 Recommended re-fix: drop the count or say "several", point to the CHANGELOG Unreleased section, and name only differences
-that the audit or CHANGELOG records; see [stage2-owner-decisions.md](stage2-owner-decisions.md), section "A7-18".
+that the audit or CHANGELOG records; see [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md), section "A7-18".
 
 Hand finish 2026-11-03: corrected as recommended and merged as e2f02b6 (the count and the examples are gone; the reader is pointed to
 the CHANGELOG Unreleased section). No fix-skeptic re-run, and the owner was not asked.
@@ -431,7 +431,7 @@ fix-skeptic raised one objection: the new text lists LICENSE among the archive c
 it only if it exists and the tree has none (`README.md:113-114` and decision 22 say no LICENSE while private); the fixer
 dropped the finding's own "if present" qualifier. The `quill dev` statement and the omission of `docs/` from archives were
 verified correct. Commit 1a701fb exists (verified) and is not an ancestor of this branch. Recommended re-fix: say the
-archives carry LICENSE once one lands, or drop it from the list; see [stage2-owner-decisions.md](stage2-owner-decisions.md),
+archives carry LICENSE once one lands, or drop it from the list; see [stage2-owner-decisions.md](../decisions/stage2-owner-decisions.md),
 section "A7-19".
 
 Hand finish 2026-11-03: corrected as recommended and merged as ffae168 (LICENSE "once the repository has one"). No fix-skeptic

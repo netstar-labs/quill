@@ -33,7 +33,7 @@ not the memory a read takes.
 can pass a limit. `Records`, `Follow` and the consumers' iterators have no limit parameter; their batch size is the iterator's own choice, and it is the byte cap that is supposed to bound it
 (iter.go header, decision 58). A log of counters or heartbeats is an ordinary workload, not only a hostile one.
 
-**Fix.** Owner-approved 2026-11-03 and written: `scanSource` charges each record `len(payload) + 48` bytes (`readRecordOverhead` in `read.go`) against `MaxReadBytes`, which `Read`, `Records` and `Follow` all pass. The recommended answer is in [stage2-owner-decisions.md](stage2-owner-decisions.md), section "L2-53".
+**Fix.** Owner-approved 2026-11-03 and written: `scanSource` charges each record `len(payload) + 48` bytes (`readRecordOverhead` in `read.go`) against `MaxReadBytes`, which `Read`, `Records` and `Follow` all pass. The recommended answer is in [stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md), section "L2-53".
 
 **Regression test (written; `read_overhead_test.go`, red before the fix).** 1,000,000 empty-payload records, default `MaxReadBytes`: assert `len(Read(1,0))` is far below 1,000,000 and that `Records` batches are bounded.
 If the owner prefers to document the behaviour instead, no test is needed and the doc wording changes.

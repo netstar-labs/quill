@@ -13,7 +13,7 @@ import (
 )
 
 // T24: the benchmark baselines (decision 21). Run six times on one machine and record the
-// medians in docs/audits/benchmark-baselines.md:
+// medians in docs/audits/reference/benchmark-baselines.md:
 //
 //	GOWORK=off go test -run '^$' -bench . -benchmem -count 6 . | tee bench.txt
 //

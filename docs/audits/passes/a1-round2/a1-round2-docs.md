@@ -5,7 +5,7 @@ design docs): 15 items, ranked by severity and then by reach. The design-docs le
 guarantees by mutation, so the two test-strength items (A1-94, A1-95) and the spec-against-code
 divergence A1-2 are filed here. The top line and the coverage statement are in
 [a1-round2-findings.md](a1-round2-findings.md). Held items are repeated with a recommended answer in
-[stage2-owner-decisions.md](stage2-owner-decisions.md).
+[stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md).
 
 Verdicts: CONFIRMED, PLAUSIBLE, REFUTED. Votes: C confirmed, P plausible, R refuted. Reproductions
 ran in throwaway copies under `scratch/<label>/`. Anchors are to the audited tree 1da37fc. Claims

@@ -25,7 +25,7 @@ not for features. It will be a public repository.
   done. Process-death tests use a real `SIGKILL` of a helper process; **power-loss behaviour is tested against
   the crash-simulating file-system seam** (decisions 52, 61), never assumed from `SIGKILL`, which leaves the page
   cache intact. What neither can show (a real disk's behaviour) is written into
-  `docs/audits/untestable-without-x.md` with the reasoning.
+  `docs/audits/reference/untestable-without-x.md` with the reasoning.
 - Commit in small steps with conventional messages. **Do not push or create a remote** unless asked. Tag only
   where the release procedure below says to.
 - **Do not copy or reference any outside project in code, comments, docs, commit messages, test names, env
@@ -262,7 +262,7 @@ table, and a test asserts every documented verb exists.
 ## Tests (required)
 
 Behavioural tests, by area. If you were given the existing implementation (see ground rules), port the ones that
-still apply and note each disposition in `docs/audits/test-ledger.md`; otherwise write them from this design.
+still apply and note each disposition in `docs/audits/reference/test-ledger.md`; otherwise write them from this design.
 
 - **Frame and segment (phase 1):** encode/decode round trips; golden bytes recorded once and decoded back; a torn
   tail at every byte position; corruption in the middle; a frame at or below its predecessor; oversize declared
@@ -393,7 +393,7 @@ New tests quill must add. The phase in brackets is the first at which the test c
 - **T24 Benchmark baselines** (phase 4): buffered append, append with a flush per call, read from the start, read near
   the tail, read of sealed segments, `ReadWait`, cold start, several logs flushing in parallel, a reader following a
   live writer, and draining a backlog larger than memory from a real disk (the evidence for decision 15). Six runs
-  on one machine, recorded in `docs/audits/benchmark-baselines.md`, with the cost of the second fsync per flush
+  on one machine, recorded in `docs/audits/reference/benchmark-baselines.md`, with the cost of the second fsync per flush
   stated. A later release regresses a benchmark when the median of six runs is more than 10% worse and the ranges do
   not overlap (decision 70).
 

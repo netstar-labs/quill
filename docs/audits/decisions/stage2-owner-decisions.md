@@ -6,8 +6,8 @@ test, and held back every finding whose fix changes observable behaviour, an exp
 a CLI grammar, an on-disk or output shape, or the wording of a guarantee. This file lists those held items, one
 section each, with the claim, why it was held (what the fix would change), a recommended answer and whatever fix
 is already written. The full items (grounds, warrant, backing, rebuttal, skeptic votes and reproductions) are in
-the per-dimension reports: [correctness](a1-round2-correctness.md), [docs](a1-round2-docs.md) and
-[dedup](a1-round2-dedup.md); the counts are in [a1-round2-findings.md](a1-round2-findings.md).
+the per-dimension reports: [correctness](../passes/a1-round2/a1-round2-correctness.md), [docs](../passes/a1-round2/a1-round2-docs.md) and
+[dedup](../passes/a1-round2/a1-round2-dedup.md); the counts are in [a1-round2-findings.md](../passes/a1-round2/a1-round2-findings.md).
 
 **Latest update: 2026-11-04, pass L5 (four code fixes): see "Update 2026-11-04 (pre-tag code batch, pass L5)" below and the section "Pre-tag code batch 2026-11-04" at the end of this file.**
 
@@ -26,7 +26,7 @@ rejections on the audit record alone (three attempts, each on the no-new-gap len
 A1-67, A1-80, A1-62 and A1-59 are not in the ledger this update was written
 from: commits for them exist in the tree (ba7c650, b5ad955, 2978378 and 7ef431c, verified from `git log`), but their
 sections and table rows are unchanged here. The per-item argument, reproduction and fix-skeptic outcome are in
-[a1-round2-findings.md](a1-round2-findings.md), section "Pass A1h".
+[a1-round2-findings.md](../passes/a1-round2/a1-round2-findings.md), section "Pass A1h".
 
 **Update 2026-10-31.** The owner approved the recommended answer for A1-67 and A1-80 as well. Their fixes (ba7c650,
 b5ad955) were already on `main` without a recorded fix-skeptic outcome; an independent fix-skeptic per commit returned
@@ -43,7 +43,7 @@ the A5-1 section, not a new item). No item was held for the owner in this pass, 
 |---|---|
 | verdict | 3 CONFIRMED (A3-10 and A3-20 as voted 2 of 2 in pass A3; A5-1f as the owner's follow-up, not put to a vote) |
 | disposition | 3 fixed: A3-20 (53a5d3b) and A5-1f (531fb35) each FIXED-VERIFIED by its own fix-skeptic (7 of 7 and 6 of 6 lenses); A3-10 landed in badb254, 18662b6 and ed518a2 after two fix-skeptic rejections, the last for two comment lines that were then fixed, with no skeptic re-run on the final commit (see its section); 0 fix-failed; 0 held; 0 deliberately not changed |
-| skeptic votes on the items | none in this pass (the ledger carries no votes; the pass A3 votes for A3-10 and A3-20 are in [threat-model.md](threat-model.md)) |
+| skeptic votes on the items | none in this pass (the ledger carries no votes; the pass A3 votes for A3-10 and A3-20 are in [threat-model.md](../reference/threat-model.md)) |
 | fix-skeptic lens verdicts | 13, all pass (7 for A3-20, 6 for A5-1f). A3-10: the last skeptic (reported) passed its test, behaviour and no-new-gap lenses and rejected on the old-rule statements in two `archive.go` comments; that is not counted as a FIXED-VERIFIED |
 | reproduced by execution | A3-10 and A3-20: yes, in pass A3 (both skeptics, per threat-model.md). A5-1f: the defect was not separately reproduced; the fix-skeptic probed the fix on real files (macOS) and saw one `ERROR` line (reported) |
 
@@ -83,7 +83,7 @@ the wording fix is approved; the optional refusal is not implemented and stays r
 is not in this batch: the owner took the recommendation to keep the 64 KiB stride, so no code changes (noted in its own
 section, not counted below). Each section keeps its recommendation text as first written and now carries an **Owner
 approval** and a **Disposition** paragraph, which are current. The full per-item argument is in
-[verification-optimization.md](verification-optimization.md) (pass L1) and [mutation-hardening.md](mutation-hardening.md) (L2-53).
+[verification-optimization.md](../passes/verification-optimization.md) (pass L1) and [mutation-hardening.md](../passes/l2/mutation-hardening.md) (L2-53).
 
 | counted over the 10 items | |
 |---|---|
@@ -116,14 +116,14 @@ behaviour changes (A3-3, A3-23 and, later, A3-24); eight decisions kept as decid
 which gets one clarifying sentence and no code change). Three things were not approved and are held: the A3-7 code change,
 the A3-24 range check on the `time` field, and any change for A3-26. The section "Round-1 decisions confirmed 2026-11-03"
 near the end of this file lists every item with the answer; the section "Held after pass A3r" lists the three held ones.
-The per-item argument is in [threat-model.md](threat-model.md), which carries a dated paragraph under the seven items that
+The per-item argument is in [threat-model.md](../reference/threat-model.md), which carries a dated paragraph under the seven items that
 changed.
 
 | counted over the 7 items fixed in this pass | |
 |---|---|
 | verdict | 7 CONFIRMED, as the ledger labels them (inferred: the label is a default for approved items; this pass held no vote). At audit time pass A3 had them as A3-3, A3-29, A3-31, A3-32 prior-deliberate, A3-23 prior-refuted, and A3-7 and A3-24 REFUTED by 2 of 3 votes each. 0 PLAUSIBLE, 0 REFUTED in this pass |
 | disposition | 7 fixed, each on `main` in its own commit and each FIXED-VERIFIED by a fix-skeptic: A3-3 116726b (code), A3-23 18145b9 (code), A3-24 d15ac45 (code, the `-json` escape set only), A3-29 d916114 (documentation), A3-31 1cb2c93 (documentation), A3-32 d09e975 (documentation and one pinning test), A3-7 b765290 (documentation). 0 fix-failed. 0 held among the seven. 0 deliberately not changed among the seven. Besides the seven: 8 decisions kept unchanged and recorded here only, and 3 held (A3-7 code change, A3-24 `time` range check, A3-26) |
-| skeptic votes on the items | none in this pass (the ledger carries no votes). The pass A3 votes are in [threat-model.md](threat-model.md): A3-7 and A3-24 had three each (one CONFIRMED, two REFUTED); the other five were round-1 items and were not voted |
+| skeptic votes on the items | none in this pass (the ledger carries no votes). The pass A3 votes are in [threat-model.md](../reference/threat-model.md): A3-7 and A3-24 had three each (one CONFIRMED, two REFUTED); the other five were round-1 items and were not voted |
 | fix-skeptic lens verdicts | 45, all pass: 7 each for A3-3, A3-23 and A3-24; 6 each for A3-29, A3-31, A3-32 and A3-7 (reported by the skeptics) |
 | reproduced by execution | all seven have a reproduction on record from pass A3 (the auditors' for A3-3, A3-23, A3-29, A3-31 and A3-32, the voters' for A3-7 and A3-24; reported). In this pass the fix-skeptics re-ran the behaviour on a built binary or a real log for A3-3, A3-23, A3-24 and A3-7 (macOS, and linux/arm64 in an alpine container; reported), and showed the A3-32 pinning test red under a mutation of the deletion loop. The recorder of this section ran nothing |
 
@@ -144,7 +144,7 @@ stated path for the A3-3, A3-23, A3-24 and A3-7 skeptics, so their Linux evidenc
 (reported). The eight kept decisions were not re-examined: they are recorded from the earlier passes' text. Windows is
 unsupported and not covered.
 
-**Update 2026-11-03 (pass L3c).** The two items held from pass L3b, L3b-7 and L3b-8 (sections below, under "Pass L3b: live multi-process validation"), were answered by the owner on 2026-11-03, who took the recommended answer for both. L3b-7: document it, no code change; the runner-up of wrapping the error as `Archive` does is not approved. L3b-8: fix it in two steps, in the order recommended. Both are fixed on `main`, each in its own commit and each FIXED-VERIFIED by a fix-skeptic. Each section keeps its text as first written and now carries an **Owner's answer 2026-11-03** and a **Disposition** paragraph, which are current. No item is held for the owner from this pass any more, so no new held-item section is added: the two sections that already list the held items are the ones updated. The full item (Claim, Grounds, Warrant, Backing, Rebuttal, Verdict, reproduction) is in [live-integration.md](live-integration.md).
+**Update 2026-11-03 (pass L3c).** The two items held from pass L3b, L3b-7 and L3b-8 (sections below, under "Pass L3b: live multi-process validation"), were answered by the owner on 2026-11-03, who took the recommended answer for both. L3b-7: document it, no code change; the runner-up of wrapping the error as `Archive` does is not approved. L3b-8: fix it in two steps, in the order recommended. Both are fixed on `main`, each in its own commit and each FIXED-VERIFIED by a fix-skeptic. Each section keeps its text as first written and now carries an **Owner's answer 2026-11-03** and a **Disposition** paragraph, which are current. No item is held for the owner from this pass any more, so no new held-item section is added: the two sections that already list the held items are the ones updated. The full item (Claim, Grounds, Warrant, Backing, Rebuttal, Verdict, reproduction) is in [live-integration.md](../passes/live-integration.md).
 
 | counted over the 2 items | |
 |---|---|
@@ -168,7 +168,7 @@ say that every finding was fixed or that every fix was skeptic-validated; see th
 |---|---|
 | verdict | 5 CONFIRMED (the ledger labels them so; A1d-9 was voted 2 of 2 in pass A1d, the other four carry no votes); 0 PLAUSIBLE; 0 REFUTED |
 | disposition | 5 fixed, each in its own commit on `main`, each FIXED-VERIFIED by a fix-skeptic: A1d-9 `03b61eb`, L4b-1 `e8909b6`, L4b-2 `bdb1522`, L4b-3 `e51c2e3`, L4b-4 `be9adfb`; 0 fix-failed; 0 held; 0 deliberately not changed. Three further things from the critic are held (below) and are not counted as items of this batch |
-| skeptic votes on the items | 0 in this batch (the ledger carries no votes); the 2 of 2 for A1d-9 are in [a1-diff-scoped.md](a1-diff-scoped.md) |
+| skeptic votes on the items | 0 in this batch (the ledger carries no votes); the 2 of 2 for A1d-9 are in [a1-diff-scoped.md](../passes/a1-diff-scoped.md) |
 | fix-skeptic lens verdicts | 30, all pass (6 lenses each: test-fails-without-fix, root-cause, behaviour-preserved, no-new-gap, reachable, ladder), reported by the fix-skeptics. For a documentation-only commit the first lens reads "not applicable" and the skeptic checked the text against the code or a run instead; the outcomes record that |
 | reproduced by execution | Something was run for each item, but only L4b-3's defect is a run that shows the old text wrong: **L4b-3** (CLI built from the tree: archive exit 3, then `check` HEALTHY exit 0, second archive exit 0; run by the fixer and again by the fix-skeptic). **A1d-9**: `Open` was run under a recording handler for nine cases (listed in its entry) to write the new rule; the finding itself was settled by reading in pass A1d. **L4b-1**: the fix-skeptic ran 7 CLI cases against builds of `v0.1.0` and the fixed tree; about 30 of the 38 table rows were not re-run. **L4b-2**: the fix-skeptic ran `quill -h`, `quill --help`, and 32-bit and big-endian builds. **L4b-4**: every count was recomputed by a command |
 
@@ -221,7 +221,7 @@ big-endian machine; the 64-bit targets other than arm64 and amd64 build and are 
 **What this record does not say.** Not every finding of the stage 2 audit was fixed, and not every fix was skeptic-validated; this batch covers only the four items the owner approved. Two defects in the
 records themselves were found while writing this one, and are corrected here: (1) the entry counts in the release record's migration section had been advanced by one per fix from the pre-tag batch's figure of 146 and
 missed the two `CHANGELOG.md` entries the `LICENSE` commit added, so they read 150 where the command prints 152; the corrected counts (152 entries, 89 with a row, 63 without) are in
-[release-v0.2.0.md](release-v0.2.0.md); (2) the L5-1 fix's second test pins `quill --version` as a usage error, which the owner said not to do (see "Held after the pre-tag code batch").
+[release-v0.2.0.md](../release-v0.2.0.md); (2) the L5-1 fix's second test pins `quill --version` as a usage error, which the owner said not to do (see "Held after the pre-tag code batch").
 
 **Update 2026-11-04 (pass L5b).** One item, L5-5, recorded in "Pre-tag code batch 2026-11-04" at the end of this file. The owner asked on 2026-11-04 why `quill --version` was left out of pass L5 and approved it
 as the same finding as L3b-15 (reported: the owner's message relayed with the task, "fix these things, take the recommendations as stated, and only 64-bit builds"; the task text names `quill --version` and
@@ -230,7 +230,7 @@ Passes L5 and L5b together are 5 items.
 
 | counted over the 1 item of pass L5b | |
 |---|---|
-| verdict | 1 CONFIRMED (the ledger labels it so; it was not put to a vote); 0 PLAUSIBLE; 0 REFUTED. The finding it follows, L3b-15, was REFUTED 2 of 3 on 2026-11-03 as a request for new CLI surface ([live-integration.md](live-integration.md)); the owner then approved the change, and that record's verdict is kept as it was |
+| verdict | 1 CONFIRMED (the ledger labels it so; it was not put to a vote); 0 PLAUSIBLE; 0 REFUTED. The finding it follows, L3b-15, was REFUTED 2 of 3 on 2026-11-03 as a request for new CLI surface ([live-integration.md](../passes/live-integration.md)); the owner then approved the change, and that record's verdict is kept as it was |
 | disposition | 1 fixed, in `cf7d789` on `main`, FIXED-VERIFIED by one fix-skeptic, 7 of 7 lenses (reported); 0 fix-failed; 0 held; 0 deliberately not changed |
 | skeptic votes on the item | 0 (the ledger carries none) |
 | reproduced by execution | 1 of 1, by the fix-skeptic (reported): with the parent's `cmd/quill/verbs.go` put over the fixed tree, `TestGlobalVersionFlagIsTheVersionVerb` failed for all four argument forms (`--version`, `-version`, `-dir X --version`, `--version -dir X`) and both stamps (`dev`, `v0.2.0`) with exit 2, empty standard output and `quill: flag provided but not defined: -version`; after the fix the built binary printed `quill dev` and exited 0. The recorder ran nothing |
@@ -807,13 +807,13 @@ take the cheaper route and document that the handler runs under the log's lock a
 **A1-59: the Log's own reads return a raw ENOENT where the Reader returns a GapError.** Decided in round 1 (decision 103) and not held, but raised again
 independently by two fresh auditors, with a real-concurrency reproduction (raw ENOENT in 25 of 1,601 reads on macOS and 17 of 1,483 on Linux). Recommended
 answer: reopen the decision and take the one-line mapping at read.go:295, amending decision 103's sentence "a deleted one fails at its open as before", which
-contradicts guarantee 14. See [a1-round2-correctness.md](a1-round2-correctness.md), item 16.
+contradicts guarantee 14. See [a1-round2-correctness.md](../passes/a1-round2/a1-round2-correctness.md), item 16.
 
 **Disposition (2026-11-02).** Fixed in 7ef431c (on main since 2026-10-30; verified from `git log`) with decisions 101 and 103 amended; fix-skeptic FIXED-VERIFIED on 7ef431c and on main (reported; macOS and the Linux box). The sealed ref's open maps `fs.ErrNotExist` to `GapError{first, last}` of that segment and returns every other error as it was. Verified by the skeptic with a writer (4 KiB segments, a 12 KiB cap) and 8 readers running `Read`, `Scan`, `ScanAll`, `Records` and `OffsetForTime` for 20 s, with a 10 ms sleep in the scan callback to widen the window (without it the base never failed): raw `*fs.PathError` results on the parent were 150 of 2,849 reads on macOS and 360 of 204,201 on Linux, and 0 on 7ef431c and on main on both. Against a `Reader` on the same directory after deleting a middle segment, every offset from 1 to 100 gave 0 differences on 7ef431c and main and 126 on the base; a read spanning the hole returns the earlier records and then the gap, never skipping it. Every Log read path goes through the one mapped open (`Read`, `ReadWait`, `Scan`, `ScanAll`, `Records`, `Follow`, `Consumer.Read` and `Scan`, `OffsetForTime`, `SeekToTime`). EACCES, EIO and EMFILE stay themselves, and an ENOENT on the active segment or a consumer file is not turned into a gap. One test-strength gap, closed in fe9fe31: no test showed that a non-"not found" open error stays raw, so a mutant mapping every open error to a gap passed the suite; EIO and EACCES on the open of a sealed segment now must come back wrapping themselves (the test fails on that mutant; verified). The round-1 decision 103 sentence "a deleted one fails at its open as before" survives only in the audit history.
 
 ## Pass A4: dependency, supply-chain and release hygiene
 
-The A4 pass (record: [supply-chain.md](supply-chain.md)) held back four items. Three of them are decisions or actions that only the
+The A4 pass (record: [supply-chain.md](../passes/supply-chain.md)) held back four items. Three of them are decisions or actions that only the
 owner can take before a public release; the fourth (A4-1) was a written fix that did not reach main as first written, and has since
 landed in this commit as the `build/quill` half only (the CI half was refuted). The recommended answers are the recorder's reading of
 the auditor's proposed fix and the skeptics' notes, not decisions. Ranked by what the public flip needs.
@@ -846,7 +846,7 @@ the notice duty met by a link; record that choice in decision 22.
 
 ## A4-4: a workspace path remains in the v0.1.0 tag and in earlier history (medium; the tip is fixed)
 
-**Claim.** `docs/audits/audit-correctness.md` named an absolute session path with a macOS user name and an internal parent-directory name. The tip no
+**Claim.** `docs/audits/passes/a1-round1/audit-correctness.md` named an absolute session path with a macOS user name and an internal parent-directory name. The tip no
 longer does (main, commit 0b70e82, fix-skeptic FIXED-VERIFIED), but the text is still in the v0.1.0 tag tree and in every commit that contains the file
 (75 commits by the auditor's count).
 
@@ -928,7 +928,7 @@ the release form fail without one, in the same change that adds the `LICENSE`.
 
 ## Pass A3: security review and threat model
 
-Date 2026-10-31. Pass A3 (record: [threat-model.md](threat-model.md)) applied eleven fixes, each re-attacked by a fix-skeptic
+Date 2026-10-31. Pass A3 (record: [threat-model.md](../reference/threat-model.md)) applied eleven fixes, each re-attacked by a fix-skeptic
 (11 of 11 FIXED-VERIFIED), and held back four items whose fix would change a documented file mode, a CLI behaviour or a
 documented performance statement: A3-5, A3-14, A3-18 and A3-19. None of the four has a fix written; the recommended answers
 below are the recorder's reading of the auditors' proposals and the skeptics' notes, and are recommendations, not
@@ -1057,7 +1057,7 @@ the CRC to the first scan of that segment, with a test that a damaged first fram
 **Claim.** A damaged or truncated oldest segment makes `quill cat` and `read` (default start), `tail -n` reaching the oldest
 record, `Log`/`Reader.ScanAll` and a new consumer silently start at the first good segment and exit 0; the lost range shows
 only in `stat` and `check`. Decision 38 and scope.md say a gap is "reported as a gap, never skipped". Full item, with its
-reproduction: [threat-model.md](threat-model.md), A3-10.
+reproduction: [threat-model.md](../reference/threat-model.md), A3-10.
 
 **State at recording (2026-10-31).** A fix was written (54b99d0): a read from the beginning (`ScanAll`, a scan from offset 0,
 `quill read` and `cat` without `-from`, `tail -n` reaching the oldest record) and a new consumer start at sequence 1 when a
@@ -1126,7 +1126,7 @@ destination starts after the lost records, since the destination then holds no h
 **Claim.** When a sealed segment holds frames past the next segment's first sequence, `Reader.Read` and `ScanAll` deliver the
 earlier segment's records for sequences the next segment also claims; writable `Open` refuses the same directory with
 ErrCorrupt; `Check` reports a nonsensical hole ("sequences 11 to 4 are missing"). Full item and reproduction:
-[threat-model.md](threat-model.md), A3-20.
+[threat-model.md](../reference/threat-model.md), A3-20.
 
 **State at recording (2026-10-31).** A fix was written (e0df757, not in this tree): a Reader refuses overlapping
 segments as ErrCorrupt and Check reports an "overlap" problem; "overlap" is added to the closed `kind` list for `quill check
@@ -1186,12 +1186,12 @@ trusts `quill.policy`; print the policy and parse it strictly), A3-23 (offline v
 ErrNoLog unless `quill.format` exists), A3-29 (name the filesystems where flock is not coherent, correct the bind-mount sentence,
 optionally warn from an `fstatfs` check), A3-31 (ConsumerTTL staleness is clock-derived; document it), A3-32 (MinFreeBytes
 re-measure after each unlink; document the cost). Each carries its round-1 reference and the auditor's proposal in
-[threat-model.md](threat-model.md). A3-3, A3-6 and A3-23 were raised again in this pass with reproductions on the current tree,
+[threat-model.md](../reference/threat-model.md). A3-3, A3-6 and A3-23 were raised again in this pass with reproductions on the current tree,
 so the owner may want to confirm the round-1 decision for them before the release.
 
 ## Pass A6: format and version-skew audit
 
-Date 2026-10-31. Pass A6 (record: [format-compatibility.md](format-compatibility.md)) applied seven fixes, each re-attacked
+Date 2026-10-31. Pass A6 (record: [format-compatibility.md](../reference/format-compatibility.md)) applied seven fixes, each re-attacked
 by a fix-skeptic (7 of 7 FIXED-VERIFIED): A6-1, A6-2, A6-3, A6-5, A6-6, A6-7 and A6-9. It left two ledger items open,
 A6-4 (recorded as held for the owner) and A6-8 (fix written, commit did not land), and one built tool, the skew harness,
 that its reviewer rejected. The recommended answers are the recorder's reading of the auditors' proposals and the
@@ -1224,7 +1224,7 @@ record commit). Verified by the recorder from `git show bb646c0`: `decodeTail` r
 `maxSegmentID` (9,999,999,999) on both the fast and slow paths; `rotateLocked` returns "segment ids exhausted" when
 `l.maxSeg >= maxSegmentID`; docs/format.md and CHANGELOG say so; `TestRotationRefusesAnIDTheSegmentNamesCannotHold` seeds
 the top ids and passed when the recorder ran it. The A3 pass's fix-skeptic verdict, FIXED-VERIFIED, is reported from
-[threat-model.md](threat-model.md). What the owner decides is only whether the A3-8 wording ("the largest id ten digits
+[threat-model.md](../reference/threat-model.md). What the owner decides is only whether the A3-8 wording ("the largest id ten digits
 hold", an error at maxseg 9999999999, so the id 9999999999 is the last one usable) is the intended limit.
 
 **Fix written.** bb646c0, landed under A3-8. No separate A6 commit exists, and no A6 fix-skeptic ran on it. The A6-4
@@ -1232,7 +1232,7 @@ reproduction itself was not re-run against the fixed tree (inferred from the dec
 
 **Owner approval.** Approved on 2026-10-31, as recommended (confirm and close).
 
-**Disposition.** Closed. The fix is bb646c0 under A3-8 (fix-skeptic FIXED-VERIFIED in the A3 pass; reported, from [threat-model.md](threat-model.md)), so the A6 ledger item moves from held to closed with no new commit. The record said the A6-4 reproduction had not been re-run on the fixed tree; it was re-run on 2026-10-31 with built CLIs (verified). A log whose only segment is renamed 9999999999.log, with `quill.tail` `seg` and `maxseg` at that value, then `roll`: before bb646c0 (its parent), `roll` exited 0 and created 10000000000.log, and the next `append` failed with "corrupt log: quill.tail names segment 10000000000, the newest on disk is 9999999999"; on main, `roll` is refused ("segment ids exhausted: 9999999999 is the largest the ten-digit names hold", exit 1), no 10000000000.log is created and `append` still succeeds. A forged `maxseg` of 99999999999 is refused at read ("maxseg 99999999999 above the largest segment id, 9999999999"). The limit as written in A3-8 stands: 9999999999 is the last usable segment id.
+**Disposition.** Closed. The fix is bb646c0 under A3-8 (fix-skeptic FIXED-VERIFIED in the A3 pass; reported, from [threat-model.md](../reference/threat-model.md)), so the A6 ledger item moves from held to closed with no new commit. The record said the A6-4 reproduction had not been re-run on the fixed tree; it was re-run on 2026-10-31 with built CLIs (verified). A log whose only segment is renamed 9999999999.log, with `quill.tail` `seg` and `maxseg` at that value, then `roll`: before bb646c0 (its parent), `roll` exited 0 and created 10000000000.log, and the next `append` failed with "corrupt log: quill.tail names segment 10000000000, the newest on disk is 9999999999"; on main, `roll` is refused ("segment ids exhausted: 9999999999 is the largest the ten-digit names hold", exit 1), no 10000000000.log is created and `append` still succeeds. A forged `maxseg` of 99999999999 is refused at read ("maxseg 99999999999 above the largest segment id, 9999999999"). The limit as written in A3-8 stands: 9999999999 is the last usable segment id.
 
 ## A6-8: two constants differ only by letter case (low)
 
@@ -1269,7 +1269,7 @@ answer: if the owner wants the harness in the release, copy each killed director
 and `diff -r` the two before the append; then repeat the reviewer's deliberate-fault test and require the run to fail.
 If the harness is not wanted, nothing in the format verdict depends on it: the manual kill experiment (180 iterations,
 recovery by each version of identical torn bytes) made exactly that comparison and found no difference, as
-[format-compatibility.md](format-compatibility.md) records.
+[format-compatibility.md](../reference/format-compatibility.md) records.
 
 **A6-6 stays PLAUSIBLE.** No fixture in the tree is a frame written by the reference implementation; docs/format.md now
 says so (ee11f57), and compatibility with the reference rests on the specification. If the owner can supply a short
@@ -1279,7 +1279,7 @@ would settle decision 3 by bytes.
 
 ## Pass A5: silent-degradation audit
 
-Date 2026-10-31. Pass A5 (record: [silent-degradation.md](silent-degradation.md)) applied seven fixes, each re-attacked by a
+Date 2026-10-31. Pass A5 (record: [silent-degradation.md](../passes/silent-degradation.md)) applied seven fixes, each re-attacked by a
 fix-skeptic (7 of 7 FIXED-VERIFIED): A5-2, A5-16, A5-21, A5-31, A5-39, A5-40 and A5-42. It held eleven items for the owner.
 Every held item changes observable behaviour (a `Stats` field, an `Err()` rule, an exit code, a CLI line, a validation
 refusal or documented output), so none was applied. No fix is written for any of them; each section gives the auditors'
@@ -1287,7 +1287,7 @@ proposal as the recommended answer. The recommended answers are the recorder's r
 skeptics' notes, and are recommendations, not decisions. The full items (grounds, warrant, backing, rebuttal, votes,
 reproductions) are in the record.
 
-**Update 2026-10-31 (pass A5h).** The paragraph above is the state when the pass was recorded. The owner approved all eleven recommended answers on 2026-10-31. Result: 10 fixed and FIXED-VERIFIED (A5-10 91c2fce, A5-22 1dda449, A5-18 7b87e64, A5-36 2cbfdf2, A5-9 46f30db, A5-3 1e0a8ed, A5-23 4d0e8c9, A5-44 29e7db1, A5-29 caad4c5, A5-32 16cb0c8), and A5-1, which failed its first fix-skeptic and was fixed on the third attempt (99b140d, FIXED-VERIFIED, 2026-10-31). The table's status column and each section's **Disposition** are current; each section's "Fix written" line is the state at recording. Two approvals differ from the recommendation text: A5-22 declined the "N consecutive statfs failures" option, and A5-29 reverses the round-1 exit-0 ruling (A1-58, decisions 85 and 53). The per-item reproduction and fix-skeptic evidence are in [silent-degradation.md](silent-degradation.md). In `git log` order the commits are A5-10, A5-22, A5-18, A5-36, A5-9, A5-3, A5-23, A5-44, A5-29, A5-32 (verified), all ancestors of 16cb0c8, on which the A5-32 skeptic ran staticcheck, deadcode and the full race suite, all clean (reported).
+**Update 2026-10-31 (pass A5h).** The paragraph above is the state when the pass was recorded. The owner approved all eleven recommended answers on 2026-10-31. Result: 10 fixed and FIXED-VERIFIED (A5-10 91c2fce, A5-22 1dda449, A5-18 7b87e64, A5-36 2cbfdf2, A5-9 46f30db, A5-3 1e0a8ed, A5-23 4d0e8c9, A5-44 29e7db1, A5-29 caad4c5, A5-32 16cb0c8), and A5-1, which failed its first fix-skeptic and was fixed on the third attempt (99b140d, FIXED-VERIFIED, 2026-10-31). The table's status column and each section's **Disposition** are current; each section's "Fix written" line is the state at recording. Two approvals differ from the recommendation text: A5-22 declined the "N consecutive statfs failures" option, and A5-29 reverses the round-1 exit-0 ruling (A1-58, decisions 85 and 53). The per-item reproduction and fix-skeptic evidence are in [silent-degradation.md](../passes/silent-degradation.md). In `git log` order the commits are A5-10, A5-22, A5-18, A5-36, A5-9, A5-3, A5-23, A5-44, A5-29, A5-32 (verified), all ancestors of 16cb0c8, on which the A5-32 skeptic ran staticcheck, deadcode and the full race suite, all clean (reported).
 
 Three of the items share one design question and should be decided together: A5-10 (what `Err()` means), A5-1 (what a
 background failure reports) and A5-22 (what `diskFull` reports). Two share another, the CLI's stderr: A5-36 and the
@@ -1567,7 +1567,7 @@ failure branch does, and decide whether `ls` then exits 1.
 
 Date 2026-11-02, against 5a70379. Pass L1 (comment against code, dead code and debt, operational validation on macOS and
 Linux, optimisation) filed 50 items; the full record, with every item's claim, grounds, warrant, backing, rebuttal, votes and
-reproduction, is [verification-optimization.md](verification-optimization.md). 27 items were fixed and verified by a
+reproduction, is [verification-optimization.md](../passes/verification-optimization.md). 27 items were fixed and verified by a
 fix-skeptic, 4 are recorded as safe cleanups not applied, 5 were refuted and 4 were decided in round 1. The seven items below
 were held because the fix changes a guarantee's wording, an API contract, an exit code, an error text or a memory cost. Three
 more items had a fix written and rejected by the fix-skeptic; they are listed after the held items so that nothing open is
@@ -1591,7 +1591,7 @@ L1-12, L1-4, L1-5, L1-16, L1-26 and L1-51) and asked for the three rejected fixe
 **Claim.** `Reader.Check` (and so `quill check`) reports a log HEALTHY when its oldest sealed segment has been truncated to zero
 bytes, while `Open` and the Reader's `Stat` report a hole from 1 and the writer's `Err()` names the file ("a sealed segment with no
 frames"). Check, Open and the Reader disagree about damage, and `check` is the tool operators use to find it. Item:
-[verification-optimization.md](verification-optimization.md), L1-11.
+[verification-optimization.md](../passes/verification-optimization.md), L1-11.
 
 **Reproduction (verified by both skeptics).** A 120-record, 3-segment log with `0000000000.log` truncated to 0 bytes: `Check`
 returns healthy with no problems; the writer's `Stat` shows holes `[{1 120}]`; the Reader's shows holes `[{1 120}]`, first 121. A
@@ -1965,8 +1965,8 @@ fix-skeptic unless it says otherwise.
 ## Pass L2: test, benchmark and hardening suite
 
 Date 2026-11-03, against `f274b51`. Pass L2 (a coverage ledger on two platforms, three hand-mutation runs and an invariants-and-fuzz run) filed 53 items after merging five duplicates; the full record, with every item's claim, grounds, warrant,
-backing, rebuttal, votes and reproduction, is [mutation-hardening.md](mutation-hardening.md), with [defects-log.md](defects-log.md), [harness-inventory.md](harness-inventory.md), [test-ledger.md](test-ledger.md) and
-[untestable-without-x.md](untestable-without-x.md) alongside. 52 items were test gaps and were fixed with tests, each fix FIXED-VERIFIED by a fix-skeptic (312 lens verdicts, all pass). One item is held, below: it is the only
+backing, rebuttal, votes and reproduction, is [mutation-hardening.md](../passes/l2/mutation-hardening.md), with [defects-log.md](../passes/l2/defects-log.md), [harness-inventory.md](../reference/harness-inventory.md), [test-ledger.md](../reference/test-ledger.md) and
+[untestable-without-x.md](../reference/untestable-without-x.md) alongside. 52 items were test gaps and were fixed with tests, each fix FIXED-VERIFIED by a fix-skeptic (312 lens verdicts, all pass). One item is held, below: it is the only
 one that is a production behaviour, and a fix changes what a read returns and the wording of a guarantee. The recommended answer is the recorder's reading of the auditor's proposed fix and the voters' notes; it was not approved when written.
 
 | counted over the 53 items | |
@@ -1980,7 +1980,7 @@ one that is a production behaviour, and a fix changes what a read returns and th
 |---|---|---|---|---|---|
 | L2-53 | `MaxReadBytes` bounds payload bytes only, so a read of tiny records allocates without a bound | medium | CONFIRMED (2 of 2 voters, both reproduced) | Charge a per-record overhead against the cap | | Approved 2026-11-03; fixed 637ed42, FIXED-VERIFIED (7 of 7) |
 
-Other points the owner may want to see, none held: the tests that pin behaviour no decision states are listed in [mutation-hardening.md](mutation-hardening.md), section "Behaviour pinned that the spec does not state" (L2-12, L2-50, L2-27, L2-18, L2-31,
+Other points the owner may want to see, none held: the tests that pin behaviour no decision states are listed in [mutation-hardening.md](../passes/l2/mutation-hardening.md), section "Behaviour pinned that the spec does not state" (L2-12, L2-50, L2-27, L2-18, L2-31,
 L2-47, L2-52, L2-19); the L2-31 fix edited decision 45's wording from "older than" to "at least as old", which is a decision text changed by a fixer.
 
 ## L2-53: `MaxReadBytes` bounds payload bytes, not the memory of a read (medium)
@@ -2002,7 +2002,7 @@ tens of megabytes (inferred from the measured 232 bytes per record; it stays a s
 second runner-up is to leave `Read` as documented and give only the iterators a record-count bound of their own (iter.go passes no limit today), plus a sentence in the `Read` doc that `limit` 0 bounds payload bytes only; that changes nothing a caller can see except the iterators' internal batch size. If the owner
 prefers not to change behaviour at all, document that `MaxReadBytes` does not bound the record count and recommend `limit`.
 
-**Fix written.** Owner-approved 2026-11-03 (the recommended answer) and written: see [defects-log.md](defects-log.md), D1, and `read_overhead_test.go`. The test as proposed: 1,000,000 empty-payload records, default `MaxReadBytes`; `len(Read(1,0))` far below 1,000,000, and `Records` batches bounded. See [defects-log.md](defects-log.md), D1.
+**Fix written.** Owner-approved 2026-11-03 (the recommended answer) and written: see [defects-log.md](../passes/l2/defects-log.md), D1, and `read_overhead_test.go`. The test as proposed: 1,000,000 empty-payload records, default `MaxReadBytes`; `len(Read(1,0))` far below 1,000,000, and `Records` batches bounded. See [defects-log.md](../passes/l2/defects-log.md), D1.
 
 **Owner approval (2026-11-03).** Approved: the recommended answer (charge each record `len(payload) + 48` bytes against
 `MaxReadBytes`; keep "at least one record per call"; reword the cap everywhere). The owner accepts that a read of small records
@@ -2036,7 +2036,7 @@ was held with no fix written, which this update corrects. See "Residuals the fix
 ## Pass L3b: live multi-process validation
 
 Date 2026-11-03, against the tree at `a63bd6b` with the four L3b fixes on top (`136577c`, `53fcb36`, `d88c9c1`, `ba30fee`). The pass ran the multi-process harness (`hack/topology`) and dedicated drivers on macOS, on a
-Linux box (ext4 and eight other filesystem configurations, one real power cut and crash-state replays) and in Apple containers; the record is [live-integration.md](live-integration.md). It produced 12 items: four were fixed
+Linux box (ext4 and eight other filesystem configurations, one real power cut and crash-state replays) and in Apple containers; the record is [live-integration.md](../passes/live-integration.md). It produced 12 items: four were fixed
 (L3b-4, L3b-3, L3b-6, L3b-14, each FIXED-VERIFIED), three were refuted, three were decided in round 1 and left unchanged, and **two are held below for the owner**, neither of which has a fix written. *Update 2026-11-03: the owner answered both the same day and both are now fixed (L3b-7 by documentation, in `7fa0744`; L3b-8 in `29f5c6c`); see "Update 2026-11-03 (pass L3c)" near the head of this file and the two sections below.*
 
 ## L3b-7: a second writer under another uid gets a bare permission error, not `ErrLocked` (low)
@@ -2115,7 +2115,7 @@ returns.
 
 Pass A3r. Date 2026-11-03, against `main` at 955f83c with the seven fixes below on top. Pass A3 and the passes before it had
 recorded these items as decided in round 1, or refuted, and had said the owner might want to confirm them before the
-release (section "Not held, but worth a line" under pass A3 above, and [threat-model.md](threat-model.md)). The owner took
+release (section "Not held, but worth a line" under pass A3 above, and [threat-model.md](../reference/threat-model.md)). The owner took
 the recommended answer for each on 2026-11-03; A3-24 and A3-7 were approved later the same day. The recommendations are the
 ones in the earlier text of this file and in threat-model.md. Each item keeps its earlier text where it is; this section adds
 the answer and what became of it. The top-line counts and the coverage statement are in "Update 2026-11-03 (pass A3r)" near
@@ -2142,7 +2142,7 @@ the head of this file.
 ### The seven items fixed in this pass
 
 Each is recorded as Claim, Grounds, Warrant, Backing, Rebuttal, Verdict and Disposition. The grounds and reproductions are
-the pass A3 ones (reported, from [threat-model.md](threat-model.md), where the full text is); the recorder ran nothing.
+the pass A3 ones (reported, from [threat-model.md](../reference/threat-model.md), where the full text is); the recorder ran nothing.
 
 #### A3-3: `ls`, `consumers` and `check` print file-derived names unescaped (medium, security)
 
@@ -2305,8 +2305,8 @@ the pass A3 ones (reported, from [threat-model.md](threat-model.md), where the f
 ### The eight decisions kept unchanged
 
 Nothing in code or documents changed for these; the owner confirmed the round-1 decision and this section is the record. The
-claims and the round-1 reasons are in [threat-model.md](threat-model.md) (A3-4, A3-9, A3-11),
-[silent-degradation.md](silent-degradation.md) (A5-7) and [a1-round2-findings.md](a1-round2-findings.md) (A1-1, A1-5, A1-30,
+claims and the round-1 reasons are in [threat-model.md](../reference/threat-model.md) (A3-4, A3-9, A3-11),
+[silent-degradation.md](../passes/silent-degradation.md) (A5-7) and [a1-round2-findings.md](../passes/a1-round2/a1-round2-findings.md) (A1-1, A1-5, A1-30,
 A1-54). Each carries the verdict it had (prior-deliberate or prior-refuted, not voted) and the disposition "deliberately not
 changed". The eight were not re-examined in this pass (see the coverage statement).
 
@@ -2379,7 +2379,7 @@ step.
 
 ## Held after pass A7
 
-Pass A7 (gap audit, 2026-11-03; the full record is [gap-audit.md](gap-audit.md)) fixed seven items and held three. A7-15 was
+Pass A7 (gap audit, 2026-11-03; the full record is [gap-audit.md](../passes/gap-audit.md)) fixed seven items and held three. A7-15 was
 held for an owner choice, made 2026-11-03, and then fixed in 08d7f77 (see its section); that makes eight fixed. A7-18 and A7-19 each have a written fix that the fix-skeptic rejected on one objection; neither commit
 is merged into this branch (verified: `git merge-base --is-ancestor` fails for both, and both objects exist in the
 repository). They are listed here so the written fix and the objection are not lost.
@@ -2410,7 +2410,7 @@ alternative (accept the figures and correct only decision 90) was not approved.
 **Fix commit.** 08d7f77 on `main` (verified: it is the tip, with ee220c8, the rejected first attempt, as its parent). Disposition: fixed.
 
 **Fix-skeptic outcome.** Attempt 1 (ee220c8) rejected on the two defects named under "Fix written"; attempt 2 (08d7f77)
-FIXED-VERIFIED, 6 of 6 lenses pass (reported, the fix-skeptic's evidence; details in [gap-audit.md](gap-audit.md), section A7-15).
+FIXED-VERIFIED, 6 of 6 lenses pass (reported, the fix-skeptic's evidence; details in [gap-audit.md](../passes/gap-audit.md), section A7-15).
 State of Y128 and decision 90: Y128 is met by deletion; decision 90 says what was done and its row has the same five fields as the
 other rows. Residue: `review.md:74` keeps "minutes for 100+ GB of never-expiring log", which the skeptic read as a scale
 scenario and not a reference figure (inferred); the owner may delete it.
@@ -2489,7 +2489,7 @@ before the flip.
 
 ## Held after pass A1d
 
-Pass A1d (adversarial audit of the v0.1.0..HEAD diff, 2026-11-03; the full record is [a1-diff-scoped.md](a1-diff-scoped.md)) came to
+Pass A1d (adversarial audit of the v0.1.0..HEAD diff, 2026-11-03; the full record is [a1-diff-scoped.md](../passes/a1-diff-scoped.md)) came to
 fourteen items. Eight were fixed, each FIXED-VERIFIED by a fix-skeptic, and one was refuted; four were decided in an earlier pass and
 left unchanged. One item is held for the owner: a documentation fix was written and rejected by its fix-skeptic and is not merged. **Update 2026-11-04: the owner answered it (option 1) and it is fixed in `03b61eb`; see the end of this section and "Pre-tag batch 2026-11-04".**
 
@@ -2518,14 +2518,14 @@ sentence in decision 50 also still enumerates `Open`'s own warnings and omits th
 consumer-passed Warn" from the note and from the commit's summary, and either drop the enumeration after "its own warnings:" or complete it. Merge only after a fix-skeptic
 re-run on the corrected commit.
 
-**Resolved 2026-11-04.** The owner approved the documentation-only answer. It was applied as a fresh `fix(stage2 A1d-9)` commit (not by merging `f2287c7`) that lists no record: the records `Open` itself writes run with no lock held, every other record with the lock held (see the item in [a1-diff-scoped.md](a1-diff-scoped.md) for the records run to check it).
+**Resolved 2026-11-04.** The owner approved the documentation-only answer. It was applied as a fresh `fix(stage2 A1d-9)` commit (not by merging `f2287c7`) that lists no record: the records `Open` itself writes run with no lock held, every other record with the lock held (see the item in [a1-diff-scoped.md](../passes/a1-diff-scoped.md) for the records run to check it).
 
 **Owner's answer 2026-11-04: option 1, fix by general wording.** The owner approved the recommended answer above in its documentation-only form: state the
 exception by where a record is written and list no record, so that it cannot go stale. `f2287c7` was not merged and not cherry-picked, and the
 first attempt (a longer list) was not reused. The fix is `03b61eb`, `fix(stage2 A1d-9)`; its fix-skeptic returned FIXED-VERIFIED, 6 of 6 lenses
 (reported). It changed the user guide's `Logger` row, `scope.md`'s `Logger` row, the `Config.Logger` doc in `config.go` (a comment, so `go doc -all`
 differs only there), decision 50 (a dated note, "Stage 2 audit, owner-approved 2026-11-04, A1d-9"), `CHANGELOG.md` (a "Changed: documentation only" line
-under Unreleased) and the A1d-9 row and resolution paragraph of [a1-diff-scoped.md](a1-diff-scoped.md). The full entry for this item, with the
+under Unreleased) and the A1d-9 row and resolution paragraph of [a1-diff-scoped.md](../passes/a1-diff-scoped.md). The full entry for this item, with the
 records that were run, is in "Pre-tag batch 2026-11-04" below.
 
 ### Not held, but worth the owner's eye: A1d-1 (medium)
@@ -2533,7 +2533,7 @@ records that were run, is in "Pre-tag batch 2026-11-04" below.
 Not a held item (the ledger records it as decided in round 1, A1-31 and decision 65, and nothing was changed), listed here because its reproduction is new
 information. A live retention pass syncs the directory once per deleted segment while holding the log's lock (`retention.go:363`), which is the cost round 1
 accepted ("n directory syncs instead of one") and disclosed. What round 1 did not record (inferred from reading
-[a1-round2-correctness.md](a1-round2-correctness.md) section 18, which does not mention the lock) is that the syncs run under `l.mu`. The auditor measured a pass over 401
+[a1-round2-correctness.md](../passes/a1-round2/a1-round2-correctness.md) section 18, which does not mention the lock) is that the syncs run under `l.mu`. The auditor measured a pass over 401
 expired sealed segments blocking `Head()` for 2.128 s on macOS APFS (31 ms on v0.1.0) and 204 ms on Linux ext4 (16 ms on v0.1.0), about 5 ms and 0.5 ms per segment. A live pass deletes at most a
 quarter of the sealed segments, so a burst of simultaneous expiries (for example 2,000 expired sealed segments, up to 500 deleted in the first pass) is the case that reaches seconds. Recommended answer if
 reopened: keep the sync-before-each-unlink order and release the lock between chunks of a few segments, re-validating the sealed set when it is reacquired; if left as is, say in decisions 61 and 65, the user
@@ -2542,7 +2542,7 @@ guide and the Latency section of `scope.md` that a pass blocks the log for the d
 ## Held after pass A4r
 
 Pass A4r (supply chain, refreshed before the release, 2026-11-03; the full record is the "Refreshed before release" section of
-[supply-chain.md](supply-chain.md)) came to five items. One, A4r-2, was a defect and was fixed in `5bd55ce` (FIXED-VERIFIED), so it
+[supply-chain.md](../passes/supply-chain.md)) came to five items. One, A4r-2, was a defect and was fixed in `5bd55ce` (FIXED-VERIFIED), so it
 is not held. A4r-3 (any tag name is accepted by `build/quill`) was left unchanged as an optional item of the first pass (A4-10) and
 is not held; if the owner wants it, the check is one line, given in supply-chain.md. The three items below were decided or held in
 an earlier pass and are held again, because the refresh found new evidence for each and the answer is still the owner's. None has a
@@ -2553,7 +2553,7 @@ not decisions. Each is an owner action or decision that the audit cannot take: i
 
 **Claim.** The tip of main no longer names a personal scratch path (a user name and an internal directory name) or carries the
 reference implementation's line counts and component breakdown, but both are still in the `v0.1.0` tag and in earlier history.
-The path is in `docs/audits/audit-correctness.md` at `v0.1.0` and was introduced by `98ff9e7` (removed from the tip by `0b70e82`
+The path is in `docs/audits/passes/a1-round1/audit-correctness.md` at `v0.1.0` and was introduced by `98ff9e7` (removed from the tip by `0b70e82`
 and `007ba0e`); the figures are in `docs/design/review.md` before `ee220c8`. Verified by the auditor with `git grep` on the tag
 and a pickaxe over `git log --all`. This extends A4-4 above with two new facts: the figures are in history as well as the path, and
 the clone has 454 local branches (`worktree-wf_*`, `worktree-agent-*`, `stage2/*`, `failed/*`) that `git push --all` or `--mirror`
@@ -2635,7 +2635,7 @@ the fix-skeptic could build against the fix is given under Disposition, and is n
 **Claim.** The rule said `Open` gives itself four or five enumerated warnings and that every other record runs under the log's lock. `Open` also gives the
 marker-publish Warn and a rotation Warn, so the enumeration is incomplete (and it would go stale again). Documentation only.
 
-**Grounds.** The finding, its two skeptic votes (CONFIRMED, 2 of 2, read from the code) and the rejected attempts are in [a1-diff-scoped.md](a1-diff-scoped.md) and in
+**Grounds.** The finding, its two skeptic votes (CONFIRMED, 2 of 2, read from the code) and the rejected attempts are in [a1-diff-scoped.md](../passes/a1-diff-scoped.md) and in
 "Held after pass A1d" above.
 
 **Warrant, Backing.** A rule with an exception list is false for any record the list omits (decision 50, restated at L1-10). Rebuttal: none raised in the ledger;
@@ -2669,11 +2669,11 @@ and `CHANGELOG.md`. The fix-skeptic checked in the code (reported) that no recor
 stale-temp cleanup, policy and ahead-consumer steps and only then starts the flusher) and that every other record is written under it; it ran
 `go test -race -count=1 ./...` (all packages ok), and `TestTheLoggerRunsUnderTheLogsLockAsDocumented`, which pins the lock-held half, is unchanged. No regression
 test was added: one would need a production hook to see the `*Log` before `Open` returns. The fix-skeptic's only objection was cosmetic: the pass summary and
-the item heading of [a1-diff-scoped.md](a1-diff-scoped.md) still described the state before approval; this batch's record updates them (counts, the row, the heading).
+the item heading of [a1-diff-scoped.md](../passes/a1-diff-scoped.md) still described the state before approval; this batch's record updates them (counts, the row, the heading).
 
 ### L4b-1: the release record's migration table lists 8 breaking changes and omits changes `CHANGELOG.md` records (medium)
 
-**Claim.** The migration table of [release-v0.2.0.md](release-v0.2.0.md) listed 8 breaking changes, omitted script-visible and library-visible changes that
+**Claim.** The migration table of [release-v0.2.0.md](../release-v0.2.0.md) listed 8 breaking changes, omitted script-visible and library-visible changes that
 `CHANGELOG.md` records, and called the unkeyed-literal break on two types "the only compile-time break".
 
 **Grounds.** The critic compared the record with `CHANGELOG.md` Unreleased and `git log --oneline v0.1.0..HEAD` (reported). The fix-skeptic re-derived it: at the
@@ -2706,7 +2706,7 @@ carries the corrected counts (146 entries, 86 with a row, 60 not user-visible), 
 
 ### L4b-2: the release record does not roll up the items still held or deferred for the owner (medium)
 
-**Claim.** [release-v0.2.0.md](release-v0.2.0.md) had a checklist (licence, history, branches, metadata) but no list of the audit findings that stayed open, accepted or
+**Claim.** [release-v0.2.0.md](../release-v0.2.0.md) had a checklist (licence, history, branches, metadata) but no list of the audit findings that stayed open, accepted or
 deferred, nor of what was not run at the tag. Two small errors were also in it: `SECURITY.md:34-36` is at `SECURITY.md:31-32`, and the gate log it quoted
 covers macOS only, not both platforms.
 
@@ -2762,7 +2762,7 @@ qualifier, decision 85's original body is left as written with the correction as
 
 ### L4b-4: records cite figures that no longer reproduce at HEAD (low)
 
-**Claim.** `docs/design/review.md:96` gave quill's own size as 5,370 lines (5,399 one commit later), and [a1-diff-scoped.md](a1-diff-scoped.md) stated commit counts (137 commits touching
+**Claim.** `docs/design/review.md:96` gave quill's own size as 5,370 lines (5,399 one commit later), and [a1-diff-scoped.md](../passes/a1-diff-scoped.md) stated commit counts (137 commits touching
 non-test, non-hack Go files; a 113 / 74 split) that do not reproduce under any definition the record states.
 
 **Grounds.** The critic's recount (137 only with `examples/` also excluded, 138 without, 139 at the later tip; 124 / 69 for the split, because "production" was undefined) (reported). The fix-skeptic
@@ -2776,7 +2776,7 @@ re-derived every number in the quill repository (reported): `git log --format=%H
 **Why in the batch.** The release record points readers at these records as evidence.
 
 **Disposition.** Fixed in `be9adfb`; fix-skeptic FIXED-VERIFIED, 6 of 6 lenses (reported). `review.md:96` now says "about 5,400 lines" and names the counting command, so it does not go stale. In
-[a1-diff-scoped.md](a1-diff-scoped.md) each commit count is stated beside the command that gives it: 138 at the audited tree (137 only with `examples/` excluded too), and the 113 / 74 split holds only
+[a1-diff-scoped.md](../passes/a1-diff-scoped.md) each commit count is stated beside the command that gives it: 138 at the audited tree (137 only with `examples/` excluded too), and the 113 / 74 split holds only
 when "production" means any non-test `.go` file (119 / 68 with `build/` and `hack/*.sh`). Decision 90 and `CHANGELOG.md` carry dated notes. The 83, 12, 18 and 60 figures in the same record were flagged as
 not recounted. Skeptic's cosmetic nits, not fixed: "drifts by tens of lines per commit" (`review.md:97`) is slightly strong, and `a1-diff-scoped.md:158` still says "the 5,370-line count reproduces", which is the auditor's own dated statement and the item said not
 to change other statements in that file.
@@ -2788,14 +2788,14 @@ so none is claimed here, and it has no `CHANGELOG.md` entry. It is outside the d
 ## Held after the pre-tag batch
 
 Three things the wave 6 completeness critic raised need a code change or a change to a CLI message, an exit code or a build constraint. The owner's approval of 2026-11-04 was for documentation only, so none
-was approved, none was touched, and none has a fix written. Each stays open in the release record ([release-v0.2.0.md](release-v0.2.0.md), "Known limitations and open items at the tag"). The recommended
+was approved, none was touched, and none has a fix written. Each stays open in the release record ([release-v0.2.0.md](../release-v0.2.0.md), "Known limitations and open items at the tag"). The recommended
 answers are the recorder's reading (inferred) and are recommendations, not decisions. The critic's own text is not in the tree, so the items have no id of their own beyond the ones noted.
 *(Update 2026-11-04: all three were then approved and fixed in pass L5, each with a dated note below; see "Pre-tag code batch 2026-11-04". `quill --version` was not approved.)*
 
 ### L3b-15 (re-raised by the critic): `quill -h` and `quill --help` print `flag: help requested` and exit 2 (low)
 
 **Claim.** `quill -h` and `quill --help` print `quill: flag: help requested` and exit 2, and `quill --version` exits 2. Verified by the L4b-2 fix-skeptic on a build of the tree (reported); the record of the earlier finding is "L3b-15" in
-[live-integration.md](live-integration.md).
+[live-integration.md](../passes/live-integration.md).
 
 **Why held.** The fix changes an exit code and a message of the CLI, which the owner's approval did not cover. Documents promise only the verbs `help` and `version`, which work and exit 0, so no sentence is false.
 
@@ -2846,17 +2846,17 @@ archives (A4-5, open when this was written and resolved the same day, see that s
 
 **History rewritten (A4-4, A4r-1), owner decision 2026-11-04: filtered, not squashed, not accepted.** Hand finish by the assistant, no
 fix-skeptic. A backup bundle of all 500 refs was made and verified first (kept outside the repository). The filter replaced the one quoted
-scratch path in `docs/audits/audit-correctness.md` with the text that `0b70e82` had left, in every commit and every ref. Verified afterwards:
+scratch path in `docs/audits/passes/a1-round1/audit-correctness.md` with the text that `0b70e82` had left, in every commit and every ref. Verified afterwards:
 no hit in `git log --all -p` or a pickaxe search, 451 commits (370 on `main`), `HEAD` tree identical (`64aa8de7...`), no reflog or
 `refs/original` left, the ignored `.claude/` directory kept, `v0.1.0` re-created with a tree that differs from the old one in that one
 document. 321 of `main`'s 370 commits changed hash (independently counted: 321 descend from the first changed commit, 49 do not). The old
-hashes cited in these records are resolved by [commit-map.txt](commit-map.txt). The owner approved the in-place rewrite after it was run
+hashes cited in these records are resolved by [commit-map.txt](../commit-map.txt). The owner approved the in-place rewrite after it was run
 on a mirror clone first. Not decided here: the placeholder author of `da2d638`, the `faa8eaf` operator detail, and which identity may be public.
 
 ## Pre-tag code batch 2026-11-04
 
 Pass L5 (pass L5b, item L5-5, is the last entry of the list). Date 2026-11-04, against `main` as it stood after `c56e960` (the commit map). Four items, each approved by the owner on 2026-11-04 and each fixed in its own commit with a regression test or a gate step, a CHANGELOG
-line, an entry in the "Breaking changes and upgrade notes" list where a user can see the change, a migration-table row in [release-v0.2.0.md](release-v0.2.0.md), and the decisions amended in place with a dated note
+line, an entry in the "Breaking changes and upgrade notes" list where a user can see the change, a migration-table row in [release-v0.2.0.md](../release-v0.2.0.md), and the decisions amended in place with a dated note
 ("Stage 2 audit, owner-approved 2026-11-04"). The top-line counts and the coverage statement are in "Update 2026-11-04 (pre-tag code batch, pass L5)" near the head of this file. Labels: **verified** (the recorder
 read the lines in this tree, or ran the command), **reported** (a fix-skeptic's or a fixer's account in the ledger, or the task text; the source is named), **inferred**. The recorder ran `awk` and `grep`
 over the tree and read the four diffs; it did not run the tests or the gate.
@@ -2874,7 +2874,7 @@ The ledger's Warrant, Backing and Rebuttal fields for all four read "See the rec
 
 ### L5-1: `quill -h` and `quill --help` print `flag: help requested` and exit 2 (low)
 
-**Claim.** `quill -h` and `quill --help` before a verb print `quill: flag: help requested` on standard error and exit 2. Follows up L3b-15 ([live-integration.md](live-integration.md)), re-raised by the wave 6 critic and held in
+**Claim.** `quill -h` and `quill --help` before a verb print `quill: flag: help requested` on standard error and exit 2. Follows up L3b-15 ([live-integration.md](../passes/live-integration.md)), re-raised by the wave 6 critic and held in
 "Held after the pre-tag batch" above.
 
 **Grounds.** `dispatch` in `cmd/quill/verbs.go` parses the global flags with a `flag.FlagSet` and returned `c.usage("%v", err)` for every parse error, `flag.ErrHelp` included (verified: the branch is at
@@ -2892,7 +2892,7 @@ The ledger's Warrant, Backing and Rebuttal fields for all four read "See the rec
 **Disposition.** Fixed in `cfa7bf7`, FIXED-VERIFIED, 7 of 7 lenses (reported). One `if errors.Is(err, flag.ErrHelp) { return cmdHelp(c, nil) }` at `verbs.go:185-187` (verified); `-help` behaves like the other two
 (the flag package treats `h` and `help` alike). A bare `quill` still prints the usage and exits 2; `--version` and every other global-flag error are unchanged (verified by the fix-skeptic on a built binary).
 Tests: `TestGlobalHelpFlagPrintsTheUsageOfTheHelpVerbAndExitsZero` (red on the parent), `TestBareQuillAndOtherGlobalFlagErrorsStayUsageErrors`. Decision 53 carries a dated note; the user guide,
-[live-integration.md](live-integration.md) (row L3b-15), the CHANGELOG (breaking-changes line and a `Changed:` entry) and the release record (migration row 39) are updated; `docs/reference.md` describes only the
+[live-integration.md](../passes/live-integration.md) (row L3b-15), the CHANGELOG (breaking-changes line and a `Changed:` entry) and the release record (migration row 39) are updated; `docs/reference.md` describes only the
 exit codes, which stay true, and needed no change (reported, the fix-skeptic). The fix-skeptic's objection: none that blocks. **Residual, found by the recorder (verified, `cmd/quill/help_flag_test.go:27-36`):** the
 second test asserts exit 2 for `--version`, so the owner's "do not pin `--version` by a test" is not met; held below.
 
@@ -2949,7 +2949,7 @@ entry), the release record (row 41, "Platforms", the known-limitations rows) and
 ### L5-4 (A4-5): the release archives ship the Go runtime and standard library with no copy of its licence (low)
 
 **Claim.** The binaries statically link the Go runtime and standard library (BSD-3-Clause), whose licence asks that a binary redistribution reproduce its notice, conditions and disclaimer; the archives carried none.
-Held since pass A4 (section "A4-5" above, [supply-chain.md](supply-chain.md)).
+Held since pass A4 (section "A4-5" above, [supply-chain.md](../passes/supply-chain.md)).
 
 **Grounds.** Reported, from the licence text in `GOROOT` as read in pass A4 (2 of 2 voters, 1 reproduced). The fix-skeptic confirmed on the real `build/quill --dev` that the archive lists the new file beside
 `LICENSE`, byte-identical to the repository copy, and that `go list -m all` lists only the quill module.
@@ -2975,7 +2975,7 @@ The fix-skeptic's objection: only the release record's stale counts, corrected i
 Pass L5b. Date 2026-11-04, on `main` after the record of pass L5 (`8210d86`).
 
 **Claim.** `quill --version` and `quill -version` print `quill: flag provided but not defined: -version` on standard error and exit 2; only the verb `quill version` works. The finding is the second half of
-L3b-15 ([live-integration.md](live-integration.md)), which pass L5 fixed for `-h` and `--help` only and listed in "Held after the pre-tag code batch" below.
+L3b-15 ([live-integration.md](../passes/live-integration.md)), which pass L5 fixed for `-h` and `--help` only and listed in "Held after the pre-tag code batch" below.
 
 **Grounds.** `dispatch` in `cmd/quill/verbs.go` defined one global flag, `-dir`, so `-version` was an unknown flag and its parse error went to `c.usage` (verified: `verbs.go:181-198` now, the flag at line 184).
 **Reproduction (reported, fix-skeptic, lens `test-fails-without-fix`):** the new test run against the parent's `verbs.go` failed for all four forms (`--version`, `-version`, `-dir X --version`,
@@ -3000,7 +3000,7 @@ options the task allowed; the output is shared with the verb by construction, so
 version flag after a verb (`quill read -version`, `quill version -version`) is still that verb's unknown-flag usage error, exit 2; `quill version` is byte-identical; every other global-flag error is as it
 was (`-bogus`, a `-dir` with no value, `--version=bogus`). Tests: `TestGlobalVersionFlagIsTheVersionVerb` (red on the parent; `cmd/quill/help_flag_test.go:44`, verified), and `{"--version"}` was removed from
 `TestBareQuillAndOtherGlobalFlagErrorsStayUsageErrors` with `{"-dir"}` added in its place (line 29), which clears the discrepancy recorded under L5-1. Documents updated: `docs/reference.md` and the text
-`quill reference` generates, `docs/userguide.md`, `README.md`, decision 53, [live-integration.md](live-integration.md) (L3b-15), [release-v0.2.0.md](release-v0.2.0.md) (row 39a, the L3b-15 row, the counts) and the
+`quill reference` generates, `docs/userguide.md`, `README.md`, decision 53, [live-integration.md](../passes/live-integration.md) (L3b-15), [release-v0.2.0.md](../release-v0.2.0.md) (row 39a, the L3b-15 row, the counts) and the
 CHANGELOG (an `Added:` entry, and a clause on the L5-1 line of "Breaking changes and upgrade notes": a command that exited 2 now exits 0, a script that relied on `--version` failing must change). The
 CHANGELOG heading stays `## Unreleased`. Counts re-derived by the recorder (verified, `awk`): 153 entries, 38 list lines, 90 with a row, 63 without.
 The fix-skeptic's objection, which it could not turn into a rejection (reported): `quill --version <anything>` exits 0 and ignores the trailing tokens (`--version foo`, `--version version`), as `-h` already does;

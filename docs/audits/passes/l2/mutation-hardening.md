@@ -3,7 +3,7 @@
 Date 2026-11-03. Recorded against the tree at `f274b51`, which has every L2 fix applied. The auditors worked on an earlier
 tree (the recovery auditor names `5a70379`; the others say "HEAD" without a hash), before the pass L1 fixes landed, so some
 "uncovered" statements below are older than the tree (see the coverage statement). The specification is
-[scope.md](../design/scope.md), [decisions.md](../design/decisions.md) and [format.md](../format.md). The code is what is under
+[scope.md](../../../design/scope.md), [decisions.md](../../../design/decisions.md) and [format.md](../../../format.md). The code is what is under
 audit: a passing test is not evidence that anything is right, and a doc is not evidence that the code does what it says.
 
 Pass L2 asked one question: would the test suite notice if the code were wrong? It was put four ways. A coverage ledger on two
@@ -13,11 +13,11 @@ that tried to break the resource bounds and the isolation rules from outside. Fi
 | File | What it holds |
 |---|---|
 | this file | the summary, the coverage statement, the method, the mutant tables with scores, survivors judged, residual weaknesses, and one record per item |
-| [test-ledger.md](test-ledger.md) | the refreshed coverage ledger for both platforms, and the tests this pass added |
+| [test-ledger.md](../../reference/test-ledger.md) | the refreshed coverage ledger for both platforms, and the tests this pass added |
 | [defects-log.md](defects-log.md) | each defect found: root cause, fix, regression test |
-| [harness-inventory.md](harness-inventory.md) | every harness and fixture, and what it can and cannot simulate |
-| [untestable-without-x.md](untestable-without-x.md) | what still cannot be tested, with the exact blocker and the artifact that would unblock it |
-| [stage2-owner-decisions.md](stage2-owner-decisions.md) | L2-53, which was held: the recommended answer, the owner's approval of 2026-11-03 and the fix |
+| [harness-inventory.md](../../reference/harness-inventory.md) | every harness and fixture, and what it can and cannot simulate |
+| [untestable-without-x.md](../../reference/untestable-without-x.md) | what still cannot be tested, with the exact blocker and the artifact that would unblock it |
+| [stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md) | L2-53, which was held: the recommended answer, the owner's approval of 2026-11-03 and the fix |
 
 ## Summary
 
@@ -261,7 +261,7 @@ Unobservable (6): **O07** (fsx.OS.SyncDir does not call fsync) passes everything
 tracing, and the simulator models directory fsync independently of the OS wrapper, so that one line is pinned by reading only. **O05** (osFlags drops O_WRONLY) has no
 write-only caller. **O06** (Rename EINTR retry) needs a signal at the exact syscall. **T05** (atomicfile drops O_EXCL) guards a 64-bit random name collision. **L27**
 (resolveDirLink non-NotExist Lstat error) differs only in which path an error names. **F36** (a failed Roll leaves pendingPublish set) differs by one idempotent marker rewrite.
-Each has an entry in [untestable-without-x.md](untestable-without-x.md).
+Each has an entry in [untestable-without-x.md](../../reference/untestable-without-x.md).
 
 ### Recovery run: 12 equivalent, 10 unobservable
 
@@ -331,7 +331,7 @@ items because the code was left as it is.
 
 ## Benchmarks
 
-Pass L2 did not run the benchmark tier and filed no benchmark finding. `bench_test.go` has 15 benchmarks (reported by the recorder's `grep -c '^func Bench'`); their baselines are in [benchmark-baselines.md](benchmark-baselines.md).
+Pass L2 did not run the benchmark tier and filed no benchmark finding. `bench_test.go` has 15 benchmarks (reported by the recorder's `grep -c '^func Bench'`); their baselines are in [benchmark-baselines.md](../../reference/benchmark-baselines.md).
 
 ## Item records
 
@@ -708,8 +708,8 @@ One entry per item, in severity order. "Voters" are the two or three skeptics wh
 - **Rebuttal.** By the letter MaxReadBytes is documented as payload bytes. Records and Follow have no limit parameter. Not a crash; the memory is garbage after the call. A reviewer can rank it a documentation gap.
 - **Verdict.** CONFIRMED. Votes: 2 CONFIRMED. Reproduced by: both voters.
 - **Reproduction.** Auditor program (default Config, real disk, macOS arm64) as above. Voter 1: 1,000,000 nil payloads via AppendBatch, Read(1,0) returned 1,000,000 records, 206 MB. Voter 2: 2,000,000 empty payloads, Read(1,0) and Records() each returned or iterated all 2,000,000 and allocated about 403 MB against a 16 MiB cap. Neither re-ran the 17M case.
-- **Disposition.** Held for the owner, recommended answer in [stage2-owner-decisions.md](stage2-owner-decisions.md), section "L2-53". No fix is written, so there is no fix-skeptic outcome and no regression test yet. No fix written. Held for the owner: see stage2-owner-decisions.md, section L2-53.
-- **Disposition (updated 2026-11-03).** Owner-approved on 2026-11-03: the recommended answer (charge each record `len(payload) + 48` bytes against `MaxReadBytes`; at least one record per call; the cap reworded as a bound on the size of a batch, not on the sum of payloads). Fixed in 637ed42, FIXED-VERIFIED by a fix-skeptic, 7 of 7 lenses pass (test fails without the fix, root cause, behaviour preserved, no new gap, reachable, ladder, independent route; reported by the skeptic). The one accumulation line in `scanSource` now adds `readRecordOverhead` (read.go:125, value 48; the line is read.go:271, both verified in the tree) and every read path reaches it with the cap; `Scan` is unaffected. Tests: `read_overhead_test.go` (:27 and :91) and adapted constants in append_test.go. Reported by the fix-skeptic on 1,000,000 empty records at the default cap: every read form returned 349,526 records per call, `Records` and `Follow` yielded all 1,000,000 in order, and `Read(1,0)` allocated 216 MB before and 70 MB after. The earlier sentence in this item, "No fix is written, so there is no fix-skeptic outcome and no regression test yet", is the state when the pass was recorded. Left by the skeptic: userguide.md:207 still says the cap "bounds the memory of a read" although a bounded read allocates about 4 times the cap; `staticcheck` and `deadcode` not run by the skeptic; the Linux x86-64 box not used (linux/arm64 in an Apple container instead). Details: [stage2-owner-decisions.md](stage2-owner-decisions.md), section "L2-53".
+- **Disposition.** Held for the owner, recommended answer in [stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md), section "L2-53". No fix is written, so there is no fix-skeptic outcome and no regression test yet. No fix written. Held for the owner: see stage2-owner-decisions.md, section L2-53.
+- **Disposition (updated 2026-11-03).** Owner-approved on 2026-11-03: the recommended answer (charge each record `len(payload) + 48` bytes against `MaxReadBytes`; at least one record per call; the cap reworded as a bound on the size of a batch, not on the sum of payloads). Fixed in 637ed42, FIXED-VERIFIED by a fix-skeptic, 7 of 7 lenses pass (test fails without the fix, root cause, behaviour preserved, no new gap, reachable, ladder, independent route; reported by the skeptic). The one accumulation line in `scanSource` now adds `readRecordOverhead` (read.go:125, value 48; the line is read.go:271, both verified in the tree) and every read path reaches it with the cap; `Scan` is unaffected. Tests: `read_overhead_test.go` (:27 and :91) and adapted constants in append_test.go. Reported by the fix-skeptic on 1,000,000 empty records at the default cap: every read form returned 349,526 records per call, `Records` and `Follow` yielded all 1,000,000 in order, and `Read(1,0)` allocated 216 MB before and 70 MB after. The earlier sentence in this item, "No fix is written, so there is no fix-skeptic outcome and no regression test yet", is the state when the pass was recorded. Left by the skeptic: userguide.md:207 still says the cap "bounds the memory of a read" although a bounded read allocates about 4 times the cap; `staticcheck` and `deadcode` not run by the skeptic; the Linux x86-64 box not used (linux/arm64 in an Apple container instead). Details: [stage2-owner-decisions.md](../../decisions/stage2-owner-decisions.md), section "L2-53".
 
 ### L2-9 (low, CONFIRMED)
 - **Claim.** The only code that reads real free space, freeBytes, is executed by no test on either OS (0% on macOS and Linux); MinFreeBytes tests always inject Config.statfs.
