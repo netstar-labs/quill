@@ -1,0 +1,334 @@
+# Commit map: hashes before and after the 2026-11-04 history rewrite
+
+Before anything was pushed, the history was rewritten once to remove a scratch-directory path that one audit document
+(`docs/audits/audit-correctness.md`) had quoted from commit `98ff9e7` (old hash) until `0b70e82` (old hash) removed it. The
+rewrite changed that one document's text in those commits and nothing else: every commit keeps its author, dates and
+message, and the tree at `main` is byte-identical to the tree before the rewrite. Every commit from the first changed one
+down to `main` has a new hash, because a hash covers its parents. The `v0.1.0` tag was re-created on the new commit
+`9364fb0` (old commit `419e15a`); its tree differs from the old tag's tree in that one document only.
+
+The audit records in this directory, the CHANGELOG and the decisions cite commits by their old hashes. Look a hash up here.
+370 commits are reachable from `main`. 49 keep their hash (the commits before the first changed one, and commits on merged
+side branches that were not built on it) and are not listed. The 321 below are listed oldest first as `old-hash new-hash subject`.
+
+98ff9e79379c 9e810e8a6fb5 docs(audit): A1 adversarial audit findings
+c47f6ac9aedd 6e62297ee756 Merge branch 'audit/docs-46'
+6c4b73ae2a22 05c6d9254758 fix(audit correctness-22): Close retires the active segment under a pinned reader
+2fa9bc429246 1eff8f0ecac1 fix(audit correctness-24): parse command numbers as plain decimals
+44eee5e98ad3 f667cbf04339 fix(audit simplify-12): Check reports an unreadable consumers/ directory as UNHEALTHY
+ede457ba6917 8b3788390dce fix(audit correctness-31): a damaged sealed segment counts its file's bytes in Stat and MaxBytes
+74b1a392e9ec 4cd41e960757 fix(audit correctness-32+docs-33): offline verbs never rewrite quill.policy and respect its segment size
+42d78cbb1ec4 75cc47fbeb80 fix(audit correctness-28): quill append closes explicitly and exits 1 when Close fails
+bbdd8d52b032 877be4fee0e2 fix(audit correctness-27): a sealed segment deleted between listing and opening is a gap
+2c03184adea4 40c3faba177c fix(audit dedup-19): one contiguity helper for the hole and overlap bookkeeping
+3f2c6511db69 7f1395b8bc79 fix(audit docs-39): restate the disk bound for a single record larger than MaxBatchBytes
+45d2d2bb8397 309f5b434620 test: the full-disk test refuses a large filesystem instead of allocating a filler the size of a disk
+19bb9e7353eb 8cb17aa702c1 perf(alloc write-1): encode quill.tail with appendTail into a reused buffer
+cfcf0764352b bff1208dfdda perf(alloc write-2): fsx.OS.Rename calls syscall.Rename, skipping os.Rename's destination Lstat
+09f2e3d0598f a278a8104611 perf(alloc write-3): atomicfile temp name built with one concatenation
+af291698be0b fbed37979b55 perf(alloc write-4): quill.tail path joined once in Open
+e5fb87d68950 c6d8969d255e perf(alloc write-5): flush broadcast channel made lazily by the first waiter
+980d9ef61be4 845557ae9bb7 perf(alloc read-7): Log.view reuses cached sealed segRefs
+e8e480fecd96 8d6dba7389c1 perf(alloc read-9): readFrom sizes its result slice once, from the view
+aa342137da2f 7dd2ce15601d perf(alloc reader-15): decodeTail reads the canonical quill.tail bytes without the strict JSON pipeline
+338e236ddfe7 87602f9d71ae perf(alloc reader-16): Reader.view decodes the active segment's first frame in a pooled buffer
+9470d41b7681 a3dd640e96a1 perf(alloc reader-17): Reader.view sizes its slices and allocates the segment refs as one slab
+293b0319df27 fb999f7e00a6 perf(alloc reader-19): printer.print builds each record in a reused buffer
+8dda78e8cb16 81612fdc64b3 perf(alloc reader-20): scanSource's walk stops building the segment index it discards
+3b2379885806 a49064d97de6 perf: allocation pass (A1 follow-up): 12 measured fixes on the write, read and reader paths
+e79146b146d7 d15e463c0a76 docs: changelog, test ledger and audit follow-ups for the allocation pass; read-8 deferred
+419e15ae4a2a 9364fb0051ec docs: benchmark baselines re-recorded on both machines after the allocation pass
+1da37fc06578 b6c25ec41431 docs: a less technical introduction
+433725221e3f d955dff2b59f fix(stage2 A1-42): flush each record in follow mode so tail -follow output is not held until exit
+a4f92e8c21cf cba2a2e58299 fix(stage2 A1-43): refuse a quill.tail off above the largest segment so a reader never panics on it
+34399462ac7a 08de1304001f fix(stage2 A1-66): the manual corruption procedure now rewrites quill.tail after truncating the newest segment
+c2a73656cf99 788a13d86f68 fix(stage2 A1-33): treat an already-missing sealed segment as deleted so retention is not wedged
+c8fb07be6440 87953021839f fix(stage2 A1-60): a Reader caches only damage from a sealed-segment scan, so a transient I/O error is retried
+9c6a8c3e1a46 1dbd9c770553 fix(stage2 A1-46): a failed write to standard output exits 1 instead of 0
+89211cc2624f 6b8f25c7b55e fix(stage2 A1-51): Check skips a sealed segment deleted after the listing instead of flagging damage and a hole
+df7af4fdcf16 503d5dfaccb6 fix(stage2 A1-68): make the --dev version string errexit-safe so a clean tree builds
+1b1ff466f74f 413d05091cb2 fix(stage2 A1-3): scanSource states the gap-after-records rule once in a local closure
+a2113b5096f2 410a0c4044c5 fix(stage2 A1-4): parse decimal ids with strconv.ParseUint instead of hand-rolled digit loops
+f0cdcfa781d7 e48a5a3bbef5 fix(stage2 A1-6): Log.Stat reads every field under one lock
+af99624f9d49 31704dc1d540 fix(stage2 A1-7): remove test-only WriteSyncDir and fsx.File.Name, make freeBytes a plain function
+8f89e0d64cca 7fb1957c056e fix(stage2 A1-8): correct fsx flag comments; the values are Linux's and osFlags translates for macOS
+48e7491ee886 a7a363c361aa fix(stage2 A1-9): drop archive's always-0o600 perm parameter and reuse Config.dirPerm
+becd44efa7fa 269b46bdf691 fix(stage2 A1-12): drop redundant loop-var copy and GOMAXPROCS clamp; build prune ticker only when maintenance is on
+afe3daaac331 a405fe4c9617 fix(stage2 A1-14): one closeIfIdle method holds the retire-and-close descriptor rule
+d39a91530c94 d6f949c31814 fix(stage2 A1-16): one free listSegments for the writer load, Stat, Check and test helper
+860c48397c5c a4caeea36c62 fix(stage2 A1-17): one startHelper that kills and reaps the child on every exit path
+e37f4ee48720 e217eb03ddd5 fix(stage2 A1-18): add mustSync and mustSyncDir test helpers for the fsx crash tests
+0e3b5481efb8 3d557fdcbdb2 fix(stage2 A1-19): build the three cmd/quill log fixtures through one buildLog helper
+74b1fc853a77 86ffaa0246d1 fix(stage2 A1-20): add retentionLog test fixture for the repeated simulator, clock and log prologue
+8fe2264d7cfd d1f9f127b8e2 fix(stage2 A1-21): crash simulator Chmod and TryLock use alive(), so a pre-crash handle is dead
+0614afc5877a 403e39f558c9 fix(stage2 A1-22): drive the special verbs from noDir and hidden fields of the verb table
+cba6016e5419 88bbd869c782 fix(stage2 A1-24): drop the dead errors.Is(err, nil) check and the fmt/errors imports it kept alive
+890c70e1770b bc8b538818bb fix(stage2 A1-26): never assign sequence MaxUint64 and refuse a log that already ends there, so last+1 cannot wrap
+e2f7801d62ee 01a1f7819b62 fix(stage2 A1-31): sync the directory before each segment unlink so a crash mid-prune leaves a suffix, not a hole
+89073cbbd3a9 7e18f3652710 fix(stage2 A1-37): cut the newest segment's untrusted tail only after Open's refusing checks pass
+5b486d26067b dd481c72cfea fix(stage2 A1-64): refuse an archive destination that is the source log or has a live writer
+8f29e057c272 7a6584db522d fix(stage2 A1-53): drop a Reader's cached sealed segments that the directory no longer lists
+3208dab118ec 69b10869ff6b fix(stage2 A1-61): read nextSeq under l.mu when building the Sync ErrBadSeq message
+7672a8d39692 e5c668a3e659 fix(stage2 A1-63): sync the archive destination's parent after creating it
+db30a9452be4 aea7083c070d fix(stage2 A1-65): Archive removes stale .tmp-* files from its destination before copying
+4aec960bd533 c62e2097be10 fix(stage2 A1-70): examples README states what each example does with its directory
+88a44b94a207 4ee8233cd98c fix(stage2 A1-71): SegmentMaxAge docs: never-when-negative holds only for the default
+da4d1ce0ca6a eb2dfde0b094 fix(stage2 A1-72): say prune applies the policy's caps and refuses only without policy and flags
+082bbcd22b2d 8f268965a090 fix(stage2 A1-73): SECURITY.md no longer claims every state file is parsed strictly
+e4988908c288 fa606551299f fix(stage2 A1-74): gate.sh ends PARTIAL, not OK, when FUZZTIME=0 skipped fuzz
+8449425c2457 e2e589fd8158 fix(stage2 A1-78): print one quill: prefix on CLI errors; a failed commit no longer leaves a new consumer
+a593c455d59d 945f88c28a0f fix(stage2 A1-79): correct small doc drift (ls -dir wording, holes.go row, empty-batch error, missing godoc)
+47a5ebb84a27 6d42a455f157 fix(stage2 A1-94): T13 runs with small flush/buffer limits so its disk-bound assertion can fail
+9810a5668165 d6a0fc13dc97 fix(stage2 A1-95): add tests that falsify the per-unlink dir fsync, broken-consumer protection and the pending-publish retry
+f1df4aed1036 f32234e3bda5 fix(stage2 A1-97): align design-record statements with the code and with each other
+7ff9fed30a45 bfc8eaa2ff3b docs(audits): stage 2 A1 record
+da2d63891d37 5d8daf5f7285 x
+f2516d7e77e2 2f77c759066b fix(stage2 A4-3): SECURITY.md names the private reporting channel and supported versions
+c202882b79e1 57b1da51feb3 chore(stage2): restore the toolchain pin to go1.27.3
+0b70e8223147 b18049e6c571 fix(stage2 A4-4): drop a personal scratch path from the correctness audit doc
+10e80624dbcb 629e860964b1 fix(stage2 A4-7): release archives and SBOM no longer carry the clock or the builder
+1b17ea524b5a 9ec4415bfcbf fix(stage2 A4-8): give the SBOM components bom-refs so the dependency edge resolves
+edefefa560f8 fe4f31dd9ad7 fix(stage2 A4-9): least-privilege token for pr-issue-link, current action pins, dependabot
+43d0dee94e0b d7416bc6d852 fix(stage2 A4-10): test the release build's refusal of a dirty or untagged tree; say govulncheck is CI-only
+5fd074a9ec5b 147a620b717d docs(audits): stage 2 A4 record
+faa8eaf216e5 adaf1f30cf28 docs(design): the audit prompt for release stage 2, with its waves
+ba7c6508bf1d 7f70df0ef22a fix(stage2 A1-67): let quill commit open a consumer ahead of the head so the documented rewind works
+b5ad9556e422 068da9643a76 fix(stage2 A1-80): Open leaves an already protected consumer file alone, so a running consumer no longer blocks a writer restart; offline verbs drop ProtectedConsumers
+2978378f8336 c84269806c04 fix(stage2 A1-62r): say Config.Logger's handler, Enabled included, runs under the log's lock and must neither call the Log nor block
+7ef431c7b453 9abf79994026 fix(stage2 A1-59): a Log read of a sealed segment retention deleted after the view is a GapError, as the Reader's is
+1bad96176664 c40467df07e5 docs(stage2 A4-3): drop the owner to-do from the shipped changelog line; record the support policy and the setting as owner actions
+c18a27a84d4f 8889671cc6bb fix(stage2 A1-25): refuse appends at a ceiling while rotation keeps failing, and report an oversize segment file as refused in Open and check
+a3955cd0dccd 0cd52221fe1d fix(stage2 A1-32): accept the archiver's reserved name on the public consumer paths so _archive can be rewound and removed
+279d7cee526e 7d99d36e6342 fix(stage2 A1-85): consumer files made through a Reader and the Archive destination take the log's mode, not 0600
+2c4e4f4ee321 d8c875cd9c10 fix(stage2 A1-47): a verb other than append and help given a positional argument exits 2 instead of ignoring it and the flags after it
+b4fe935c337e 021ac33b356d fix(stage2 A1-48): -from, -limit and -n take plain decimals like every other number flag, so 010 is ten, not eight
+b529db53488d 04d10630e467 fix(stage2 A1-13): Archive returns ErrFutureVersion, not ErrCorrupt, for a newer destination format
+5b30e7f038f0 8761ee23af05 fix(stage2 A1-69): document that MaxBatchBytes is checked as len(payload)+34 per record, and that quill append from stdin is one batch subject to it
+89957aedf7a0 dbc5ef39e241 fix(stage2 A1-2): quill.tail keys that differ only in letter case are a repeated key, not a silent override
+8c0c5312193e 94af4769f771 fix(stage2 A1-29): Open follows a symbolic link in Dir (final component or ancestor of a new Dir), as OpenReader does
+19c099625c6b fd2a3f5a6039 fix(stage2 A1-35): warn when the age sweep stops at a segment stamped more than a day ahead
+fd52463ed8a8 0b8dcb53c9e0 fix(stage2 A1-50): -json escapes DEL and C1 controls as \u00XX like the text form
+25e96c29b69d d4b4141aaa76 fix(stage2 A1-52): document that Read stops once MaxReadBytes is reached and may exceed it by one record
+c91329c20d0b d799f01398d5 fix(stage2 A1-57): stat -json writes holes as {"from","to"} and an empty list as [], and the stat, check and consumers JSON is documented
+50201e13ce9b 60ca072a398e fix(stage2 A1-87): state that the clock guard's quarter is rounded up (decision 44 and docs), no behaviour change
+5c603fccd149 d24af49b1ee6 fix(stage2 A1-91): a quill.policy with no retention is unparseable, not a policy of zeros
+b89475a7c717 db16f0059216 docs(audits): stage 2 A1h record
+bb608d367491 c284224abff1 fix(stage2 A1-82): a read I/O error is returned as itself, never ErrCorrupt or a skippable gap, including first-frame probes and Open verification
+fa2a5fae6a34 5be21f4e9f44 docs(audits): stage 2 A1h record
+988f1e5ae257 5b73bf0012ba fix(stage2 A4-1): build/quill pins GOTOOLCHAIN to go.mod's toolchain as the gate does; CI half refuted, audit records corrected
+acf7f39f84e8 a6e5816b5f20 fix(stage2 A3-1): read-only opens are O_NONBLOCK so a FIFO in a state file or consumers/ is refused, not waited on
+3105b42c0302 c4fcd83173c7 fix(stage2 A3-15): quill append refuses an oversize stdin batch while reading it, not after buffering all of stdin
+120c8ac9954f 6f5b703e8591 fix(stage2 A3-16): cap each flush term before summing so a size near MaxInt64 cannot wrap validate's bound
+2bf7412662e1 9e0fae17aec4 fix(stage2 A3-27): seal counts Dropped from the last prune pass's consumer offsets instead of listing consumers/ under the log lock
+bb646c025480 0fa983bcfdcf fix(stage2 A3-8): refuse maxseg above the ten-digit segment id range in quill.tail and at rotation
+1f896c7a6e2d 74e2fbf5bac3 fix(stage2 A3-12): docs say the writer's segments and all directories go through the umask; state files and Archive's segments are exact
+d6dc2b93fcd6 011a54958fc9 fix(stage2 A3-21): refuse non-minimal varints so verification and the read cursor agree on a frame's length
+46ff40fff171 10827acc3cc7 fix(stage2 A3-22): refuse any frame after one numbered 2^64-1 so the contiguity test cannot wrap to 0
+e6602b8c5dfd 5d4fc0309bf3 fix(stage2 A3-25): checkDuplicateKeys returns to the parent object after a container member closes
+495e45717ed4 406cc22ddad7 fix(stage2 A3-30): Commit and a Reader's wait re-check quill.format, so a replaced log is ErrWrongLog
+837c860cc638 06e50cb4192c fix(stage2 A3-33): Open and OpenReader make a relative directory absolute so a later chdir cannot move the log
+b1846fe3d226 1db8a2a8c6a7 docs(audits): stage 2 A3 record
+21e7d4c2c5d8 2438de45818d fix(stage2 A6-1): pin the Config to quill.policy field mapping in both directions with distinct values
+f70ef3d11f10 20f5acdf07a0 fix(stage2 A6-2): pin the CLI exit codes 0,1,2,3 and their help text by literal, not by the constants
+7dea97a6e7ed d8c9f1d3676a fix(stage2 A6-3): pin the exact key set and JSON types of stat, check and consumers -json
+709c5c502984 789da294a7d4 fix(stage2 A6-9): offline write verbs keep the mode of quill.tail instead of resetting it to 0600
+70ed460f4620 0727a564dd8f fix(stage2 A6-5): document that the format marker is checked at open, so a migration must stop running processes
+ee11f57a01e9 6353ef2e863e fix(stage2 A6-6): state in format.md that frame compatibility with the reference is by specification, not by fixture
+49bc53cd1b1f 6eee9067a97f fix(stage2 A6-7): make the policy golden distinct, producible and fully compared; carry the re-record ban on every golden failure
+70245a253442 62ed12877e60 docs(audits): stage 2 A6 record
+38d264416da5 310f2a4c37ad fix(stage2 A5-2): report every cut of the newest segment at a writable open, in the library log and on stderr of every offline write verb
+dd460a74c470 5236add2649e fix(stage2 A5-21): a failed flush at age rotation no longer aborts the prune pass before the sweep and caps
+1b68eee5668f 0ed2b186211c fix(stage2 A5-39): a failed quill.policy write at Open removes the stale file and is retried at flush, prune pass and Close
+66081fe159e3 00df85d2b18f fix(stage2 A5-42): log the deletion of a damaged sealed segment at Warn, in the library and on stderr of offline prune
+6acc23e4e946 1f3f8dbdd311 fix(stage2 A5-16): fail the writer when its quill.lock is removed or replaced, since the lock no longer excludes a second writer
+906d49ccbbb8 bd267ef52d5c fix(stage2 A5-40): force the marker write at load with pendingPublish so an empty log's MarkerAge counts from Open
+d451facd9125 6e9a44e827fa fix(stage2 A5-31): log a Warn when the ConsumerTTL probe of a protected consumer errors, instead of silently treating it as live
+a6901eeec83d 2095a3a3aefa docs(audits): stage 2 A5 record
+e1c3a56f4381 d8b651b2860c docs(audits): record A1-67 and A1-80 owner approval and fix-skeptic sign-off
+003de2c1f878 a4808bb616fc fix(stage2 A6-8): rename the unexported segment file limit to maxSegmentFileBytes so it no longer differs from MaxSegmentBytes by case alone
+3c36fc0f1fd6 049aebb50f1a docs(stage2 A3-18, A3-19): state the cost of a cursorless Reader read and of the first-frame probe
+91c2fce51a14 9388354181fe fix(stage2 A5-10): Err() reports what is failing now: join the load error with live background errors and clear each when its operation succeeds
+303b794403b7 5b6e47a1920d fix(stage2 A3-14): archive refuses a destination that is not an empty directory or a log
+47315f17e681 94c3e33f2153 fix(stage2 A3-5): quill.lock is always 0600, whatever Config.Perm says
+01cee10934f6 2905f66c578d test(stage2 skew-harness): hack/skew.sh, a cross-version skew check
+5a7f4f817c7f 0177b916d2ac docs(audits): record the owner's 2026-10-31 decisions on A3-5, A3-14, A3-18, A3-19, A6-4 and A6-8, and the rebuilt skew harness
+1dda449331e0 c15855f94710 fix(stage2 A5-22): report a MinFreeBytes floor that cannot be met or checked in Err() and Stat(), and log when diskFull clears
+7b87e64b412c 23a988cfceed fix(stage2 A5-18): show a consumer that fell out of retention in consumers, check and prune, and name it in the deletion Warn
+2cbfdf2203fe fa5afd6465bf fix(stage2 A5-36): quill prune says why it did less than asked and exits 1 when an unlink failed
+46f30dbbe503 334c1ad346fa fix(stage2 A5-9): quill prune and roll report Close's error and exit 1
+1e0a8edc5f3f 66e8e86a3286 fix(stage2 A5-3): ReadWait and Follow on a failed log return ErrFailed, and fail() wakes parked waiters
+4d0e8c9b8852 374f7a5cb391 fix(stage2 A5-23): Open refuses MaxBufferBytes below FlushBytes so the published disk bound is exact
+29e7db181872 f02d133f6ccf fix(stage2 A5-44): quill ls lists a log it cannot open as an error row and exits 1
+caad4c51bd77 56f24c050c5d fix(stage2 A5-29): quill archive exits 3 on a source gap and Archive compares the destination's tail, so unregister no longer hides the loss
+16cb0c838bf1 cfe2451735e8 fix(stage2 A5-32): Archive verifies a same-size destination segment and replaces it when damaged
+d48dec0637b4 2d18a35f89e8 docs(audits): stage 2 A5h record
+052f9addfca6 15ac0d70ace8 docs(audits): correct the A3-5 note: A5-36 did not add the lock-tightening warning to the offline verbs' log filter
+99b140d62111 9dcf02e80051 fix(stage2 A5-1): log each background failure once on entry (Warn) and exit (Info), and count buffered data in Stats
+c5edab479574 6be292743c1e docs(audits): record A5-1 as fixed on the third attempt (9dcf02e) with its fix-skeptic outcome
+84efe5848a9a 6ccfb28677e4 fix(stage2 A3-5): the offline verbs print the warning a writable open logs when it cannot tighten quill.lock
+5bce146a80ba ac1dfbbd005e docs(audits): note that the offline verbs now pass the A3-5 lock-tightening warning (6ccfb28)
+7a8564e5744d 35ffa662cfbe test(stage2 A1-67): pin the rewind range, the consumers -json ahead key and commit -time; show the full remedy command
+e29301680a92 6b67e1150998 fix(stage2 A3-14, A3-5): Archive's two refusals say what is wrong
+d7b51e087fd0 40986401d4a3 docs(stage2 A5-1, A1-62): LastFlushOK and 'recovered' mean what the code does; the Logger rule is exact
+fe9fe31fa242 8d564f97fafc test(stage2 A1-59): only 'not found' becomes a gap; any other open error keeps its identity
+cd1c282e1d9e d28042a573e6 docs(audits): record A1-62 and A1-59 as integrated and signed off, the A1-67 recommendations, and the wording follow-ups
+53a5d3bd0c28 90bd0daf8195 fix(stage2 A3-20): a Reader and Archive refuse overlapping segments as ErrCorrupt; Check reports an overlap
+531fb35ef4b6 ed0b2702f817 fix(stage2 A5-1f): a log that becomes failed writes one Error record through Config.Logger
+9604623b6aea 2a2c7f845cf5 docs(audits): stage 2 A3h record
+badb254e9bee 45808829b2ce fix(stage2 A3-10): a read from the beginning and a new consumer meet a damaged oldest segment's gap, also after retention leaves it the oldest file
+18662b64a140 745b0add4bdd docs(stage2 A3-10): decisions 9, 67, 84 and 85 and two user-guide lines state the damaged-oldest-segment exception
+ed518a217b41 d838780512dd docs(stage2 A3-10): Archive's comments and the user guide carry the damaged-oldest-segment exception
+14e9e8893f63 75b8246b5a23 docs(audits): A3-10 landed (4580882, 745b0ad, d838780) with its sign-off stated exactly and four open points
+d83164512248 d43f42b17612 docs(audits): A5-5 stays declined on cost (owner, 2026-11-02); plain Read is not re-checked
+5b5e1859e25f 2f82c662bc9d fix(stage2 A1-67r): Open warns once per consumer ahead of the head; the restore guide names the rewind-target race
+5a7037965772 cbd49cebdafb docs(audits): stage 2 A1i record
+55790106a73f 946196b671de fix(stage2 L1-1): an oversize or non-regular state file, a symbolic link included, is ErrCorrupt
+7497a80dbf07 0e1e764872fb fix(stage2 L1-39): test Reader.Scan, Reader.ID, Consumer.Scan, Consumer.Name and the real freeBytes
+e3021b796359 0fbdc236d581 fix(stage2 L1-40): test the live data-loss refusals, the marker clamp, the read-time damage paths, hole synthesis, Check's short-segment and policy findings
+34fcc650e14b 68ed20759d37 fix(stage2 L1-2): doc.go says Err() names a damaged sealed segment only; a missing one shows in Stat().Holes and reads
+1a2086ce972b 15154dba8dbd fix(stage2 L1-6): OS.Remove unlinks with unlink(2) so it refuses a directory, as the FS contract and Sim say
+21f54b6e59ac a45d4e2cee6f fix(stage2 L1-7): flush.go's (d, e) comment says a directory fsync failure fails the log
+f588adba0086 4cd798ee893b fix(stage2 L1-8): create() comment says consumers/ is created whenever missing; only the segment and marker repairs are gated
+82461fcd9f24 8ff3a10ac33e fix(stage2 L1-9): decodePolicy comment says an off retention is a negative duration, not always -1ns
+d9d483357f3a 1df3ce6d9466 fix(stage2 L1-14): fail() clears flushErr so FlushFailing stays false once the log has failed
+932cadf0a348 70d0dd3d51bd fix(stage2 L1-15): Log.load reports no empty hole when every sealed segment is damaged and the marker says seq 0
+dfbc8adb49ab 30d8cff9b258 fix(stage2 L1-18): walk's comment says a frame is counted before fn runs and an fn stop returns nil
+389375c1a4b5 6a6bcdc04b67 fix(stage2 L1-19): gate.sh vets linux and darwin and its header lists every check CI alone runs
+f67c7a1167c0 107707757d2b fix(stage2 L1-20): hack/fuzz.sh fails when a package's targets cannot be listed or none ran
+b59b38756d01 4ca57511889a fix(stage2 L1-22): correct stale comments on consumers, mtime, BufferedBytes, Archive, Consumer iterators and load.go
+7d72dd4e3d0f 3a6f24679983 fix(stage2 L1-23): powertest verify fails when the first scanned record is not sequence 1
+232d04f9f0f5 ef6f5393b7b3 fix(stage2 L1-24): withReader comment names which verbs check usage before opening the log
+a41feaf4e949 1d3f447f4619 fix(stage2 L1-25): tail's -from help states its real default; cat summary and -since text say what they honour
+b596844f659d 683d6501b2ec fix(stage2 L1-27): run's doc comment no longer opens with dispatch's description
+d103957ec6c7 1495c912f1ba fix(stage2 L1-28): Read docs and the fail comment name every deferred error, not only a gap
+f155feb8e65e 01f88c190b64 fix(stage2 L1-29): Reader.view's empty-range comment names the duplicate/overlap cause, not only a stale marker
+1bcdd67915e7 1fa52f9067db fix(stage2 L1-31): topics docs say what is not shared (lock, buffer, flusher), not that nothing is, and that a disk is still shared
+31f17bc9680c 37f7ed4a7f9e fix(stage2 L1-43): the flusher yields once after a Sync request so group commit shares fsyncs at GOMAXPROCS 1
+1aff9f08cca1 2f8a025ab740 fix(stage2 L1-48): Reader.Check verifies segments in parallel and merges the findings in segment order
+a36e59c359df daa987f7e193 fix(stage2 L1-49): verifySegment and verifyBounded read through a pooled buffer instead of allocating one per segment
+ea4ca7c19c7f 3370a8a0f817 fix(stage2 L1-50): Reader.segment probes a sealed segment's first frame with a 4 KiB read, not 64 KiB
+81d269939003 26f8b5cc61a5 fix(stage2 L1-52): the CLI's text printers copy runs of plain bytes through a lookup table, not one byte at a time
+15ddde44ef03 fa2d1635b73f fix(stage2 L1-53): the CLI printer buffers 64 KiB, not 4 KiB, so a large output costs a sixteenth of the write calls
+16a5f71950c3 57d6f71dd14a docs(audits): stage 2 L1 record
+dac7bfb633bf c339c2da2501 fix(stage2 L2-24): test that recovery cuts a CRC-valid frame with a wrong sequence placed exactly at a non-empty marker
+d29328e57b94 dee2c4ee79c6 fix(stage2 L2-26): pin the protected-consumer retention conditions the suite never asserted
+c824158f95c7 b1b8da7af3d3 fix(stage2 L2-32): test the writer-restart fast path for a caught-up and a foreign-log protected consumer
+143367df0a91 e6d3b06d6f69 fix(stage2 L2-33): pin consumer file error handling: unreadable file, failed commit, leftover temp file, ahead boundary
+547e3876e36b 79d545d648b1 fix(stage2 L2-41): pin that a policy-less prune applies only the flags given
+eb659aeebcf4 87a3ea4c302e fix(stage2 L2-42): test read, cat and tail on a log whose head retention trimmed, and tail -from and -since
+5f09ee60f1bb 7f4a9c2ef1b1 fix(stage2 L2-43): test that one new record wakes a parked ReadWait and Follow, on Reader and Log
+e874d014a43c 9c2335199d61 fix(stage2 L2-1): pin decodeBody's varint guards with CRC-valid forged bodies, in a table test and in FuzzDecodeFrame
+5037042ef8d0 ccbdce050cdd fix(stage2 L2-2): pin archive's destination-sync-before-offset-commit ordering and the SyncDir error return
+786a1c589df1 cc6c5e333a81 fix(stage2 L2-3): test that a Reader calls an active segment shorter than the marker, or with a bad first frame, ErrCorrupt
+168221a5fe17 ec1724c8e1f4 fix(stage2 L2-4): test the read-time gap and corrupt mapping for damage after Open, in Read, ScanAll and OffsetForTime
+7b26d68a7754 45e5f9171e19 fix(stage2 L2-6): test that a closed Consumer refuses Commit, SeekToTime and Close, and a closed Log refuses Flush, Roll, Prune and Stat
+743a5c5ff5e2 b402fc033597 fix(stage2 L2-8): replace wall-clock bounds and sleep-based setups in the Sync, isolation and protected-consumer tests with event ordering
+2fc3030ceeac c9c9f5ebad28 fix(stage2 L2-12): test that an Append whose inline flush fails the log returns ErrFailed
+3f77076133b2 6f5a4506684c fix(stage2 L2-13): test that Close fsyncs the directory so the marker is durable after a clean shutdown
+ab45579d3708 818faaa6267b fix(stage2 L2-14): test that a flush after Open keeps a loaded maxseg above the active segment
+55a7e9705c6b 1ca39b9ddd90 fix(stage2 L2-15): test that a directory fsync error after the rotation marker fails the log
+216c111db7ff 6f1540f69cd4 fix(stage2 L2-16): test that the flusher retries a failed marker publish on an idle log
+d177d2c59728 d36380223f45 fix(stage2 L2-25): test load's hole and head bookkeeping for damaged sealed segments and a marker above the last frame
+b0402214f6f6 315b0a6d3873 fix(stage2 L2-27): test the MaxBytes and MinFreeBytes caps at their equality edges and with the age sweep
+fcb08a553ba1 81a446f15860 fix(stage2 L2-28): test that MaxBytes counts the active segment and MaxRecords never leaves more than its count
+ebf0fcfe1a7c 47e5466501dd fix(stage2 L2-29): test that Dropped counts a deleted segment once and counts a consumer at its last record
+aa039fa57469 98d8afaf31c6 fix(stage2 L2-30): test that the age sweep keeps a damaged segment until a good one after it expires
+fcaba49704aa 4493f93479fc fix(stage2 L2-34): test Archive's gap detection for a trimmed source, a one-record hole and one record lost before the first copied segment
+8b0e6c2e0354 e6ff08dc292f fix(stage2 L2-35): test Archive's copy guards at their edges: one-frame overlap, trailing bytes, another range, closed self-archive
+5638419780e8 2b6c7b350879 fix(stage2 L2-36): test that Check, quill check and quill ls say UNBOUNDED only when neither cap is set
+cbc1fef60627 8a43be157a84 fix(stage2 L2-44): test scanSource's two corruption branches: a marker one sequence ahead of its frames and damage in the active segment
+ed6c6dfc26f7 db15139d8341 fix(stage2 L2-45): test the Reader's gap edges: the last record of a sealed segment that ends early, and a segment deleted between listing and scan
+d0e6ec2f8ac2 69b92443c1b1 fix(stage2 L2-46): test that a parked Reader.ReadWait ends with ErrClosed on Close and a second Close returns ErrClosed
+126ef3d1c5f5 5077ec40f192 fix(stage2 L2-47): test the iterators' MaxReadBytes batch bound and their context checks
+ad06516e488b a3f4839a9f48 fix(stage2 L2-48): test reads from every offset and time seeks in a segment with several sparse-index anchors
+1e24b7ccdc2f 8f3a9cba570c fix(stage2 L2-51): test the caught-up boundary of quill consumers and the stale probe of a consumer behind the first retained sequence
+a89127421289 933fdbc50545 fix(stage2 L2-55): fuzz the read path from mid-file and a Reader over a whole directory, seeded from a real writer's directory
+ddce2beec6f9 74e58112c354 fix(stage2 L2-9): test the real freeBytes: unit and field on a made-up Statfs_t, unit by a real write
+199da643fe10 02a442d42d64 fix(stage2 L2-10): pin the CLI error mappings of prune, append, recover, commit, register and the stale probe
+0ecddf376fbb 635fb68313d1 fix(stage2 L2-11): test Open's refusals for lost marker or segments and Prune's failed age rotation
+7716100b81f4 788976cf2f7c fix(stage2 L2-17): pin Flush and Sync after Close returning ErrClosed
+0c08d715fdcd 79b5afb45d3f fix(stage2 L2-18): pin the write-path size limits at their exact values
+dfc1a9c59d3c 4791e27d72dd fix(stage2 L2-19): pin config validation and the state decoders at their inclusive limits
+bcb3266b8d67 dda53a07e2ac fix(stage2 L2-20): test that a refused writer lock closes its descriptor on both refusal paths
+16207b139566 81a8d74e381f fix(stage2 L2-21): test that atomicfile.Write fails on a failed Chmod or Close
+8a8106488a8f d58736ab9fa0 fix(stage2 L2-22): test that the writer's sparse index equals the index a scan of the same bytes builds
+7c9a278672ce a84e50910989 fix(stage2 L2-31): pin every time and offset threshold of ConsumerTTL, age rotation and the age sweep at equality, in the library and in quill consumers
+db9d3c741d10 d20181d655e0 fix(stage2 L2-37): pin Check and Stat at their one-sequence, empty-log, day-ahead and single-record edges
+9e278df092be 3be95844dd2d fix(stage2 L2-38): pin the frame, window, size-limit and MaxSeg equality boundaries in load.go
+6f2617617551 37592ff924e8 fix(stage2 L2-39): make the strictjson surrogate, UTF-8 and duplicate-key tests able to fail
+3cb32694adbe d387bdc6eb94 fix(stage2 L2-49): test the MaxReadBytes boundaries and the Reader default
+6292566ffd3d 500885bfece3 fix(stage2 L2-50): pin offset 0 on Read, Records and ReadWait (gap over a trimmed prefix, no spin)
+7340cc910b47 ce59b9682465 fix(stage2 L2-52): pin the Reader and CLI boundary and error-path cases no test reached
+5a27add30622 bea6d0f472e8 fix(stage2 L2-56): give the tail, strict-JSON and policy fuzz targets oracles, and bound hostile state-file allocation
+1ef27ac78eb6 3405ef458019 fix(stage2 L2-57): fuzz the CLI number, time and printer paths, validName and parseSegmentName, and differential-test Archive
+f274b513d328 cc47b0f48d37 fix(stage2 L2-58): assert peak descriptors per read, parked Follows, goroutines after Close and the MaxRecords bound under random operations
+f33c9712384b 4e7134440bf6 docs(audits): stage 2 L2 record
+41297fbece58 858716533eee fix(stage2 L1-21): state OffsetForTime's cost exactly: O(log segments) comparisons plus one segment scan over an O(sealed segments) view
+923623cfce98 994125ee4cf2 fix(stage2 L1-16): say Consumer.Close ends nothing and narrow ErrClosed on a Consumer to Commit, SeekToTime and a second Close
+867f4ed2e7ac 09dc1fcd8d23 fix(stage2 L1-5): AppendBatch returns the assigned first sequence with an inline-flush failure, 0 only when none was assigned
+c2cddb735017 894639b7ac25 fix(stage2 L1-26): quill append's oversize message no longer states a size stdin does not have
+ce472437b747 57b13f970a8d fix(stage2 L1-11): quill check reports a sealed segment with no frames as damage, as Open does
+be8cb1582819 e499caa46422 fix(stage2 L1-12): say the _archive offset belongs to the source, so a new destination gets only a suffix
+637ed426897a eb76a226b291 fix(stage2 L2-53): MaxReadBytes counts payload plus 48 bytes per record, so a read of empty records is bounded
+6798be5053f8 7457fe475d3a docs(audits): stage 2 L1h record
+9c1784d8e8c8 f6f71ca6ab99 fix(stage2 L1-4): reword 'every later Sync fails' on a failed log to what the code does, and pin it
+a4ddc8f3dcaf b135e2090272 fix(stage2 L1-4): finish the sweep: build-prompt T3 and a stated residual for the failed-log message
+0aa9659db4d6 ded5274598a1 fix(stage2 L1-3): GapError.From is the first unavailable sequence, not always the requested offset
+66c7ec379c8a 8bc5ae7786c5 fix(stage2 L1-3): finish the sweep: CHANGELOG's Log-read entry, and pin From on the Log's own Scan, ScanAll, Records and Follow
+2aa5a214fd14 a33884d8afbf docs(stage2 L1-3): Records and Follow are in the From rule too
+041cc349afad de7f003c2ddf fix(stage2 L1-10): Config.Logger docs list every record the log writes, say which repeat and which also run at a seal
+8e45aa07b68a 3fff9b16eced fix(stage2 L1-10): the already-gone segment gives two records and any flush that rotates runs the caps; pin it
+c7686342603d 15f615b5641c docs(audits): stage 2 L1-3, L1-4 and L1-10 finished by hand, with the checks that back them
+fb1ca9620952 5e9759adc734 test(stage2 topology): a multi-process harness that runs quill as a deployment and checks it
+a63bd6b80d53 759999217666 test(stage2 topology): the gate runs the selftest's deterministic faults; the timing-dependent ones (protected, ttl) run in the full selftest, ttl with three attempts
+136577c86c15 7ea5e6453274 fix(stage2 L3b-4): skip a consumer file that vanished after the listing instead of reporting it as damage
+53fcb36b8638 b7c7bdc474f2 fix(stage2 L3b-3): count a chaos kill in kills_<role> only when a SIGKILL was sent, not when it was dropped
+d88c9c18d861 eb4a6f01ad77 fix(stage2 L3b-6): stop the topology stall scheduler when the run is cancelled instead of spinning until the deadline
+ba30fee67e51 ec54acd19127 fix(stage2 L3b-14): check re-reads the marker before warning that a consumer is ahead of the head
+955f83cc12a2 21aba85fca29 docs(audits): stage 2 L3b record
+116726b25071 5f392b699cec fix(stage2 A3-3): quote file-derived names and paths in ls, consumers, check and error output
+18145b9a3e1c 302f89fd7e0e fix(stage2 A3-23): roll, recover and prune refuse a -dir that is not a log instead of creating one
+d916114413e6 40c515944945 fix(stage2 A3-29): name the filesystems where flock is not coherent in the docs; quill does not detect them
+1cb2c93ec4d9 d2aa2b4a95e5 fix(stage2 A3-31): document that ConsumerTTL staleness is derived from the clock and file mtimes
+d09e9752af68 42a5f6a74f0d fix(stage2 A3-32): document that the MinFreeBytes floor overrides protected consumers
+d15ac45d3a90 e117a9ffd07a fix(stage2 A3-24): -json escapes Unicode format and bidi controls as \uXXXX, as text mode does
+b76529028234 73d492cbc484 fix(stage2 A3-7): say the symlink rule covers the final path component only
+12027b0ebbe3 a4705b46b6ca docs(audits): stage 2 A3r record
+34947b231c96 eb02c45922c6 docs(audits): A3-26 dated note: A5-16 makes the first writer fail when its lock file is removed or replaced
+47812f1a82b9 b8c76ce3c33d fix(stage2 A7-1): MinFreeBytes estimate credits segments the pass already deletes for age or MaxBytes
+f0090db1f6eb b1cef572c8b2 fix(stage2 A7-4): scope.md names the test that backs the consumer-mtime premise
+f47d6f01d2f7 b4c0a3d62c8c fix(stage2 A7-11): move Config and its validation out of log.go into config.go
+3b86a4a28121 37c612c84bb6 fix(stage2 A7-6): pin that the caps run at seals made by Sync, SyncAppends and Close
+1262a8f8614b f734f29bf50d fix(stage2 A7-13): pin ErrFutureVersion at Consumer.Commit and in the Reader's wait
+730d525d6b7d 244253395cfb fix(stage2 A7-20): user guide section 9 gets a message, meaning, action table for the log records and errors that need an operator
+0c8357296698 c30f8095bedc fix(stage2 A7-23): flush and read figures in the docs now match the recorded baselines
+4ec8839b01d2 533a9e772850 docs(audits): stage 2 A7 record
+e2f02b6a9d37 80f9d313bf36 fix(stage2 A7-18): user guide gets an Upgrading and rolling back note (format unchanged, binary swap, ErrFutureVersion)
+ffae168b91e5 6f6caabe12d8 fix(stage2 A7-19): README gains an Installing section: go get, go install or archive, and that a go-installed binary reports dev
+25b428585605 3f740278f821 docs(audits): A7-18 and A7-19 finished by hand (80f9d31, 6f6caab), no fix-skeptic re-run, owner not asked
+7fa07443a44a 007c907ed024 fix(stage2 L3b-7): document that another account gets a permission error on quill.lock, not ErrLocked
+29f5c6c19bee 0c121b6a6642 fix(stage2 L3b-8): Open of an existing log writes the marker only when recovery moved it; with it pending the sweeps still free segments below the marker's
+5a39a6d18a0a 2d9219261b56 docs(audits): stage 2 L3c record
+ee220c80388e 5d0209ca165b fix(stage2 A7-15): delete the reference implementation's figures from review.md and decisions 3, 5, 7, 15, 16, 20, 21, 32; reword decision 90
+08d7f778aae3 9c4f01e759a0 fix(stage2 A7-15): delete the reference implementation's figures from review.md and decisions 3, 5, 7, 15, 16, 20, 21, 32; reword decision 90
+e2d35d1a5b5b 3b535301bbad docs(audits): stage 2 A7h record
+d45f1f2aab16 85f23985dbf6 fix(stage2 A1d-4): pin safeText at the ls success row and the common error path
+6eb1bdd6039b 5b662eb4cb5b fix(stage2 A1d-5): pin the Reader's marker-below-first-frame check on the active segment
+96588fba9f7e 24616659d18a fix(stage2 A1d-2): Open sets an existing quill.tail to Config.Perm in place
+65b7cb0d4e22 7a08ed022c8e fix(stage2 A1d-3): CHANGELOG notes the unexported fields added to Problem and SegmentError
+ae71dbaed024 c6cb46492da4 fix(stage2 A1d-6): retry TestFreeBytesTracksRealWrites so a concurrent delete on the shared volume cannot fail it
+41aaef34eedf 14a29c48fe73 fix(stage2 A1d-7): pin decision 91's 4 KiB first-frame probe with a test that counts read sizes
+652154f2db38 78396264b01b fix(stage2 A1d-10): CHANGELOG pool entry says Open now allocates about 2 MB, matching the measured 2.1 MB
+85fecc9dc024 b475a4f4b480 fix(stage2 A1d-12): CHANGELOG A7-11 entry states log.go's size against v0.1.0 (555) as well as the audit intermediate (845)
+a0b9ba8592f6 b3e990b819dd docs(audits): stage 2 A1d record
+5bd55ce02e50 823997297e2b fix(stage2 A4r-2): build/quill pins GOAMD64=v1 and GOARM64=v8.0 so the shipped binaries do not depend on the builder's arch level
+35d1185b92e3 45bb946863ff docs(audits): stage 2 A4r record
+4f605aa7e711 859c558a466f docs(audits): v0.2.0 release record
+03b61eb9bd7f df100ed634cf fix(stage2 A1d-9): state the Config.Logger lock exception by where a record is written, not by a list of Open's warnings
+e8909b664c3f 31ae18f758a5 fix(stage2 L4b-1): the migration list is every user-visible change since v0.1.0, not 8; the compile-time break is four types; the entry count reproduces
+bdb1522b43fd 473bbe37b1df fix(stage2 L4b-2): the release record lists the audit findings still open or deferred at the tag, what was not run, and corrects two record errors
+e51c2e3c37b6 e64fb8bc6434 fix(stage2 L4b-3): say that check on an archive destination does not report a hole that precedes it
+be9adfbc3073 15d8808a302b fix(stage2 L4b-4): the records' size and commit counts are given with the command that reproduces them
+2893a3f86793 456ef7cd1486 fix(stage2 L4b-4): a Reader view overtaken by a rotation and a deletion starts over instead of failing with the path error
+6bce1032dcf1 ba4386fd063f docs(audits): stage 2 L4b record
+d6675af8d83c ef46b90f5439 docs: add LICENSE (Apache-2.0) and the CHANGELOG line for the Reader view restart

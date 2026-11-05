@@ -2771,3 +2771,12 @@ canonical text (sha256 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417
 Updated in the same commit: README (archive contents, Status), `scope.md` (two lines), decisions 22 and 54, the CHANGELOG, and the release record's
 three LICENSE entries. Not done, and not required by the licence: per-file headers, a `NOTICE` file, and the Go standard library's notice in the
 archives (A4-5, still open for the owner). The copyright holder is not named anywhere in the tree; the licence text needs none.
+
+**History rewritten (A4-4, A4r-1), owner decision 2026-11-04: filtered, not squashed, not accepted.** Hand finish by the assistant, no
+fix-skeptic. A backup bundle of all 500 refs was made and verified first (kept outside the repository). The filter replaced the one quoted
+scratch path in `docs/audits/audit-correctness.md` with the text that `0b70e82` had left, in every commit and every ref. Verified afterwards:
+no hit in `git log --all -p` or a pickaxe search, 451 commits (370 on `main`), `HEAD` tree identical (`64aa8de7...`), no reflog or
+`refs/original` left, the ignored `.claude/` directory kept, `v0.1.0` re-created with a tree that differs from the old one in that one
+document. 321 of `main`'s 370 commits changed hash (independently counted: 321 descend from the first changed commit, 49 do not). The old
+hashes cited in these records are resolved by [commit-map.txt](commit-map.txt). The owner approved the in-place rewrite after it was run
+on a mirror clone first. Not decided here: the placeholder author of `da2d638`, the `faa8eaf` operator detail, and which identity may be public.
