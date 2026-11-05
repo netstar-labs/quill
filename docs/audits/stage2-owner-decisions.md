@@ -2958,6 +2958,8 @@ level, print the same text as the verb, exit 0 and add tests for both. The docum
 
 **Fix written.** None.
 
+**Resolved 2026-11-04 (L5-5, owner-approved the "if the owner wants the flag" branch).** `quill --version` and `quill -version` print the same text as `quill version` and exit 0; `{"--version"}` was removed from the test table and `TestGlobalVersionFlagIsTheVersionVerb` was added.
+
 ### A3-7 (code hardening): a symlinked `consumers/` is followed
 
 **Claim.** `register`, `recover` and `Open` follow a symlinked `consumers/`; only the wording changed (`b765290`). See "A3-7 (code hardening)" under "Held after pass A3r".

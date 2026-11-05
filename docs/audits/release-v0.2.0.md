@@ -94,6 +94,8 @@ that the `LICENSE` commit (`ef46b90`) added at the top: the `Added:` entry for `
 `2893a3f`). The count is reproduced this way: 144 at the derivation, plus 2 (the two doc-only entries at old lines 431 and 432, `2893a3f`), plus 2 (`LICENSE`, `Reader` restart), plus 4 (L5-1, L5-2,
 L5-3, L5-4) is 152.
 
+**Update 2026-11-04 (L5-5).** The `--version` fix adds one `Added:` entry at the top of "Entries" and no line to the breaking-changes list (its note is appended to the L5-1 line), and row 39a to the table: the command above prints **153**, entries with a row are **90**, entries with no row stay **63**, the list stays at **38** lines. Every entry line cited below by number sits one line lower than the numbers in this record (the new entry is above them all).
+
 | | derivation (`e8909b6`) | now |
 |---|---|---|
 | entries under "Entries" (the command above) | 144 | **152** |
@@ -187,7 +189,8 @@ unchanged; none of them was re-run. A reviewer who disagrees moves a line betwee
 | 36 | `ls`, `consumers`, `check` and error messages quote a name from the disk that holds a control, bidi or invalid UTF-8 character; a printable name prints as before | script, operator | none | line 79; `116726b` |
 | 37 | `quill append`'s oversize-stdin message reads `stdin would be a batch over MaxBatchBytes (...); each line is counted as its length plus 34 bytes` and stdin is bounded while it is read; the limit, `ErrPayloadTooLarge` and exit 1 are unchanged. A library error prints one `quill:` prefix (it printed two), and a failed `quill commit` leaves no new consumer behind | script | a script that matched the old text must change | lines 85, 179, 339; `c2cddb7`, `8449425` |
 | 38 | Release builds: `build/quill` pins the toolchain to `go.mod`'s, `GOAMD64=v1` and `GOARM64=v8.0`, and puts the commit time, not the clock or the builder, into the archives and the SBOM, whose components now carry a `bom-ref`; `--dev` works on a clean tree | operator (the releaser, a verifier) | a third-party verifier builds with `-buildvcs=false` or inside a checkout of the tag | lines 61, 188, 308, 311, 401; `5bd55ce`, `988f1e5`, `10e8062`, `1b17ea5`, `df7af4f` |
-| 39 | `quill -h` and `quill --help` before a verb print the usage of `quill help` and exit 0, where they printed `quill: flag: help requested` and exited 2; a bare `quill` and `quill --version` still exit 2 | script | a script that read exit 2 from `quill -h` as "help is not supported" now sees 0; use the verb `quill version` for the version | line 63 (current numbering) and the "Command line" list; audit L5-1; `cfa7bf7` |
+| 39 | `quill -h` and `quill --help` before a verb print the usage of `quill help` and exit 0, where they printed `quill: flag: help requested` and exited 2; a bare `quill` still exits 2 | script | a script that read exit 2 from `quill -h` as "help is not supported" now sees 0 | line 63 (current numbering) and the "Command line" list; audit L5-1; `cfa7bf7` |
+| 39a | `quill --version` and `quill -version` print what `quill version` prints and exit 0, where they exited 2 with `flag provided but not defined: -version`; `quill read -version` (a version flag after a verb) is still a usage error | script | a script that relied on `--version` failing (exit 2) must change; it now succeeds | the "Command line" list; audit L5-5 (owner-approved 2026-11-04) |
 | 40 | The line `quill archive` prints for a source gap reads `quill: the source lost records N to M; the archive does not have them`, where it read `...; the archive holds the same hole` (wrong when the destination starts after the lost records); exit 3 and the stream are unchanged, and the library's `*GapError` text is unchanged | script | a script that matched the text "same hole" must change; match the exit code 3 instead | line 62 (current numbering) and the "Command line" list; audit L5-2; `4ffd425` |
 | 41 | The module refuses to build for a 32-bit target (linux 386, arm, mips, mipsle) with `invalid array length quillRequires64BitPlatform - 1 (constant -1 of type int)`, where it built; every 64-bit target still builds | library (and operator: a 32-bit release build or cross-compile) | a caller or packager that built quill for a 32-bit target now fails at compile time; build for a 64-bit target, there is no 32-bit port | line 61 (current numbering) and the first line of "Go callers"; audit L5-3; `27cbbb1` |
 
@@ -331,8 +334,8 @@ Limits, as the `build/quill` header says (reported, and the rehearsal agrees):
 ## Version stamp and smoke test (verified)
 
 The documented way to read the version is the verb: `quill version` prints `quill v0.2.0` on every binary
-(`docs/reference.md:26` lists the verb). `quill --version` is not supported: it exits 2 with
-`flag provided but not defined: -version`. That is a command line polish item, not a defect against the docs.
+(`docs/reference.md:26` lists the verb). *Updated 2026-11-04 (audit L5-5, owner-approved):* `quill --version` and `quill -version`
+print the same text and exit 0; at the time of this check they exited 2 with `flag provided but not defined: -version`.
 
 The smoke script runs, per binary: append 100 records from standard input (`append` prints 100); `read` gives 100 lines,
 `rec-1` to `rec-100`; `read -json -from 100` gives `rec-100`; `stat -json` shows 100 records; `check` exits 0 (HEALTHY);
@@ -427,7 +430,7 @@ Go licence caveat (A4-5), and one new open point is added in row L3b-15 (the tes
 **Raised by the wave 6 completeness critic, not approved for change (state: open).** The owner's approval of 2026-11-04 covered
 documentation only. Three things the critic raised need a code change or a change to a message, an exit code or a build
 constraint, so none was touched and each stays open, for the owner's decision: (1) `quill -h` and `quill --help` print
-`flag: help requested` and exit 2 (row L3b-15 below; resolved 2026-11-04, audit L5-1, `--version` unchanged); (2) the `quill archive` message "the archive holds the same hole",
+`flag: help requested` and exit 2 (row L3b-15 below; resolved 2026-11-04, audit L5-1; `--version` resolved 2026-11-04, audit L5-5); (2) the `quill archive` message "the archive holds the same hole",
 inaccurate when the destination starts after the lost records (row L4b-3 below; resolved 2026-11-04, audit L5-2, the message now reads "the archive does not have them"); (3) the module builds for 32-bit and
 big-endian Linux targets that the documents do not list, and the tests do not compile for 32-bit (section "Platforms" below).
 Each has a held-item section, with a recommended answer, in [stage2-owner-decisions.md](stage2-owner-decisions.md) ("Held after
@@ -446,7 +449,7 @@ the pre-tag batch"). *(Update 2026-11-04, L5-3: item (3), the 32-bit build, is r
 | L1-12, the optional `Archive` refusal ("`quill archive` into a new destination copies only a suffix and exits 0"; [stage2-owner-decisions.md](stage2-owner-decisions.md)) | `Archive` into a new destination after the `_archive` offset advanced copies only the suffix and exits 0; the wording is fixed (`be8cb15`); the optional refusal, an error that is not a `*GapError`, is not implemented and needs its own decision. | open (optional, not approved) | owner |
 | A5-5: "a long-lived Reader does not notice that its directory was replaced by another log" ([silent-degradation.md](silent-degradation.md); "Not held, but worth the owner's eye" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | A `Reader`'s plain `Read` and `Scan` are not re-checked and serve a replacement log from the old cursor; `Commit` and a Reader's wait return `ErrWrongLog` (`495e457`). The owner declined the check on cost on 2026-11-02 (decision 83); the record says decision 83 declines a per-segment check, not one `quill.format` read per view (the recorder's inference). | accepted (declined, no code change) | owner |
 | A4r-3: "`build/quill` accepts any tag, not only `v0.y.z`" ([supply-chain.md](supply-chain.md)) | A stray tag on `HEAD` makes a release-named build; the release engineer must spell the tag `v0.2.0`. The one-line check is in the record. | accepted (deliberately not changed) | owner |
-| L3b-15: "`quill --version` and `--help` are usage errors" ([live-integration.md](live-integration.md)) | **Resolved for `-h` and `--help` (owner-approved 2026-11-04, audit L5-1; commit `cfa7bf7`):** `quill -h`, `quill --help` and `quill -help` print the usage of `quill help` and exit 0 (they printed `quill: flag: help requested` and exited 2). **`quill --version` is unchanged:** it exits 2, and the verb `quill version` is the supported spelling; that part was not approved. **One discrepancy (verified by reading `cmd/quill/help_flag_test.go:27-36`):** the fix's second test, `TestBareQuillAndOtherGlobalFlagErrorsStayUsageErrors`, asserts exit 2 for `--version` as well as for `-bogus`, so a test now pins the behaviour the owner said not to pin; the fix-skeptic did not mention it. It is held, see "Pre-tag code batch 2026-11-04" in [stage2-owner-decisions.md](stage2-owner-decisions.md). | resolved for `-h` and `--help`; `--version` open (not changed); the pinning test is held for the owner | owner |
+| L3b-15: "`quill --version` and `--help` are usage errors" ([live-integration.md](live-integration.md)) | **Resolved for `-h` and `--help` (owner-approved 2026-11-04, audit L5-1; commit `cfa7bf7`):** `quill -h`, `quill --help` and `quill -help` print the usage of `quill help` and exit 0 (they printed `quill: flag: help requested` and exited 2). **`quill --version` was left unchanged by that fix, and the test that pinned it was held. Resolved 2026-11-04 (audit L5-5, owner-approved):** `quill --version` and `quill -version` print what `quill version` prints and exit 0, and `{"--version"}` is gone from `TestBareQuillAndOtherGlobalFlagErrorsStayUsageErrors`; `TestGlobalVersionFlagIsTheVersionVerb` covers the flag, stamped and unstamped. | resolved (`-h`, `--help` and `--version`) | owner |
 
 ### Open points of the A3-10 fix
 
@@ -550,7 +553,7 @@ states it, so it is reported here and not read from one.
 2. **Done 2026-11-04.** The scratch path in history was filtered out (see above); no longer a blocker. Previously: filter or start
    fresh. Also `da2d638` and the 484 scratch branches that must not be pushed.
 3. **Done 2026-11-04.** The Go licence text is in the archives as `THIRD-PARTY-NOTICES` (A4-5, owner-approved, L5-4); `LICENSE` itself is done (Apache-2.0, 2026-11-04). No longer a blocker.
-4. **Minor.** `quill --version` exits 2 (only the `version` verb works); `build/quill` accepts any tag name;
+4. **Minor.** `quill --version` exited 2 (only the `version` verb worked; fixed 2026-11-04, audit L5-5: it now prints the version and exits 0); `build/quill` accepts any tag name;
    `docs/design/audit-prompt.md` still carries operator detail; `.github/CODEOWNERS` names a personal handle;
    `SHA256SUMS` is unsigned.
 5. **Not testable.** The real `go install ...@v0.2.0` path, private vulnerability reporting, rulesets and repository

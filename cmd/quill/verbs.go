@@ -181,11 +181,15 @@ func dispatch(args []string, in io.Reader, out, errw io.Writer) int {
 	global := flag.NewFlagSet("quill", flag.ContinueOnError)
 	global.SetOutput(io.Discard)
 	global.StringVar(&c.dir, "dir", "", "the log directory")
+	wantVersion := global.Bool("version", false, "print the version")
 	if err := global.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return cmdHelp(c, nil) // -h and --help before a verb are `quill help`
 		}
 		return c.usage("%v", err)
+	}
+	if *wantVersion { // --version before a verb is `quill version`
+		return findVerb("version").run(c, nil)
 	}
 	rest := global.Args()
 	if len(rest) == 0 {
@@ -279,7 +283,7 @@ func cmdReference(c *cli, args []string) int {
 	fmt.Fprintln(c.out, "*Generated from the verb table in `cmd/quill/verbs.go` (`quill reference`); a test keeps it current. Do not edit by hand.*")
 	fmt.Fprintln(c.out)
 	fmt.Fprintln(c.out, "`quill [-dir DIR] <verb> [flags]`. Every verb but `help` and `version` takes `-dir`, the log directory")
-	fmt.Fprintln(c.out, "(for `ls`, the parent directory holding the logs). Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY or `archive` found the source had lost records.")
+	fmt.Fprintln(c.out, "(for `ls`, the parent directory holding the logs). `quill --version` (or `-version`) before a verb prints what `quill version` prints. Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY or `archive` found the source had lost records.")
 	fmt.Fprintln(c.out)
 	fmt.Fprintln(c.out, "| Verb | Lock | Summary |")
 	fmt.Fprintln(c.out, "|---|---|---|")

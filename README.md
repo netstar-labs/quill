@@ -91,7 +91,7 @@ The repository is private for now, so these paths apply once it is public; until
 
 - **The library**: `go get github.com/netstar-labs/quill`, then import `github.com/netstar-labs/quill`.
 - **The command**: `go install github.com/netstar-labs/quill/cmd/quill@v0.y.z` (a release tag), or unpack the archive for your platform from a release and put `quill` on your `PATH`.
-- **Versions**: a go-installed binary prints `quill dev` for `quill version`; only the release archives are stamped with the version. The archives hold the binary, README, CHANGELOG, SECURITY, LICENSE and THIRD-PARTY-NOTICES (the licence of the Go runtime and standard library that the binary includes), not `docs/`, so the user guide and the format document are read in the repository.
+- **Versions**: a go-installed binary prints `quill dev` for `quill version` (`quill --version` prints the same); only the release archives are stamped with the version. The archives hold the binary, README, CHANGELOG, SECURITY, LICENSE and THIRD-PARTY-NOTICES (the licence of the Go runtime and standard library that the binary includes), not `docs/`, so the user guide and the format document are read in the repository.
 
 ## Building and the Go version
 
