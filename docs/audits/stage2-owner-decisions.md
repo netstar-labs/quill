@@ -2737,6 +2737,8 @@ answers are the recorder's reading (inferred) and are recommendations, not decis
 
 **Fix written.** None.
 
+**Update 2026-11-04 (owner-approved, L5-1).** The owner approved the recommended answer for `-h` and `--help` only: both now print the usage of `quill help` and exit 0 (test `TestGlobalHelpFlagPrintsTheUsageOfTheHelpVerbAndExitsZero`); `quill --version` is not approved and stays a usage error with exit 2.
+
 ### The `quill archive` message "the archive holds the same hole" is inaccurate when the destination starts after the lost records (low; follow-up of L4b-3)
 
 **Claim.** When the destination starts after the lost records (a new destination, or a source whose damaged oldest segment is a hole from 1), the destination holds no hole; it begins later. The message nevertheless says "the archive holds the same hole".

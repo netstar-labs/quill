@@ -182,6 +182,9 @@ func dispatch(args []string, in io.Reader, out, errw io.Writer) int {
 	global.SetOutput(io.Discard)
 	global.StringVar(&c.dir, "dir", "", "the log directory")
 	if err := global.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return cmdHelp(c, nil) // -h and --help before a verb are `quill help`
+		}
 		return c.usage("%v", err)
 	}
 	rest := global.Args()

@@ -87,6 +87,8 @@ them `stage2` commits).
 awk '/^### Entries/{f=1;next} /^## /{f=0} f && /^- /{n++} END{print n}' CHANGELOG.md   # 144 when this table was derived (e8909b6); 146 at 2893a3f (see below)
 ```
 
+**Update 2026-11-04 (L5-1).** Row 39 and one "Entries" line at the top of the section (a `Changed:` entry) and one line in the "Command line" list were added for `quill -h` and `quill --help`. They are a user-visible entry with a row, so the counts above (146 entries, 86 with a row) read 147 and 87 with this change, and every `CHANGELOG.md` line number cited in the table below row 39 and in the lists above moved down by two (one for the new "Entries" line and one for the new list line above it); those citations and the counts were not re-derived here, and the `CHANGELOG.md` lines that state "144" and "the other 58" were already stale.
+
 The count starts at the "Entries" heading, not at "Unreleased", because the "Breaking changes and upgrade notes" list above
 it also has lines that start with `- ` (35 of them: the command prints 179 if it scans the whole section, and 143 on the
 file before this change, which had no such list). It would stop working if that heading were retitled; the number
@@ -162,6 +164,7 @@ unchanged; none of them was re-run. A reviewer who disagrees moves a line betwee
 | 36 | `ls`, `consumers`, `check` and error messages quote a name from the disk that holds a control, bidi or invalid UTF-8 character; a printable name prints as before | script, operator | none | line 79; `116726b` |
 | 37 | `quill append`'s oversize-stdin message reads `stdin would be a batch over MaxBatchBytes (...); each line is counted as its length plus 34 bytes` and stdin is bounded while it is read; the limit, `ErrPayloadTooLarge` and exit 1 are unchanged. A library error prints one `quill:` prefix (it printed two), and a failed `quill commit` leaves no new consumer behind | script | a script that matched the old text must change | lines 85, 179, 339; `c2cddb7`, `8449425` |
 | 38 | Release builds: `build/quill` pins the toolchain to `go.mod`'s, `GOAMD64=v1` and `GOARM64=v8.0`, and puts the commit time, not the clock or the builder, into the archives and the SBOM, whose components now carry a `bom-ref`; `--dev` works on a clean tree | operator (the releaser, a verifier) | a third-party verifier builds with `-buildvcs=false` or inside a checkout of the tag | lines 61, 188, 308, 311, 401; `5bd55ce`, `988f1e5`, `10e8062`, `1b17ea5`, `df7af4f` |
+| 39 | `quill -h` and `quill --help` before a verb print the usage of `quill help` and exit 0, where they printed `quill: flag: help requested` and exited 2; a bare `quill` and `quill --version` still exit 2 | script | a script that read exit 2 from `quill -h` as "help is not supported" now sees 0; use the verb `quill version` for the version | the first line of the "Entries" section; audit L5-1 (branch `stage2/L5-1-a1`, `fix(stage2 L5-1)`) |
 
 Nothing in the table changes a file's bytes: the on-disk format is `quill/1` and the encoders are untouched (reported:
 `CHANGELOG.md` header; `hack/skew.sh` was not run here). The readers are stricter about a few malformed shapes (row 11).
@@ -396,7 +399,7 @@ what became of the two wrong sentences; nothing else in this section was re-deri
 **Raised by the wave 6 completeness critic, not approved for change (state: open).** The owner's approval of 2026-11-04 covered
 documentation only. Three things the critic raised need a code change or a change to a message, an exit code or a build
 constraint, so none was touched and each stays open, for the owner's decision: (1) `quill -h` and `quill --help` print
-`flag: help requested` and exit 2 (row L3b-15 below); (2) the `quill archive` message "the archive holds the same hole",
+`flag: help requested` and exit 2 (row L3b-15 below; resolved 2026-11-04, audit L5-1, `--version` unchanged); (2) the `quill archive` message "the archive holds the same hole",
 inaccurate when the destination starts after the lost records (row L4b-3 below); (3) the module builds for 32-bit and
 big-endian Linux targets that the documents do not list, and the tests do not compile for 32-bit (section "Platforms" below).
 Each has a held-item section, with a recommended answer, in [stage2-owner-decisions.md](stage2-owner-decisions.md) ("Held after
@@ -415,7 +418,7 @@ the pre-tag batch").
 | L1-12, the optional `Archive` refusal ("`quill archive` into a new destination copies only a suffix and exits 0"; [stage2-owner-decisions.md](stage2-owner-decisions.md)) | `Archive` into a new destination after the `_archive` offset advanced copies only the suffix and exits 0; the wording is fixed (`be8cb15`); the optional refusal, an error that is not a `*GapError`, is not implemented and needs its own decision. | open (optional, not approved) | owner |
 | A5-5: "a long-lived Reader does not notice that its directory was replaced by another log" ([silent-degradation.md](silent-degradation.md); "Not held, but worth the owner's eye" in [stage2-owner-decisions.md](stage2-owner-decisions.md)) | A `Reader`'s plain `Read` and `Scan` are not re-checked and serve a replacement log from the old cursor; `Commit` and a Reader's wait return `ErrWrongLog` (`495e457`). The owner declined the check on cost on 2026-11-02 (decision 83); the record says decision 83 declines a per-segment check, not one `quill.format` read per view (the recorder's inference). | accepted (declined, no code change) | owner |
 | A4r-3: "`build/quill` accepts any tag, not only `v0.y.z`" ([supply-chain.md](supply-chain.md)) | A stray tag on `HEAD` makes a release-named build; the release engineer must spell the tag `v0.2.0`. The one-line check is in the record. | accepted (deliberately not changed) | owner |
-| L3b-15: "`quill --version` and `--help` are usage errors" ([live-integration.md](live-integration.md)) | `quill -h` and `quill --help` print `quill: flag: help requested` and exit 2 (**verified here** on a build of this tree: both exit 2, `quill help` exits 0); `quill --version` exits 2. The verbs `help` and `version` work and no document promises the flags. The wave 6 critic raised `-h` exiting 2; a change to an exit code or a message is not within the documentation-only approval of 2026-11-04. | open (not changed; a change is not approved) | owner |
+| L3b-15: "`quill --version` and `--help` are usage errors" ([live-integration.md](live-integration.md)) | **Resolved for `-h` and `--help` (owner-approved 2026-11-04, audit L5-1; the commit on branch `stage2/L5-1-a1` titled `fix(stage2 L5-1)`):** `quill -h`, `quill --help` and `quill -help` print the usage of `quill help` and exit 0 (they printed `quill: flag: help requested` and exited 2). **`quill --version` is unchanged:** it exits 2, and the verb `quill version` is the supported spelling; that part was not approved. | resolved for `-h` and `--help`; `--version` open (not changed) | owner |
 
 ### Open points of the A3-10 fix
 

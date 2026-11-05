@@ -324,6 +324,7 @@ Merges L3b-1 and L3b-10 (the same race seen through the CLI and the harness).
 - **Verdict.** REFUTED, 2 of 3 votes: a request for new CLI surface, not a divergence from a document. The dissent confirmed the behaviour (as did all three) and noted that an internal audit instruction expects `quill --version` to work.
 - **Reproduction.** (verified by two skeptics and the auditor) `quill --version`, `-version`, `--help`, `-h` exit 2 with the messages above; `quill version` and `quill help` exit 0.
 - **Disposition.** Deliberately not changed. The bare "flag: help requested" with exit 2 on `-h` is the one wart, with no documented expectation; accepting `--version` and printing usage for `-h` would add CLI surface and is the owner's call if wanted (not held as an item).
+- **Update 2026-11-04 (L5-1, owner-approved).** `quill -h` and `quill --help` (also `-help`) before a verb now print the usage of `quill help` and exit 0 (`cmd/quill/verbs.go`, `dispatch`; test `TestGlobalHelpFlagPrintsTheUsageOfTheHelpVerbAndExitsZero`, which failed on the earlier code with exit 2 and `flag: help requested`). `quill --version` is **unchanged**: still a usage error, exit 2.
 
 ### L3b-2: the marker's active segment can be gone when a reader opens it, giving a raw `lstat ENOENT` (low, bug, decided in round 1)
 
