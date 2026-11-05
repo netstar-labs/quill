@@ -5,7 +5,8 @@ Before anything was pushed, the history was rewritten once to remove a scratch-d
 rewrite changed that one document's text in those commits and nothing else: every commit keeps its author, dates and
 message, and the tree at `main` is byte-identical to the tree before the rewrite. Every commit from the first changed one
 down to `main` has a new hash, because a hash covers its parents. The `v0.1.0` tag was re-created on the new commit
-`9364fb0` (old commit `419e15a`); its tree differs from the old tag's tree in that one document only.
+`9364fb0` (old commit `419e15a`); its tree differs from the old tag's tree in that one document only. On 2026-11-05, before the repository was public, the tag was moved once more,
+to `a8dc02b`, which is `9364fb0` plus the `LICENSE` file; it is not in the table below (see [release-v0.1.0.md](release-v0.1.0.md)).
 
 The audit records in this directory, the CHANGELOG and the decisions cite commits by their old hashes. Look a hash up here.
 370 commits are reachable from `main`. 49 keep their hash (the commits before the first changed one, and commits on merged
