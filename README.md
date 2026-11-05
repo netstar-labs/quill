@@ -44,6 +44,8 @@ and corrupt the log with no error at write time. See the user guide, "Filesystem
 - **Deep dive**: [architecture](docs/architecture.md).
 - **Operations**: [user guide](docs/userguide.md), the generated [command reference](docs/reference.md).
 - **Examples**: [examples/](examples/README.md).
+- **How it was built**: [docs/presentation/](docs/presentation/claude-code-pipeline.md), a deck script and
+  three notes on the size of the code and the documents, the models that ran, and the token counts.
 - [CONTRIBUTING](CONTRIBUTING.md), [CHANGELOG](CHANGELOG.md), [SECURITY](SECURITY.md).
 
 ## Layout
@@ -87,10 +89,8 @@ No file is over about 600 lines. All file I/O in the library goes through `inter
 
 ## Installing
 
-The repository is private for now, so these paths apply once it is public; until then the owner builds with `build/quill`.
-
 - **The library**: `go get github.com/netstar-labs/quill`, then import `github.com/netstar-labs/quill`.
-- **The command**: `go install github.com/netstar-labs/quill/cmd/quill@v0.y.z` (a release tag), or unpack the archive for your platform from a release and put `quill` on your `PATH`.
+- **The command**: `go install github.com/netstar-labs/quill/cmd/quill@latest` (or pin a release tag, `@v0.y.z`), or unpack the archive for your platform from the [latest release](https://github.com/netstar-labs/quill/releases/latest) (Linux and macOS, arm64 and amd64, with `SHA256SUMS` and an SBOM) and put `quill` on your `PATH`. `build/quill` makes the same archives from a checkout.
 - **Versions**: a go-installed binary prints `quill dev` for `quill version` (`quill --version` prints the same); only the release archives are stamped with the version. The archives hold the binary, README, CHANGELOG, SECURITY, LICENSE and THIRD-PARTY-NOTICES (the licence of the Go runtime and standard library that the binary includes), not `docs/`, so the user guide and the format document are read in the repository.
 
 ## Building and the Go version
@@ -110,6 +110,9 @@ hack/gate.sh            # the commit gate; FUZZTIME=0 skips the fuzz step and en
 
 ## Status
 
-Private, pre-release, under construction by the phased build in the build prompt. Tags are
-`v0.y.z` for ever: breaking changes bump the minor with a migration note. Licensed under the
-Apache License 2.0 (see `LICENSE`).
+Public and pre-1.0. Tags are `v0.y.z` for ever: breaking changes bump the minor with a migration
+note, collected in the [CHANGELOG](CHANGELOG.md). The on-disk format (`quill/1`) is versioned
+separately and frozen by golden tests. Releases are on the
+[releases page](https://github.com/netstar-labs/quill/releases); how each was built and audited is
+in [docs/audits/](docs/audits/). Report a vulnerability privately, as [SECURITY](SECURITY.md)
+describes. Licensed under the Apache License 2.0 (see `LICENSE`).
