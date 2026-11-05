@@ -205,7 +205,7 @@ func cmdArchive(c *cli, args []string) int {
 	err := quill.Archive(c.dir, c.to)
 	var gap *quill.GapError
 	if errors.As(err, &gap) {
-		fmt.Fprintf(c.err, "quill: the source lost records %d to %d; the archive holds the same hole\n", gap.From, gap.To)
+		fmt.Fprintf(c.err, "quill: the source lost records %d to %d; the archive does not have them\n", gap.From, gap.To)
 		return exitUnhealthy
 	}
 	if err != nil {
