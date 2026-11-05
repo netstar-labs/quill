@@ -9,6 +9,8 @@ is already written. The full items (grounds, warrant, backing, rebuttal, skeptic
 the per-dimension reports: [correctness](a1-round2-correctness.md), [docs](a1-round2-docs.md) and
 [dedup](a1-round2-dedup.md); the counts are in [a1-round2-findings.md](a1-round2-findings.md).
 
+**Latest update: 2026-11-04, pass L5 (four code fixes): see "Update 2026-11-04 (pre-tag code batch, pass L5)" below and the section "Pre-tag code batch 2026-11-04" at the end of this file.**
+
 The recommended answers are the recorder's reading of the auditor's proposed fix and the skeptics' notes; they were
 recommendations when written. Ranked by severity, then reach.
 
@@ -186,6 +188,38 @@ finished by hand with no fix-skeptic re-run are recorded in this file: L1-3, L1-
 commits `badb254`, `0aa9659` and `8e45aa0`. Findings held with no fix written: the A3-7 code hardening, the A3-24 range check on the
 `time` field and any change for A3-26 (see "Held after pass A3r"). The release record's "Known limitations and open items at the tag"
 rolls these up, with what was not run.
+
+**Update 2026-11-04 (pre-tag code batch, pass L5).** Four items, recorded in the section "Pre-tag code batch 2026-11-04" at the end of this file. Unlike the batch before it, these four change
+code, and each change is visible to a script, a Go caller or a release builder. The owner approved them on 2026-11-04 (reported: the owner's message relayed with the task, "fix these things and take
+recommendations as you stated, also only 64-bit builds"; the task text lists the Go licence notice, A4-5, as the fourth approved item): `quill -h` and `quill --help` print the usage and exit 0; the `quill archive`
+message is reworded so that it is true in both cases; the module refuses to build on a 32-bit target; the Go standard library's licence notice ships in the release archives. **Not approved, and not touched
+(reported, the task text):** `quill --version` (stays a usage error, exit 2), A3-7 (a symlinked `consumers/`), A3-24 (a range check on the printed `time`), wrapping the L3b-7 permission error like `Archive`,
+the exit code or text of any other message, and any exported API. Those stay held, each with a recommended answer, in "Held after the pre-tag code batch" at the end of this file. This update does not say that
+every finding was fixed or that every fix was skeptic-validated; see the last paragraph below.
+
+| counted over the 4 items | |
+|---|---|
+| verdict | 4 CONFIRMED (the ledger labels them so; none was put to a vote); 0 PLAUSIBLE; 0 REFUTED |
+| disposition | 4 fixed, each in its own commit on `main`, each FIXED-VERIFIED by one fix-skeptic: L5-1 `cfa7bf7`, L5-2 `4ffd425`, L5-3 `27cbbb1`, L5-4 `29f785c`; 0 fix-failed; 0 held among the four; 0 deliberately not changed. Five things around them are held (below) and are not counted as items of this batch |
+| skeptic votes on the items | 0 (the ledger carries no votes for any of the four) |
+| fix-skeptic lens verdicts | 26, all pass (7 for L5-1 and L5-3, 6 for L5-2 and L5-4), reported by the fix-skeptics. The lens set differs by item: L5-1 and L5-3 carry an extra `independent-route` lens |
+| reproduced by execution | 3 of 4 defects were reproduced before the fix, by the fixer or the fix-skeptic, and all four fixes were exercised after it. **L5-1**: the parent's `verbs.go` was put back and the new test failed for `-h`, `--help` and `-help` with exit 2, empty standard output and `quill: flag: help requested`. **L5-2**: both cases on the built CLI, before and after (destination already holding records: `check` UNHEALTHY; new destination: `check` HEALTHY; same message printed in both). **L5-3**: `go build ./...` for every `linux/*` pair before the fix built 386, arm, mips and mipsle, and after it exactly those four fail. **L5-4**: not a defect that runs; the omission is shown by reading the licence text (A4-5, 1 reproduced in pass A4), and the fix by two built archives holding the file byte for byte. The recorder of this section ran nothing |
+
+**Coverage (pass L5).** This is a fix-and-record batch with no auditors: the ledger lists no auditor clean checks and no auditor that returned nothing (both lists are empty, verified from the ledger given to the
+recorder), so no area is recorded as audited afresh and "an auditor failed to return" is not claimed for any. What the fix-skeptics checked and found clean (reported): each new test is red when the fix is
+reverted (L5-1 and L5-2 by restoring the parent's source file, L5-3 by running its gate assertions on the parent tree, L5-4 by reverting `build/quill` and by editing one word of the notice); `gofmt`, `go vet`
+and `go test -race -count=1 ./...` clean on each fixed tree (L5-3: `go vet` for linux and darwin, and `staticcheck` v0.8.2 clean); golden bytes and testdata untouched in all four; `go doc -all .` identical
+before and after for L5-1, L5-2 and L5-3 (L5-4 changes no exported Go symbol); the added text names no internal product. L5-3: all 13 `linux/*` pairs of `go tool dist list` were built and the 32-bit four refuse
+with the same compiler message, darwin/amd64 and darwin/arm64 build, freebsd still fails, and the Linux amd64 box built and refused `GOARCH=386` at `27cbbb1`. L5-4: the real `build/quill --dev` produced archives that
+carry the file, identical to the repository copy, and two runs gave identical `SHA256SUMS`; `go list -m all` lists only the quill module. **Not covered:** `staticcheck`, `deadcode`, the fuzz step and `go mod tidy`
+were not run by the fix-skeptics of L5-1, L5-2 and L5-4, and `deadcode` was not run by the L5-3 skeptic (the changes add no function, so nothing for `deadcode` to flag; the skeptics' reasoning, inferred); `hack/gate.sh`
+was not run as a whole script by any of them. L5-1 and L5-2 were checked on macOS only (the Linux claim is inferred from platform-independent flag parsing and a format string). No test ran on a 32-bit or a
+big-endian machine; the 64-bit targets other than arm64 and amd64 build and are untested. The ext4 filesystem matrix and the power-cut replays are **deferred by the owner** and were not run. Windows is unsupported.
+
+**What this record does not say.** Not every finding of the stage 2 audit was fixed, and not every fix was skeptic-validated; this batch covers only the four items the owner approved. Two defects in the
+records themselves were found while writing this one, and are corrected here: (1) the entry counts in the release record's migration section had been advanced by one per fix from the pre-tag batch's figure of 146 and
+missed the two `CHANGELOG.md` entries the `LICENSE` commit added, so they read 150 where the command prints 152; the corrected counts (152 entries, 89 with a row, 63 without) are in
+[release-v0.2.0.md](release-v0.2.0.md); (2) the L5-1 fix's second test pins `quill --version` as a usage error, which the owner said not to do (see "Held after the pre-tag code batch").
 
 | id | sev | one line | recommended | status 2026-10-30 |
 |----|-----|----------|-------------|----|
@@ -757,7 +791,7 @@ the auditor's proposed fix and the skeptics' notes, not decisions. Ranked by wha
 
 | id | sev | one line | recommended | status 2026-10-30 |
 |----|-----|----------|-------------|----|
-| A4-5 | low | the release archives ship the Go runtime and standard library with no copy of its licence | add the Go licence text at the flip; reword decisions 22 and 15 | not in the A1h ledger; unchanged. **Resolved 2026-11-04** (owner-approved, L5-4, commit `fix(stage2 L5-4)`; see the section) |
+| A4-5 | low | the release archives ship the Go runtime and standard library with no copy of its licence | add the Go licence text at the flip; reword decisions 22 and 15 | not in the A1h ledger; unchanged. **Resolved 2026-11-04** (owner-approved, L5-4, commit `29f785c`; see the section) |
 | A4-4 | medium | a workspace path is still in the v0.1.0 tag and in earlier history (the tip is fixed) | decide squash or filter, or accept, before pushing | not in the A1h ledger; unchanged |
 | A4-3 | medium | the private reporting channel named in `SECURITY.md` exists only if the setting is enabled | enable private vulnerability reporting | not in the A1h ledger; unchanged |
 | A4-1 | medium | the Go toolchain pin is enforced by the gate only; the `build/quill` half is fixed in this commit, the CI half was refuted | land the fix, rebased, with a fix-skeptic | approved; fixed in this commit (`build/quill` half only; the CI half was refuted because the pinned setup-go reads the toolchain line) |
@@ -779,7 +813,7 @@ the notice duty met by a link; record that choice in decision 22.
 
 **Fix written.** None.
 
-**Update 2026-11-04 (owner-approved, L5-4; resolved with the commit on branch `stage2/L5-4-a1` titled `fix(stage2 L5-4)`).** The owner approved the recommended answer: ship the Go licence text with the binaries. `THIRD-PARTY-NOTICES` at the repository root has a short header (what it covers; quill is Apache-2.0, see `LICENSE`; no other third-party code ships, `go list -m all` lists only the module) and the Go `LICENSE` unchanged from the go1.27.3 toolchain that `go.mod` pins. `build/quill` copies it into each archive beside `LICENSE`; the archives gain one member and nothing else changes (two builds give identical `SHA256SUMS`). `TestThirdPartyNoticesCarryGoLicense` (skips when the toolchain's `LICENSE` is unreadable) catches a toolchain bump that changes the text; `TestBuildScriptReproducibleArchives` asserts every archive holds the file's bytes. README, decisions 22, 15 and 54, `supply-chain.md`, `release-v0.2.0.md` and the CHANGELOG say so. It is not a breaking change: no API, flag, message or exit code moved. The wording is deliberately limited: the file carries the notice the licence's binary-redistribution clause asks for (reported, from the licence text in `GOROOT`); the owner or counsel decides whether anything more is needed. The SBOM is untouched.
+**Update 2026-11-04 (owner-approved, L5-4; resolved with commit `29f785c`).** The owner approved the recommended answer: ship the Go licence text with the binaries. `THIRD-PARTY-NOTICES` at the repository root has a short header (what it covers; quill is Apache-2.0, see `LICENSE`; no other third-party code ships, `go list -m all` lists only the module) and the Go `LICENSE` unchanged from the go1.27.3 toolchain that `go.mod` pins. `build/quill` copies it into each archive beside `LICENSE`; the archives gain one member and nothing else changes (two builds give identical `SHA256SUMS`). `TestThirdPartyNoticesCarryGoLicense` (skips when the toolchain's `LICENSE` is unreadable) catches a toolchain bump that changes the text; `TestBuildScriptReproducibleArchives` asserts every archive holds the file's bytes. README, decisions 22, 15 and 54, `supply-chain.md`, `release-v0.2.0.md` and the CHANGELOG say so. It is not a breaking change: no API, flag, message or exit code moved. The wording is deliberately limited: the file carries the notice the licence's binary-redistribution clause asks for (reported, from the licence text in `GOROOT`); the owner or counsel decides whether anything more is needed. The SBOM is untouched.
 
 ## A4-4: a workspace path remains in the v0.1.0 tag and in earlier history (medium; the tip is fixed)
 
@@ -2727,6 +2761,7 @@ so none is claimed here, and it has no `CHANGELOG.md` entry. It is outside the d
 Three things the wave 6 completeness critic raised need a code change or a change to a CLI message, an exit code or a build constraint. The owner's approval of 2026-11-04 was for documentation only, so none
 was approved, none was touched, and none has a fix written. Each stays open in the release record ([release-v0.2.0.md](release-v0.2.0.md), "Known limitations and open items at the tag"). The recommended
 answers are the recorder's reading (inferred) and are recommendations, not decisions. The critic's own text is not in the tree, so the items have no id of their own beyond the ones noted.
+*(Update 2026-11-04: all three were then approved and fixed in pass L5, each with a dated note below; see "Pre-tag code batch 2026-11-04". `quill --version` was not approved.)*
 
 ### L3b-15 (re-raised by the critic): `quill -h` and `quill --help` print `flag: help requested` and exit 2 (low)
 
@@ -2752,7 +2787,7 @@ Reproduced under L4b-3 above (the documents were corrected; the message text was
 
 **Fix written.** None.
 
-**Update 2026-11-04 (owner-approved, L5-2; resolved with the commit on branch `stage2/L5-2-a1` titled `fix(stage2 L5-2)`).** The owner approved the recommended answer in its simpler form: one text that is true in both cases, not two messages. `quill archive` now prints `quill: the source lost records N to M; the archive does not have them` (exit 3, standard error, unchanged). Reproduced before and after on the built CLI (verified): a destination that already held records 1 to 4 when the source then lost 5 to 20 printed `the archive holds the same hole` and `check -dir <dest>` was UNHEALTHY ("sequences 5 to 20 are missing"); a new destination for a source whose first segment's first frame was damaged printed the same text for "records 1 to 4" and `check -dir <dest>` was HEALTHY. Both now print `the archive does not have them`. `TestArchiveExitsUnhealthyWhenTheSourceLostRecordsTheArchiveNeverCopied` and the new `TestArchiveOfASourceWithADamagedOldestSegmentIntoANewDestinationSaysTheArchiveDoesNotHaveTheRecords` pin the text (red on the parent commit, green after). The library `*GapError` text ("records N to M are unavailable") never said "hole" and is unchanged. The user guide, `scope.md`, decisions 53 and 85, the CHANGELOG and the release record were updated; the earlier records' quotes of the old text are left as written.
+**Update 2026-11-04 (owner-approved, L5-2; resolved with commit `4ffd425`).** The owner approved the recommended answer in its simpler form: one text that is true in both cases, not two messages. `quill archive` now prints `quill: the source lost records N to M; the archive does not have them` (exit 3, standard error, unchanged). Reproduced before and after on the built CLI (verified): a destination that already held records 1 to 4 when the source then lost 5 to 20 printed `the archive holds the same hole` and `check -dir <dest>` was UNHEALTHY ("sequences 5 to 20 are missing"); a new destination for a source whose first segment's first frame was damaged printed the same text for "records 1 to 4" and `check -dir <dest>` was HEALTHY. Both now print `the archive does not have them`. `TestArchiveExitsUnhealthyWhenTheSourceLostRecordsTheArchiveNeverCopied` and the new `TestArchiveOfASourceWithADamagedOldestSegmentIntoANewDestinationSaysTheArchiveDoesNotHaveTheRecords` pin the text (red on the parent commit, green after). The library `*GapError` text ("records N to M are unavailable") never said "hole" and is unchanged. The user guide, `scope.md`, decisions 53 and 85, the CHANGELOG and the release record were updated; the earlier records' quotes of the old text are left as written.
 
 ### Platforms: the 64-bit-only claim and the 32-bit build (no id; raised by the L4 critic, recorded in the release record)
 
@@ -2764,7 +2799,7 @@ Reproduced under L4b-3 above (the documents were corrected; the message text was
 
 **Fix written.** None.
 
-**Update 2026-11-04 (owner-approved, L5-3; resolved with the commit on branch `stage2/L5-3-a1` titled `fix(stage2 L5-3)`).** The owner took the enforcement option: only 64-bit builds. A compile-time check on the width of `int` in `config.go` (`quillRequires64BitPlatform`) makes the root package, and so `cmd/quill`, fail to compile on a 32-bit target; the compiler prints `invalid array length quillRequires64BitPlatform - 1 (constant -1 of type int)`. The loop over every `linux/*` pair (verified): 386, arm, mips and mipsle fail; amd64, arm64, loong64, mips64, mips64le, ppc64, ppc64le, riscv64 and s390x build; darwin/amd64 and darwin/arm64 build; `go vet` passes for linux and darwin; freebsd still fails. The README and `scope.md` say "64-bit only; tested on arm64 and amd64; other platforms and 32-bit targets fail to build on purpose"; decision 19 has a dated note; `hack/gate.sh` and CI assert the refusal. 32-bit support was not added (no test run on a real 32-bit target).
+**Update 2026-11-04 (owner-approved, L5-3; resolved with commit `27cbbb1`).** The owner took the enforcement option: only 64-bit builds. A compile-time check on the width of `int` in `config.go` (`quillRequires64BitPlatform`) makes the root package, and so `cmd/quill`, fail to compile on a 32-bit target; the compiler prints `invalid array length quillRequires64BitPlatform - 1 (constant -1 of type int)`. The loop over every `linux/*` pair (verified): 386, arm, mips and mipsle fail; amd64, arm64, loong64, mips64, mips64le, ppc64, ppc64le, riscv64 and s390x build; darwin/amd64 and darwin/arm64 build; `go vet` passes for linux and darwin; freebsd still fails. The README and `scope.md` say "64-bit only; tested on arm64 and amd64; other platforms and 32-bit targets fail to build on purpose"; decision 19 has a dated note; `hack/gate.sh` and CI assert the refusal. 32-bit support was not added (no test run on a real 32-bit target).
 
 ## Owner decisions 2026-11-04, after wave 7 (hand finish by the assistant, no fix-skeptic re-run)
 
@@ -2788,3 +2823,168 @@ no hit in `git log --all -p` or a pickaxe search, 451 commits (370 on `main`), `
 document. 321 of `main`'s 370 commits changed hash (independently counted: 321 descend from the first changed commit, 49 do not). The old
 hashes cited in these records are resolved by [commit-map.txt](commit-map.txt). The owner approved the in-place rewrite after it was run
 on a mirror clone first. Not decided here: the placeholder author of `da2d638`, the `faa8eaf` operator detail, and which identity may be public.
+
+## Pre-tag code batch 2026-11-04
+
+Pass L5. Date 2026-11-04, against `main` as it stood after `c56e960` (the commit map). Four items, each approved by the owner on 2026-11-04 and each fixed in its own commit with a regression test or a gate step, a CHANGELOG
+line, an entry in the "Breaking changes and upgrade notes" list where a user can see the change, a migration-table row in [release-v0.2.0.md](release-v0.2.0.md), and the decisions amended in place with a dated note
+("Stage 2 audit, owner-approved 2026-11-04"). The top-line counts and the coverage statement are in "Update 2026-11-04 (pre-tag code batch, pass L5)" near the head of this file. Labels: **verified** (the recorder
+read the lines in this tree, or ran the command), **reported** (a fix-skeptic's or a fixer's account in the ledger, or the task text; the source is named), **inferred**. The recorder ran `awk` and `grep`
+over the tree and read the four diffs; it did not run the tests or the gate.
+
+| id | kind | severity | verdict | owner's approval | commit | fix-skeptic |
+|---|---|---|---|---|---|---|
+| L5-1 | bug | low | CONFIRMED | 2026-11-04, `-h` and `--help` only | `cfa7bf7` | FIXED-VERIFIED, 7 of 7 lenses |
+| L5-2 | doc (a message) | low | CONFIRMED | 2026-11-04, one text true in both cases | `4ffd425` | FIXED-VERIFIED, 6 of 6 |
+| L5-3 | bug | medium | CONFIRMED | 2026-11-04, "only 64-bit builds" | `27cbbb1` | FIXED-VERIFIED, 7 of 7 |
+| L5-4 | doc (a shipped notice; A4-5) | low | CONFIRMED | 2026-11-04, the recommended answer of A4-5 | `29f785c` | FIXED-VERIFIED, 6 of 6 |
+
+The ledger's Warrant, Backing and Rebuttal fields for all four read "See the record" (they point at the records named in each entry), and it carries no skeptic votes for them. Where an entry says
+"Rebuttal: none raised", that is what the ledger holds; the strongest objection the fix-skeptic could build against the fix is under Disposition, and is not a rebuttal of the finding.
+
+### L5-1: `quill -h` and `quill --help` print `flag: help requested` and exit 2 (low)
+
+**Claim.** `quill -h` and `quill --help` before a verb print `quill: flag: help requested` on standard error and exit 2. Follows up L3b-15 ([live-integration.md](live-integration.md)), re-raised by the wave 6 critic and held in
+"Held after the pre-tag batch" above.
+
+**Grounds.** `dispatch` in `cmd/quill/verbs.go` parses the global flags with a `flag.FlagSet` and returned `c.usage("%v", err)` for every parse error, `flag.ErrHelp` included (verified: the branch is at
+`verbs.go:184-188` now). **Reproduction (reported, fix-skeptic):** with the parent's `verbs.go` put back over the fixed tree, the new test fails for `-h`, `--help` and `-help` with exit 2, empty standard output and
+`quill: flag: help requested`; the earlier record (L4b-2 skeptic) had the same on a built binary.
+
+**Warrant.** `quill help` works and exits 0, and a verb's own `-h` already exits 0 (reported, the fix-skeptic, `verbs.go:194-198`); a user's first try is `quill -h`.
+
+**Backing.** Decision 53 (CLI exit codes). Rebuttal: none raised; the argument against, "a convention nobody depends on yet" (the held-item text, above), is a reason to change it before a release, not after.
+
+**Verdict.** CONFIRMED.
+
+**Owner's approval 2026-11-04.** `-h` and `--help` print the usage of `quill help` and exit 0. **Not approved:** `quill --version`, and nothing pins it.
+
+**Disposition.** Fixed in `cfa7bf7`, FIXED-VERIFIED, 7 of 7 lenses (reported). One `if errors.Is(err, flag.ErrHelp) { return cmdHelp(c, nil) }` at `verbs.go:185-187` (verified); `-help` behaves like the other two
+(the flag package treats `h` and `help` alike). A bare `quill` still prints the usage and exits 2; `--version` and every other global-flag error are unchanged (verified by the fix-skeptic on a built binary).
+Tests: `TestGlobalHelpFlagPrintsTheUsageOfTheHelpVerbAndExitsZero` (red on the parent), `TestBareQuillAndOtherGlobalFlagErrorsStayUsageErrors`. Decision 53 carries a dated note; the user guide,
+[live-integration.md](live-integration.md) (row L3b-15), the CHANGELOG (breaking-changes line and a `Changed:` entry) and the release record (migration row 39) are updated; `docs/reference.md` describes only the
+exit codes, which stay true, and needed no change (reported, the fix-skeptic). The fix-skeptic's objection: none that blocks. **Residual, found by the recorder (verified, `cmd/quill/help_flag_test.go:27-36`):** the
+second test asserts exit 2 for `--version`, so the owner's "do not pin `--version` by a test" is not met; held below.
+
+### L5-2: the `quill archive` message "the archive holds the same hole" is wrong when the destination starts after the lost records (low)
+
+**Claim.** When the destination starts after the lost records (a new destination, or a source whose damaged oldest segment is a hole from 1), the destination holds no hole and `quill check -dir <dest>` prints HEALTHY,
+yet `quill archive` says "the archive holds the same hole". Follows up L4b-3 above.
+
+**Grounds.** The text was a format string in `cmdArchive` (now `cmd/quill/consumers.go:208`, verified). **Reproduction (reported: the fixer ran both cases on the built CLI and the fix-skeptic ran the first
+again).** Destination that already held records 1 to 4, source then lost 5 to 20: before, `quill: the source lost records 5 to 20; the archive holds the same hole`, exit 3, `check -dir <dest>` UNHEALTHY ("sequences 5 to 20 are
+missing"); after, `...; the archive does not have them`, exit 3, `check` still UNHEALTHY. New destination, source whose first segment's first frame was damaged: before, `records 1 to 4; the archive holds the same
+hole`, exit 3, `check` HEALTHY; after, `...the archive does not have them`.
+
+**Warrant.** A message that says a hole exists where none does sends the operator looking for it. The owner chose one text that is true in both cases over two messages that tell them apart.
+
+**Backing.** Decisions 53 and 85 (amended in place, each with a dated note); the user guide (about lines 385-398) and `scope.md:339` no longer call the message loose. The library's `*GapError` text ("records N to M are
+unavailable") never said "hole" and is unchanged (reported, the fix-skeptic). Rebuttal: none raised; a script that matched the text is the cost, and the exit code 3 is the stable signal (the CHANGELOG says so).
+
+**Verdict.** CONFIRMED.
+
+**Owner's approval 2026-11-04.** Reword so it is true in both cases; exit code and stream unchanged.
+
+**Disposition.** Fixed in `4ffd425`, FIXED-VERIFIED, 6 of 6 lenses (reported). Text now `quill: the source lost records %d to %d; the archive does not have them`, exit 3, standard error (verified). Tests red on the
+parent: `TestArchiveExitsUnhealthyWhenTheSourceLostRecordsTheArchiveNeverCopied` and the new `TestArchiveOfASourceWithADamagedOldestSegmentIntoANewDestinationSaysTheArchiveDoesNotHaveTheRecords` (which also asserts
+`check` HEALTHY on the new destination). The CHANGELOG (breaking-changes line and `Changed:` entry), the release record (row 40, with the L4b-3 and A3-10 rows resolved) and the earlier section above are updated;
+older records' quotes of the old text are left as written. The fix-skeptic's nits, not defects: the A5-29 note in decision 53 still quotes the old text in the present tense with the new note directly after it.
+
+### L5-3: the module builds for 32-bit targets that the documents do not list and the tests cannot compile for (medium)
+
+**Claim.** `README.md` and `scope.md` said "Linux and darwin only (arm64, amd64)", but the module built for linux 386, arm, mips and mipsle, where the byte-count fields of `Config` assume a 64-bit `int` and the tests do not
+compile (`log_test.go:195`, `math.MaxInt64` overflows `int`). Raised by the L4 critic; held above under "Platforms".
+
+**Grounds.** **Reproduction (reported, fix-skeptic, on the parent tree):** `GOOS=linux GOARCH=<arch> go build ./...` built for 386, arm, mips and mipsle (exit 0), so a gate assertion that they do not build was red
+there. After the fix the loop over every `linux/*` pair of `go tool dist list` gives: **fail** 386, arm, mips, mipsle, all with `config.go:19:8: invalid array length quillRequires64BitPlatform - 1 (constant -1 of type int)`;
+**build** amd64, arm64, loong64, mips64, mips64le, ppc64, ppc64le, riscv64, s390x. darwin/amd64 and darwin/arm64 build, `go vet` passes for linux and darwin, freebsd still fails, and `GOARCH=386 go build ./cmd/quill`
+fails through the import (all reported by the fix-skeptic; the Linux amd64 box agreed at `27cbbb1`).
+
+**Warrant.** A build that compiles for what nothing tests, and whose tests cannot compile, is a claim the code does not back. The owner chose enforcement: only 64-bit builds.
+
+**Backing.** Decision 19 (dated note). The mechanism is `const quillRequires64BitPlatform = int(^uint(0) >> 63)` and `var _ [quillRequires64BitPlatform - 1]struct{}` in `config.go:12-19` (verified); it tests the
+width of `int`, not an architecture list, so every 64-bit target keeps building. Traced by the fix-skeptic: on 32 bits `^uint(0)>>63` is 0 and the length is -1, which the compiler rejects. Rebuttal: none raised.
+Big-endian 64-bit (s390x) builds; `codec.go` uses `encoding/binary` varints and `binary.BigEndian` and no `unsafe` or `NativeEndian` appears in non-test code, so the frame bytes do not depend on the host's byte
+order by that reading (reported, the fix-skeptic, and the release record's "Platforms" section; **inferred**, no test ran on a big-endian machine).
+
+**Verdict.** CONFIRMED.
+
+**Owner's approval 2026-11-04.** "Only 64-bit builds": refuse a 32-bit target at build time; no code outside the refusal, the gate and CI steps, and the documents.
+
+**Disposition.** Fixed in `27cbbb1`, FIXED-VERIFIED, 7 of 7 lenses (reported). No Go test was added (a test that expects a build to fail has no place in the package); the test is `hack/gate.sh:53-55` and
+`.github/workflows/ci.yml:37-38`, which assert that linux/386 and linux/arm do not build, run in the parent tree red and in the fixed tree green (reported; the skeptic ran the two assertions by hand, not the whole gate, and
+notes the step would also pass if the build failed for an unrelated reason, as the freebsd step would). README, `scope.md`, the user guide, the executive summary, decision 19, the CHANGELOG (breaking-changes line, `Changed:`
+entry), the release record (row 41, "Platforms", the known-limitations rows) and this file are updated. The fix-skeptic's objection: only the stale absolute counts in the release record, which this pass corrected.
+
+### L5-4 (A4-5): the release archives ship the Go runtime and standard library with no copy of its licence (low)
+
+**Claim.** The binaries statically link the Go runtime and standard library (BSD-3-Clause), whose licence asks that a binary redistribution reproduce its notice, conditions and disclaimer; the archives carried none.
+Held since pass A4 (section "A4-5" above, [supply-chain.md](supply-chain.md)).
+
+**Grounds.** Reported, from the licence text in `GOROOT` as read in pass A4 (2 of 2 voters, 1 reproduced). The fix-skeptic confirmed on the real `build/quill --dev` that the archive lists the new file beside
+`LICENSE`, byte-identical to the repository copy, and that `go list -m all` lists only the quill module.
+
+**Warrant.** The owner chose to ship the text, not a link, in its own words the recommended answer of A4-5.
+
+**Backing.** `THIRD-PARTY-NOTICES` at the repository root: a header and the Go `LICENSE` unchanged, from the go1.27.3 toolchain `go.mod` pins (2,423 bytes in all, verified with `wc -c`; the skeptic reports a 970-byte header); `build/quill:77`
+`[ -f THIRD-PARTY-NOTICES ] && cp THIRD-PARTY-NOTICES "$dir/"` beside the `LICENSE` line (verified). Rebuttal: none raised. The wording is deliberately limited: the file carries the notice the licence's
+binary-redistribution clause asks for (reported, from the licence text); the owner or counsel decides whether anything more is needed. This record does not say the release is compliant. The SBOM is untouched.
+
+**Verdict.** CONFIRMED.
+
+**Owner's approval 2026-11-04.** Ship the Go licence text with the binaries (the recommended answer).
+
+**Disposition.** Fixed in `29f785c`, FIXED-VERIFIED, 6 of 6 lenses (reported). Tests: `TestBuildScriptReproducibleArchives` now asserts all four archives hold the file's bytes (red with the parent's `build/quill`: "want 7
+in name order"); `TestThirdPartyNoticesCarryGoLicense` compares the file with `GOROOT/LICENSE` and skips when it is absent (red when one word is edited, and when the file is deleted). Archive order, timestamps
+and reproducibility are unchanged apart from the one new member (two runs, identical `SHA256SUMS`, reported). README, decisions 22, 15 and 54, `supply-chain.md`, the release record and the CHANGELOG (an `Added:`
+entry, not a breaking one: nobody has to act) are updated. **Not done, as the task said:** the userguide and `scope.md` do not list archive contents, so there was nothing to change in them (reported, the fix-skeptic).
+The fix-skeptic's objection: only the release record's stale counts, corrected in this pass.
+
+## Held after the pre-tag code batch
+
+Four things around the batch were not approved and are held; the first is new in this pass, the other three were already held and are repeated here because the owner's message of 2026-11-04 named them
+as not approved. Nothing here was touched. The recommended answers are the recorder's reading (inferred); they are recommendations, not decisions.
+
+### `quill --version` (follow-up of L3b-15), and the test that pins it
+
+**Claim.** `quill --version` is a usage error (a message on standard error, no standard output, exit 2; the test asserts exactly that, and the recorder did not run the binary), and the supported spelling is the verb `quill version`. `TestBareQuillAndOtherGlobalFlagErrorsStayUsageErrors`
+(`cmd/quill/help_flag_test.go:27-36`) lists `{"--version"}` beside `{"-bogus"}` and asserts exit 2, so a test now pins the one behaviour the owner said not to pin.
+
+**Why held.** Making `--version` print the version and exit 0 changes an exit code that a script could see; the owner approved `-h` and `--help` only. Removing `{"--version"}` from the test is a change to a test,
+which this docs-only commit does not make.
+
+**Recommended answer.** Leave `--version` as it is, and delete `{"--version"}` from that test table in the next code commit, so that nothing pins it either way. If the owner wants the flag, accept it at the top
+level, print the same text as the verb, exit 0 and add tests for both. The documents already say the verb is `version` (release record, "Failures and findings", item 4).
+
+**Fix written.** None.
+
+### A3-7 (code hardening): a symlinked `consumers/` is followed
+
+**Claim.** `register`, `recover` and `Open` follow a symlinked `consumers/`; only the wording changed (`b765290`). See "A3-7 (code hardening)" under "Held after pass A3r".
+
+**Why held.** Opening `consumers/` with `O_NOFOLLOW`, or an `Lstat` in `create()`, makes a log whose `consumers/` is a symlink refuse to open where it opens today (someone may keep consumer state on another volume).
+
+**Recommended answer.** Leave the code. The exposure needs write access to the log directory, which the threat model excludes.
+
+**Fix written.** None.
+
+### A3-24 (`time` field): range-check the printed time
+
+**Claim.** `time` is `time.Unix(rec.At, 0).UTC()` with no range check, so a hand-crafted file prints year 10000 or equal strings for `MinInt64` and `MaxInt64`; `at` stays exact. See "A3-24 (`time` field)" under
+"Held after pass A3r".
+
+**Why held.** Printing `time` as null outside years 0 to 9999 changes `-json` (and the text column) for crafted files.
+
+**Recommended answer.** Do not change. The exact `at` field is the machine-readable value.
+
+**Fix written.** None.
+
+### L3b-7: wrap the different-uid permission error like `Archive`
+
+**Claim.** A writable open under another uid gets the permission error on `quill.lock`, not `ErrLocked`. Documented in `7fa0744` (see "L3b-7" above); the runner-up of wrapping the error so it matches both is held.
+
+**Why held.** It changes what `errors.Is(err, ErrLocked)` returns (an exported error class) and the exit text of four verbs.
+
+**Recommended answer.** Keep it documented only, as approved on 2026-11-03.
+
+**Fix written.** None.

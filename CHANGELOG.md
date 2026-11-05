@@ -7,7 +7,7 @@ for ever, and the on-disk format is versioned separately in `quill.format`.
 
 ### Breaking changes and upgrade notes
 
-Changes since `v0.1.0` that a script, a Go caller or an operator may need to act on, taken from the entries below; the on-disk format `quill/1` is unchanged. The list is drawn from 86 of the 144 entries below (the other 58 are documentation, tests, performance or internal tooling); each line names the entry's subject, and the entry gives the reason and the audit id.
+Changes since `v0.1.0` that a script, a Go caller or an operator may need to act on, taken from the entries below; the on-disk format `quill/1` is unchanged. The list is drawn from 89 of the 152 entries below (the other 63 are documentation, tests, performance, internal tooling, the licence files, or a fix with no migration); each line names the entry's subject, and the entry gives the reason and the audit id.
 
 Go callers:
 

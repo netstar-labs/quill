@@ -29,7 +29,7 @@ auditor's own reproductions are in the items and are not counted.
 | fixed in the tip only, fix-skeptic FIXED-VERIFIED; history is held for the owner | 1 | A4-4 |
 | fix landed on main without a fix-skeptic (see A4-3) | 1 | A4-3 |
 | fixed in this commit for the `build/quill` half; the CI half was refuted at the pinned setup-go (see A4-1) | 1 | A4-1 |
-| fixed, owner-approved 2026-11-04 (commit `fix(stage2 L5-4)`; see A4-5) | 1 | A4-5 |
+| fixed, owner-approved 2026-11-04 (commit `29f785c`; see A4-5) | 1 | A4-5 |
 | deliberately not changed (REFUTED) | 2 | A4-2, A4-6 |
 
 Severity as the auditor assigned it: medium 5 (A4-1, A4-2, A4-3, A4-4, A4-6), low 5 (A4-5, A4-7, A4-8, A4-9, A4-10). The
@@ -285,7 +285,7 @@ reading clause 2 of the licence in the local GOROOT, and by listing an existing 
 **Disposition.** Held for the owner, with the recommended answer: at the flip add the Go licence text to each archive and to the repository (or a
 THIRD-PARTY-NOTICES file naming the Go standard library), and reword decisions 22 and 15. No fix written; it is a semantic change to a recorded decision.
 
-**Resolved 2026-11-04 (owner-approved, L5-4; the commit titled `fix(stage2 L5-4)`).** `THIRD-PARTY-NOTICES` at the repository root holds a short header and the Go `LICENSE` text unchanged, copied from the go1.27.3 toolchain that `go.mod` pins (verified: `go list -m all` lists only the quill module, so nothing else ships). `build/quill` copies it into each archive beside `LICENSE`, with the same `[ -f ... ] && cp` form; the archives have one more member and the reproducibility test (two builds, identical `SHA256SUMS`) passes. `TestThirdPartyNoticesCarryGoLicense` compares the file with the toolchain's `LICENSE`; `TestBuildScriptReproducibleArchives` asserts every archive carries the file's bytes. Decisions 22 and 15 carry dated notes. This carries the notice the licence's binary-redistribution clause asks for (reported, from the licence text); the owner or counsel decides whether anything more is needed. The SBOM is unchanged.
+**Resolved 2026-11-04 (owner-approved, L5-4; commit `29f785c`).** `THIRD-PARTY-NOTICES` at the repository root holds a short header and the Go `LICENSE` text unchanged, copied from the go1.27.3 toolchain that `go.mod` pins (verified: `go list -m all` lists only the quill module, so nothing else ships). `build/quill` copies it into each archive beside `LICENSE`, with the same `[ -f ... ] && cp` form; the archives have one more member and the reproducibility test (two builds, identical `SHA256SUMS`) passes. `TestThirdPartyNoticesCarryGoLicense` compares the file with the toolchain's `LICENSE`; `TestBuildScriptReproducibleArchives` asserts every archive carries the file's bytes. Decisions 22 and 15 carry dated notes. This carries the notice the licence's binary-redistribution clause asks for (reported, from the licence text); the owner or counsel decides whether anything more is needed. The SBOM is unchanged. The fix-skeptic (reported) found the archive's copy byte-identical to the repository file and the test red under three mutations (the parent's `build/quill`, one edited word, the file deleted): FIXED-VERIFIED, 6 of 6 lenses.
 
 ### A4-6: `build/quill` does not enforce a LICENSE and README Status reads "Private" (rated medium by the auditor; REFUTED, 2 votes to 0)
 
