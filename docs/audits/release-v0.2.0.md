@@ -6,6 +6,14 @@ the real repository (its only tag is still `v0.1.0`) and no release was publishe
 the rehearsal showed, the commands the real release will run, what stands between the tree and a public repository, and the
 audit findings that are still open at the tag ("Known limitations and open items at the tag").
 
+**Update 2026-11-04, tag day (owner's instructions).** `CHANGELOG.md` now reads `## v0.2.0 (2026-11-04)` where it read `## Unreleased`
+(the release blocker below). `.github/CODEOWNERS` keeps `@zxdev`: the owner is the author and the login has admin on the repository (read
+from the GitHub API). `SECURITY.md` lost its internal process wording (the "Stage 2 audit, owner-approved" parenthesis at lines 31-32); its
+contact stays GitHub private vulnerability reporting, which returns 404 until the repository is public. The remote repository
+`netstar-labs/quill` exists, is private and empty (read from the GitHub API). A scrub of every ref and every object in the local
+repository finds the leaked name nowhere (verified, including the 8 unreachable objects). The checklist and findings below are as
+they were at the rehearsal unless a line says otherwise.
+
 Labels: **verified** means the rehearsal ran it or read the exact lines; **reported** names the document that says it;
 **inferred** says from what. Line anchors are to the tree as of this commit.
 

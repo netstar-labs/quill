@@ -452,7 +452,7 @@ stop every writer, reader and consumer first, since a running writer, and a read
 after the bump); `docs/format.md` has the rule. Rolling back is the same replacement in reverse, and the same
 holds across v0.1.0 and the current tree: `hack/skew.sh <refA> <refB>` runs each version against a log the other wrote
 and [format-compatibility.md](audits/reference/format-compatibility.md) records the result. The differences between the two
-versions are listed under "Unreleased" in the CHANGELOG, which you should read before upgrading. A build that finds a `quill.format`
+versions are listed in the CHANGELOG, under the heading of the newer version, which you should read before upgrading. A build that finds a `quill.format`
 newer than it knows refuses the log with `ErrFutureVersion` (the library, and the `quill` command with exit 1 for a verb that opens
 the log); the fix is a newer binary, never an edit to `quill.format`.
 

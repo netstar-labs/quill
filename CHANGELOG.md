@@ -3,7 +3,7 @@
 All notable changes to quill. The format follows Keep a Changelog; versions are `v0.y.z`
 for ever, and the on-disk format is versioned separately in `quill.format`.
 
-## Unreleased
+## v0.2.0 (2026-11-04)
 
 ### Breaking changes and upgrade notes
 
