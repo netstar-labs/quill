@@ -38,7 +38,7 @@ So the "audit of v0.1.0" wording of the [README](README.md) fits A1 round 2 and 
 ## What changed since
 
 - **Verified (`git rev-list --count v0.1.0..v0.2.0`).** 304 commits between the tags.
-- **Verified (`git diff --shortstat v0.1.0 v0.2.0 -- . ':!docs'`).** 189 files changed outside `docs/`, 22,417 insertions, 1,097 deletions.
+- **Verified (`git diff --shortstat v0.1.0 v0.2.0 -- . ':!docs'`).** 188 files changed outside `docs/`, 22,215 insertions, 1,097 deletions. Against `9364fb0`, the commit the tag named before it gained the `LICENSE`, the same command gives 189 files and 22,417 insertions; the difference is the 202-line `LICENSE`, which the tag now contains.
 - The user-visible changes, and what an upgrader must do, are under "Breaking changes and upgrade notes" at the top of the `v0.2.0` section of the CHANGELOG and in the migration table of
   [release-v0.2.0.md](release-v0.2.0.md). Format compatibility between the two is [format-compatibility.md](reference/format-compatibility.md); `hack/skew.sh v0.1.0 HEAD` is the cross-version check.
 
