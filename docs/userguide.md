@@ -49,47 +49,81 @@ about 10 ms on macOS (`F_FULLFSYNC`, measured on the build machine). Batch when 
 
 **When a write fails** (decisions 37, 60). A short write or `ENOSPC` truncates the file back
 to the durable offset and keeps the records buffered; the next flush retries from the same
-offset, and space exhaustion recovers by itself. **A restart on a full disk:** `Open` of a cleanly
-closed log rewrites no marker (with a different `Perm` it changes `quill.tail`'s mode in place, which needs no block either), so it succeeds with no free block and the `MinFreeBytes` and `MaxBytes`
+offset, and space exhaustion recovers by itself.
+
+**A restart on a full disk.** `Open` of a cleanly closed log rewrites no marker (with a different `Perm` it changes `quill.tail`'s mode in place, which needs no block either), so it succeeds with no free block and the `MinFreeBytes` and `MaxBytes`
 sweeps then run. After a crash that left `quill.tail` behind the data (decision 39) `Open` has to
 write the marker; if that write fails (`ENOSPC`), `Open` still returns the log, with the publish
-pending: `Err()` wraps the cause, `Config.Logger` has the `marker publish` `Warn`, a `Reader` sees the
-older head, and the flusher, `Close` or a prune pass writes the marker once a block is free (until
-then a prune pass deletes the sealed segments below the one the stale marker names and keeps the rest, so the sweeps still free space; decision 65). A caller that
-treats a nil error from `Open` as "the marker is published" should check `Err()`; `quill recover`,
-`roll`, `prune` and `append` exit 1 with the write error when `Close` cannot publish it (a `prune` that freed a block before `Close` publishes it and exits 0). An **fsync** error is fatal: every later
-valid `Append` and `Flush` on the open log, and every `Sync` of a sequence not already durable, returns an error wrapping `ErrFailed` until the log is closed and
-reopened (`Sync` of a sequence that became durable before the failure returns nil, and `Sync` of an unassigned sequence is `ErrBadSeq`), and a `ReadWait` or `Follow` at the head returns it too (a goroutine already waiting is woken to return it; records that exist stay readable), because a retried fsync can report success for data that never reached the disk. The moment the log fails it writes one `Error` record on `Config.Logger`, "log failed: it accepts no more writes and every later call returns ErrFailed", with `error` (the first cause) and `op` (`flush`, `rotation`, `segment delete` or `lock check`); a later failure changes neither `Err()` nor the log, so there is never a second line, and `Err()` returns an error wrapping `ErrFailed`. With no `Logger` there is no line: poll `Err()`. An
-error from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still
-become durable, so a producer that retries must tolerate duplicates. **The sequence beside an error:** `Append` and `AppendBatch` return the sequence they assigned (the first, for a batch) together with the error when they fail after assigning one, that is when the inline flush's fsync fails (the log is then failed, `ErrFailed`) or a `SyncAppends` append cannot make its records durable; the records may be on disk after a reopen, so that is the number to look for. They return 0 when nothing was assigned: `ErrClosed`, a failed log, a refused or empty batch, `ErrPayloadTooLarge`, `ErrSeqExhausted`, and an append refused at the `MaxBufferBytes` or rotation bound. A failure to publish the
+pending:
+
+- `Err()` wraps the cause.
+- `Config.Logger` has the `marker publish` `Warn`.
+- A `Reader` sees the older head.
+- The flusher, `Close` or a prune pass writes the marker once a block is free. Until then a prune pass deletes the sealed segments below the one the stale marker names and keeps the rest, so the sweeps still free space (decision 65).
+
+A caller that treats a nil error from `Open` as "the marker is published" should check `Err()`. `quill recover`,
+`roll`, `prune` and `append` exit 1 with the write error when `Close` cannot publish it (a `prune` that freed a block before `Close` publishes it and exits 0).
+
+**An fsync error is fatal.** Every later valid `Append` and `Flush` on the open log, and every `Sync` of a sequence not already durable, returns an error wrapping `ErrFailed` until the log is closed and
+reopened, because a retried fsync can report success for data that never reached the disk. Around that:
+
+- `Sync` of a sequence that became durable before the failure returns nil, and `Sync` of an unassigned sequence is `ErrBadSeq`.
+- A `ReadWait` or `Follow` at the head returns the error too (a goroutine already waiting is woken to return it; records that exist stay readable).
+- The moment the log fails it writes one `Error` record on `Config.Logger`, "log failed: it accepts no more writes and every later call returns ErrFailed", with `error` (the first cause) and `op` (`flush`, `rotation`, `segment delete` or `lock check`). A later failure changes neither `Err()` nor the log, so there is never a second line, and `Err()` returns an error wrapping `ErrFailed`. With no `Logger` there is no line: poll `Err()`.
+
+An error from `Sync` or a `SyncAppends` append means *unknown*, not *lost*: the records may still
+become durable, so a producer that retries must tolerate duplicates.
+
+**The sequence beside an error.** `Append` and `AppendBatch` return the sequence they assigned (the first, for a batch) together with the error when they fail after assigning one, that is when the inline flush's fsync fails (the log is then failed, `ErrFailed`) or a `SyncAppends` append cannot make its records durable; the records may be on disk after a reopen, so that is the number to look for. They return 0 when nothing was assigned:
+
+- `ErrClosed`,
+- a failed log,
+- a refused or empty batch,
+- `ErrPayloadTooLarge`,
+- `ErrSeqExhausted`,
+- and an append refused at the `MaxBufferBytes` or rotation bound.
+
+**Failures that are retried.** A failure to publish the
 marker or create the next segment after the data fsync is retried at the next flush, reported
-by `Err()` while it lasts, and never rewrites durable data. While flushes fail the buffer is bounded by
-`MaxBufferBytes`; past it, appends fail fast with the flush error. While creating the next
-segment keeps failing, the writer keeps appending to the current one, but only to a ceiling of
-`SegmentBytes + max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes, MaxPayloadBytes + 34)`, which
-`Open` keeps under the 1.5 GiB file limit; past it an append fails with the rotation error and
-assigns no sequence, until a flush creates the segment. Watch `Err()` and fix the cause (descriptors,
-permissions, inodes) before the ceiling. `Err()` is what is failing now: a background error clears
+by `Err()` while it lasts, and never rewrites durable data.
+
+- While flushes fail the buffer is bounded by
+  `MaxBufferBytes`; past it, appends fail fast with the flush error.
+- While creating the next
+  segment keeps failing, the writer keeps appending to the current one, but only to a ceiling of
+  `SegmentBytes + max(FlushBytes, MaxBufferBytes) + max(MaxBatchBytes, MaxPayloadBytes + 34)`, which
+  `Open` keeps under the 1.5 GiB file limit; past it an append fails with the rotation error and
+  assigns no sequence, until a flush creates the segment. Watch `Err()` and fix the cause (descriptors,
+  permissions, inodes) before the ceiling.
+
+**`Err()` and the log lines.** `Err()` is what is failing now: a background error clears
 when the operation that set it succeeds (a flush, a rotation, a marker publish, a prune pass), and
 an old damaged segment does not hide it. It is nil when nothing is failing and no sealed segment is
 damaged; when more than one thing is wrong it is their `errors.Join`, and `errors.Is` matches each.
+
 Each of those retried failures (the flush write, the marker publish, the rotation, a prune unlink) is also
 logged on `Config.Logger`: one `Warn` when it starts, with `op` (`flush`, `marker publish`, `rotation` or
 `segment delete`) and `err`, and one `Info`, "background operation recovered", when it ends, never one line per
 retry. "Recovered" means a later pass completed without a failure, not that the failing step was retried: a prune pass that finds nothing to delete after a failed unlink (the segment became protected, say) logs it and clears `Err()`. A failure that is already logged and fails again is not logged again, and a pass that stops before it
 retries the failing step (the publish that precedes a prune pass's deletions failing) neither recovers nor warns
-again. To alert on a flush that is not keeping up, poll `Log.Stat()`: `FlushFailing` is true while the last flush
+again.
+
+**Alerting on a flush that is not keeping up.** Poll `Log.Stat()`: `FlushFailing` is true while the last flush
 that tried to write failed, and `BufferedRecords` and `BufferedBytes` are what has been acknowledged and is held
-only in memory (lost if the process dies, invisible to readers). Alert on `FlushFailing`, or on
-`BufferedRecords > 0` together with `FlushFailing`, and on `Err()` wrapping `ErrFailed` (a log that has failed
-after a data fsync error does not retry, so `FlushFailing` stays false while its buffered records are never
-written); do not alert on `BufferedRecords > 0` alone, which is normal for up to a flush interval after every
-`Append`. `LastFlushOK` is the time of the last flush that completed
-(it wrote and published its records, or it landed a marker publish that had failed, with nothing new written), or when the log opened, before the first; a log with nothing to flush keeps an old
-one and is healthy, so one `Append` after an hour of quiet shows `BufferedRecords` of 1, `FlushFailing` false and
-a `LastFlushOK` an hour old. It does not measure how long the oldest acknowledged record has waited, and
-`time.Since(LastFlushOK)` alone is never an alert; read it once `FlushFailing` is true, to say how long writes
-have been failing. A `Reader` reports none of them.
+only in memory (lost if the process dies, invisible to readers).
+
+- Alert on `FlushFailing`, or on
+  `BufferedRecords > 0` together with `FlushFailing`, and on `Err()` wrapping `ErrFailed` (a log that has failed
+  after a data fsync error does not retry, so `FlushFailing` stays false while its buffered records are never
+  written).
+- Do not alert on `BufferedRecords > 0` alone, which is normal for up to a flush interval after every
+  `Append`.
+- `LastFlushOK` is the time of the last flush that completed
+  (it wrote and published its records, or it landed a marker publish that had failed, with nothing new written), or when the log opened, before the first; a log with nothing to flush keeps an old
+  one and is healthy, so one `Append` after an hour of quiet shows `BufferedRecords` of 1, `FlushFailing` false and
+  a `LastFlushOK` an hour old. It does not measure how long the oldest acknowledged record has waited, and
+  `time.Since(LastFlushOK)` alone is never an alert; read it once `FlushFailing` is true, to say how long writes
+  have been failing. A `Reader` reports none of them.
 
 ## 3. Reading in the writer's process
 
@@ -152,29 +186,49 @@ err = c.Close()
 
 **Protection.** A consumer opened with `Protect: quill.ProtectOn` (or `quill register
 -protect`) keeps its unread sealed segments from the age sweep (`Retention`): the sweep stops before the
-first segment holding a record at or above the slowest protected consumer's offset. The caps
-(`MaxBytes`, `MinFreeBytes`, `MaxRecords`) still win, each deleting the oldest sealed segments
-(never the active one) whether or not a protected consumer has read them: `MaxBytes` while the
-log's segment bytes exceed it, `MaxRecords` while more than that many records are retained, and
-`MinFreeBytes` while the filesystem is below the floor, which the writer estimates from one `statfs`
-read plus the size of each segment the pass deletes (the age sweep's and `MaxBytes`'s included). So a protected consumer can lose records, and
+first segment holding a record at or above the slowest protected consumer's offset.
+
+**The caps still win.** The caps (`MaxBytes`, `MinFreeBytes`, `MaxRecords`) each delete the oldest sealed segments
+(never the active one) whether or not a protected consumer has read them:
+
+- `MaxBytes` while the log's segment bytes exceed it.
+- `MaxRecords` while more than that many records are retained.
+- `MinFreeBytes` while the filesystem is below the floor, which the writer estimates from one `statfs`
+  read plus the size of each segment the pass deletes (the age sweep's and `MaxBytes`'s included).
+
+So a protected consumer can lose records, and
 `MinFreeBytes` is the cap to expect it from on a shared disk: another process's disk use can take the
 filesystem below the floor, and the writer then deletes this log's oldest sealed segments, protected
-or not. `Stat().Dropped` counts segments deleted under a
-consumer; the deletion is also logged at `Warn` on `Config.Logger`, naming the consumer ("deleted
-segment past a consumer's offset; it has lost records", with `consumer`, `offset`, `segment` and
-`last`), and that `Warn` is how the loss is seen at the moment it happens. `Dropped` lives in the writer's memory and is 0 after a restart, so to find a consumer that
-has fallen out of retention without the writer, run `quill consumers`: a consumer whose offset is below
-the first retained sequence gets a NOTE ("behind the first retained sequence N: records X to N-1 are
-gone"; `-json` adds `"behind_first": true`), and its LAG counts those records although they can no
-longer be read. Its next read is a `*GapError`; `Commit(To+1)` or `quill commit` moves it past the gap.
-`quill check` warns of the same consumer and stays HEALTHY. Unprotected is the default, so `Retention` must be longer than the worst delay of an
-unprotected consumer, or negative. `Config.ProtectedConsumers` names consumers the writer
+or not.
+
+**Seeing a loss.**
+
+- `Stat().Dropped` counts segments deleted under a
+  consumer; the deletion is also logged at `Warn` on `Config.Logger`, naming the consumer ("deleted
+  segment past a consumer's offset; it has lost records", with `consumer`, `offset`, `segment` and
+  `last`), and that `Warn` is how the loss is seen at the moment it happens.
+- `Dropped` lives in the writer's memory and is 0 after a restart, so to find a consumer that
+  has fallen out of retention without the writer, run `quill consumers`: a consumer whose offset is below
+  the first retained sequence gets a NOTE ("behind the first retained sequence N: records X to N-1 are
+  gone"; `-json` adds `"behind_first": true`), and its LAG counts those records although they can no
+  longer be read.
+- Its next read is a `*GapError`; `Commit(To+1)` or `quill commit` moves it past the gap.
+  `quill check` warns of the same consumer and stays HEALTHY.
+
+Unprotected is the default, so `Retention` must be longer than the worst delay of an
+unprotected consumer, or negative.
+
+**Protecting a consumer before it runs.** `Config.ProtectedConsumers` names consumers the writer
 creates, protected, when it opens the log, so a lazy consumer is protected before its process
-starts. A file that already says protected is left alone, so the writer can be redeployed while
-that consumer runs; a consumer whose file says unprotected and whose process is running makes
-`Open` fail with `ErrLocked` until that process opens it with `ProtectOn`, or stops and
-`quill register -protect` runs. `ConsumerTTL` lets a protected consumer that has been behind and
+starts.
+
+- A file that already says protected is left alone, so the writer can be redeployed while
+  that consumer runs.
+- A consumer whose file says unprotected and whose process is running makes
+  `Open` fail with `ErrLocked` until that process opens it with `ProtectOn`, or stops and
+  `quill register -protect` runs.
+
+**Stale consumers.** `ConsumerTTL` lets a protected consumer that has been behind and
 silent for the TTL stop protecting segments; its file is kept and `Stat().StaleConsumers` lists it.
 The `protected` column of `quill consumers` is what the file says, so it still reads true for a stale
 consumer; the command derives staleness from the policy's `ConsumerTTL` and the file's mtime and adds a
@@ -285,29 +339,48 @@ ahead warns through the logger, naming the segment; `quill check` reports the re
 
 Of the four, only `append` creates a log: at a `-dir` that does not exist or is empty it makes one, as `Open` does, and takes the first record. `roll`, `prune` and `recover` act on an existing log: at a `-dir` with no `quill.format` (a mistyped path) they print `quill: not a log: <dir> has no quill.format`, exit 1 and create nothing, as the read verbs do.
 
-Exit codes: 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY or `archive` found the source had lost records (the run still copied what exists). `quill help`, `quill -h` and `quill --help` print the verb list and exit 0, and `quill help <verb>` or `quill <verb> -h` prints that verb's flags and exits 0; `quill` with no verb prints the list and exits 2, and `quill --version` (or `-version`, before a verb) prints what the verb `quill version` prints and exits 0; `quill read -version` is still an unknown-flag usage error (exit 2). `ls` skips a subdirectory that is not a log
-(no `quill.format`) and lists every log it can open; a log it cannot open or read (a damaged or future `quill.format`, no
-permission) gets a row ending in `error: ...`, and `ls` exits 1 after listing the rest, as `stat` and `check` do for that log.
-Only `append` (the records) and `help` (a verb name)
-take positional arguments; any other verb given one, as in `quill read 100` or `quill tail 5 -json`, is a usage error (exit 2,
-"unexpected argument ...; flags go before arguments"): flag parsing stops at the first positional, so the flags after it
-would otherwise be dropped. `append` exits 1 when closing
-the log fails (with `-sync=false` that close is the only flush that can report an error); with
-`-sync=true` the records were already durable, so it still prints the last sequence to stdout
-beside the error on stderr. `roll` and `prune` likewise exit 1, with the error on stderr, when closing
-the log fails after the pass succeeded (`prune` has printed its counts line by then). A verb that could not write its output to standard output (a full disk,
-a closed descriptor) exits 1 instead of 0. Offline verbs run with
+**Exit codes.** 0 ok, 1 error, 2 usage, 3 `check` found the log UNHEALTHY or `archive` found the source had lost records (the run still copied what exists).
+
+- `quill help`, `quill -h` and `quill --help` print the verb list and exit 0, and `quill help <verb>` or `quill <verb> -h` prints that verb's flags and exits 0.
+- `quill` with no verb prints the list and exits 2.
+- `quill --version` (or `-version`, before a verb) prints what the verb `quill version` prints and exits 0; `quill read -version` is still an unknown-flag usage error (exit 2).
+- `ls` skips a subdirectory that is not a log
+  (no `quill.format`) and lists every log it can open; a log it cannot open or read (a damaged or future `quill.format`, no
+  permission) gets a row ending in `error: ...`, and `ls` exits 1 after listing the rest, as `stat` and `check` do for that log.
+- Only `append` (the records) and `help` (a verb name)
+  take positional arguments; any other verb given one, as in `quill read 100` or `quill tail 5 -json`, is a usage error (exit 2,
+  "unexpected argument ...; flags go before arguments"): flag parsing stops at the first positional, so the flags after it
+  would otherwise be dropped.
+- `append` exits 1 when closing
+  the log fails (with `-sync=false` that close is the only flush that can report an error); with
+  `-sync=true` the records were already durable, so it still prints the last sequence to stdout
+  beside the error on stderr.
+- `roll` and `prune` likewise exit 1, with the error on stderr, when closing
+  the log fails after the pass succeeded (`prune` has printed its counts line by then).
+- A verb that could not write its output to standard output (a full disk,
+  a closed descriptor) exits 1 instead of 0.
+
+Offline verbs run with
 background maintenance off and never rewrite `quill.policy`; `append`, `roll` and `recover` take
 the segment size from it (the 1 GiB ceiling when it cannot be read), so they do not seal a large
-active segment; `roll` seals regardless. `prune` needs `quill.policy` or at least one retention flag
+active segment; `roll` seals regardless.
+
+**`prune`** needs `quill.policy` or at least one retention flag
 and refuses otherwise; like the others it opens without the policy's `ProtectedConsumers`, so a running
 consumer does not block it. It prints `segments`, `bytes` and `first` before and after, and `dropped N`,
 the segments the pass deleted while a consumer's offset was below them; each such consumer is named on
-standard error. When the pass did less than the policy allows it says why on standard error: "cannot delete
-segment" (an unlink failed; `Prune` returns the error and `quill prune` exits 1 after printing its counts, and
-`Err()` keeps it until a later pass deletes the segment), "age sweep limited by the clock guard" (exit 0; `-force`
-lifts it), "age sweep stopped at a segment stamped in the future" (exit 0) and "consumer file could not be read"
-(exit 0; the age sweep keeps every segment until the file is fixed or removed, and every pass says so). Numeric flags (`commit -offset`, `prune -max-bytes`,
+standard error. When the pass did less than the policy allows it says why on standard error:
+
+- "cannot delete
+  segment" (an unlink failed; `Prune` returns the error and `quill prune` exits 1 after printing its counts, and
+  `Err()` keeps it until a later pass deletes the segment).
+- "age sweep limited by the clock guard" (exit 0; `-force`
+  lifts it).
+- "age sweep stopped at a segment stamped in the future" (exit 0).
+- "consumer file could not be read"
+  (exit 0; the age sweep keeps every segment until the file is fixed or removed, and every pass says so).
+
+**Numeric flags** (`commit -offset`, `prune -max-bytes`,
 `-min-free-bytes`, `-max-records`, `read`/`cat`/`tail` `-from` and `-limit`, `tail -n`, and
 `@<unix seconds>`) take plain decimal integers, so `010` is ten; `1e6`,
 `1M`, `0x10`, `1_0`, `-1` and trailing text are usage errors, not guesses.
@@ -371,30 +444,52 @@ rewind to the first retained sequence (the `first` that `stat` prints) or by `-t
 segments can name data the copy lacks.
 
 **Archiving.** `quill archive -dir <log> -to <dest>` copies each sealed segment not yet
-copied, verifying every CRC, and commits the `_archive` consumer, which is protected. The `_archive` offset belongs to the
+copied, verifying every CRC, and commits the `_archive` consumer, which is protected.
+
+**The offset belongs to the source.** The `_archive` offset belongs to the
 source log, not to a destination: a new or empty destination receives only the records at or above it, and the run exits 0.
 A destination archived after the consumer has advanced (an earlier run copied to another destination) is therefore a suffix
 of the source, not a complete copy, and `quill check` on it reports it healthy; to copy more, rewind the consumer with
 `quill commit -dir <log> -name _archive -offset N` (the `first` that `quill stat` prints copies the whole retained source)
-and archive again. Archive into one standing destination per source. A segment that runs into the next one's sequences (two overlapping segments, which `Open` refuses too) stops the verb with `ErrCorrupt` before that segment is copied. The
-destination is itself a log that `OpenReader` opens; the verb refuses the source log as its own
-destination and a destination that has a live writer (`ErrLocked`). The destination must be a new or empty directory (a
-`.tmp-*` file or `quill.lock` does not count) or one that is already an archive (it has a `quill.format`); a
-directory that holds anything else and has no `quill.format` is refused with `ErrNoLog` and left untouched, so a
-mistyped `-to` cannot replace an unrelated file. Because `quill.lock` is always 0600, an archiver in a different account than the destination's writer cannot open that lock; the verb treats the permission error as a writer that may be live and refuses (the error is both `ErrLocked` and a permission error), so archive into a directory the archiver's own account owns. A destination directory it cannot search at all is refused with a plain permission error that names the directory and claims no writer (it is not `ErrLocked`), and a destination that holds anything but a log is refused with `ErrNoLog` saying it is not empty and that Archive needs a new or empty directory or an existing archive. To archive the newest records, `quill
+and archive again. Archive into one standing destination per source. A segment that runs into the next one's sequences (two overlapping segments, which `Open` refuses too) stops the verb with `ErrCorrupt` before that segment is copied.
+
+**The destination:**
+
+- It is itself a log that `OpenReader` opens; the verb refuses the source log as its own
+  destination and a destination that has a live writer (`ErrLocked`).
+- It must be a new or empty directory (a
+  `.tmp-*` file or `quill.lock` does not count) or one that is already an archive (it has a `quill.format`); a
+  directory that holds anything else and has no `quill.format` is refused with `ErrNoLog` and left untouched, so a
+  mistyped `-to` cannot replace an unrelated file.
+- Because `quill.lock` is always 0600, an archiver in a different account than the destination's writer cannot open that lock; the verb treats the permission error as a writer that may be live and refuses (the error is both `ErrLocked` and a permission error), so archive into a directory the archiver's own account owns.
+- A destination directory it cannot search at all is refused with a plain permission error that names the directory and claims no writer (it is not `ErrLocked`), and a destination that holds anything but a log is refused with `ErrNoLog` saying it is not empty and that Archive needs a new or empty directory or an existing archive.
+
+**Newest records and disk pressure.** To archive the newest records, `quill
 roll` first (or `Roll()` in the writer). Under disk pressure the caps still win, so an
-archive can fall behind; `Stat().Dropped` counts the loss. A source that lost segments gives
+archive can fall behind; `Stat().Dropped` counts the loss.
+
+**When the source lost records.** A source that lost segments gives
 an archive without those records. The run that finds the loss copies what exists, prints
 `the source lost records N to M; the archive does not have them` on standard error, and exits 3 (the
 code `check` uses for UNHEALTHY; the library returns a `*GapError`), so `quill archive && notify-ok` does not
-report success for an incomplete archive. It finds it two ways: the `_archive` offset is below the source's first
-retained sequence, or the destination's `quill.tail` names a last record below the first segment the run copies, which
-is how it shows after `quill unregister -name _archive` recreated the consumer at the first retained sequence (at 1 when a damaged oldest segment left a gap below it). The
-run that reports the loss commits past it, so the next run has nothing to copy and exits 0 (unless it copied nothing, as when every sealed segment is damaged: nothing is committed then, and every run exits 3 until `quill commit -name _archive -offset N` goes past the gap); What `quill check -dir <dest>` then says depends on where the lost records fall in the destination.
-If the destination already held records below it, the hole is a gap between two of its segments and `check` reports it (exit 3).
-If the destination starts after the lost records (a new destination, or a source whose damaged oldest segment is a hole from 1), no
-damaged file was copied and nothing in the destination records the loss, so `check` prints HEALTHY (exit 0), and `quill stat -dir <dest>`
-shows `first` past 1. So the exit 3 of the run that found the loss is the only report of it, and the next run exits 0: a script that must
+report success for an incomplete archive. It finds it two ways:
+
+- The `_archive` offset is below the source's first
+  retained sequence.
+- The destination's `quill.tail` names a last record below the first segment the run copies, which
+  is how it shows after `quill unregister -name _archive` recreated the consumer at the first retained sequence (at 1 when a damaged oldest segment left a gap below it).
+
+The
+run that reports the loss commits past it, so the next run has nothing to copy and exits 0 (unless it copied nothing, as when every sealed segment is damaged: nothing is committed then, and every run exits 3 until `quill commit -name _archive -offset N` goes past the gap).
+
+**What `check` says about the destination afterwards** depends on where the lost records fall:
+
+- If the destination already held records below it, the hole is a gap between two of its segments and `check` reports it (exit 3).
+- If the destination starts after the lost records (a new destination, or a source whose damaged oldest segment is a hole from 1), no
+  damaged file was copied and nothing in the destination records the loss, so `check` prints HEALTHY (exit 0), and `quill stat -dir <dest>`
+  shows `first` past 1.
+
+So the exit 3 of the run that found the loss is the only report of it, and the next run exits 0: a script that must
 not lose track of the loss has to act on that exit 3 itself (record it, or stop and alert), not rely on a later `archive` or on `check`.
 
 A rerun after rewinding (`quill commit -name _archive -offset N`) verifies the segments it meets again. A destination segment of the
