@@ -757,7 +757,7 @@ the auditor's proposed fix and the skeptics' notes, not decisions. Ranked by wha
 
 | id | sev | one line | recommended | status 2026-10-30 |
 |----|-----|----------|-------------|----|
-| A4-5 | low | the release archives ship the Go runtime and standard library with no copy of its licence | add the Go licence text at the flip; reword decisions 22 and 15 | not in the A1h ledger; unchanged |
+| A4-5 | low | the release archives ship the Go runtime and standard library with no copy of its licence | add the Go licence text at the flip; reword decisions 22 and 15 | not in the A1h ledger; unchanged. **Resolved 2026-11-04** (owner-approved, L5-4, commit `fix(stage2 L5-4)`; see the section) |
 | A4-4 | medium | a workspace path is still in the v0.1.0 tag and in earlier history (the tip is fixed) | decide squash or filter, or accept, before pushing | not in the A1h ledger; unchanged |
 | A4-3 | medium | the private reporting channel named in `SECURITY.md` exists only if the setting is enabled | enable private vulnerability reporting | not in the A1h ledger; unchanged |
 | A4-1 | medium | the Go toolchain pin is enforced by the gate only; the `build/quill` half is fixed in this commit, the CI half was refuted | land the fix, rebased, with a fix-skeptic | approved; fixed in this commit (`build/quill` half only; the CI half was refuted because the pinned setup-go reads the toolchain line) |
@@ -778,6 +778,8 @@ decisions 22 and 15 to say that no third-party source is vendored while the stan
 the notice duty met by a link; record that choice in decision 22.
 
 **Fix written.** None.
+
+**Update 2026-11-04 (owner-approved, L5-4; resolved with the commit on branch `stage2/L5-4-a1` titled `fix(stage2 L5-4)`).** The owner approved the recommended answer: ship the Go licence text with the binaries. `THIRD-PARTY-NOTICES` at the repository root has a short header (what it covers; quill is Apache-2.0, see `LICENSE`; no other third-party code ships, `go list -m all` lists only the module) and the Go `LICENSE` unchanged from the go1.27.3 toolchain that `go.mod` pins. `build/quill` copies it into each archive beside `LICENSE`; the archives gain one member and nothing else changes (two builds give identical `SHA256SUMS`). `TestThirdPartyNoticesCarryGoLicense` (skips when the toolchain's `LICENSE` is unreadable) catches a toolchain bump that changes the text; `TestBuildScriptReproducibleArchives` asserts every archive holds the file's bytes. README, decisions 22, 15 and 54, `supply-chain.md`, `release-v0.2.0.md` and the CHANGELOG say so. It is not a breaking change: no API, flag, message or exit code moved. The wording is deliberately limited: the file carries the notice the licence's binary-redistribution clause asks for (reported, from the licence text in `GOROOT`); the owner or counsel decides whether anything more is needed. The SBOM is untouched.
 
 ## A4-4: a workspace path remains in the v0.1.0 tag and in earlier history (medium; the tip is fixed)
 
@@ -2776,7 +2778,7 @@ keep it, and add the missing CHANGELOG line (done in the same hand commit as the
 canonical text (sha256 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`, 11,358 bytes, fetched from apache.org by the assistant).
 Updated in the same commit: README (archive contents, Status), `scope.md` (two lines), decisions 22 and 54, the CHANGELOG, and the release record's
 three LICENSE entries. Not done, and not required by the licence: per-file headers, a `NOTICE` file, and the Go standard library's notice in the
-archives (A4-5, still open for the owner). The copyright holder is not named anywhere in the tree; the licence text needs none.
+archives (A4-5, open when this was written and resolved the same day, see that section). The copyright holder is not named anywhere in the tree; the licence text needs none.
 
 **History rewritten (A4-4, A4r-1), owner decision 2026-11-04: filtered, not squashed, not accepted.** Hand finish by the assistant, no
 fix-skeptic. A backup bundle of all 500 refs was made and verified first (kept outside the repository). The filter replaced the one quoted

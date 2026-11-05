@@ -29,7 +29,7 @@ auditor's own reproductions are in the items and are not counted.
 | fixed in the tip only, fix-skeptic FIXED-VERIFIED; history is held for the owner | 1 | A4-4 |
 | fix landed on main without a fix-skeptic (see A4-3) | 1 | A4-3 |
 | fixed in this commit for the `build/quill` half; the CI half was refuted at the pinned setup-go (see A4-1) | 1 | A4-1 |
-| held for the owner, no fix | 1 | A4-5 |
+| fixed, owner-approved 2026-11-04 (commit `fix(stage2 L5-4)`; see A4-5) | 1 | A4-5 |
 | deliberately not changed (REFUTED) | 2 | A4-2, A4-6 |
 
 Severity as the auditor assigned it: medium 5 (A4-1, A4-2, A4-3, A4-4, A4-6), low 5 (A4-5, A4-7, A4-8, A4-9, A4-10). The
@@ -120,9 +120,9 @@ does not run it (A4-10), CI does.
 
 | state | evidence | verdict |
 |-------|----------|---------|
-| no `LICENSE`, no `THIRD-PARTY-NOTICES` | `git ls-files` (verified); decision 22 says so on purpose, README Status says so | intended while private (A4-6 REFUTED) |
-| release archives carry README, CHANGELOG, SECURITY and `LICENSE` if present | `build/quill:63-65` now | a missing `LICENSE` is skipped silently; intended in the private period |
-| archives ship the Go runtime and standard library (BSD-3-Clause) with no copy of that licence | A4-5 | CONFIRMED, held for the owner |
+| no `LICENSE`, no `THIRD-PARTY-NOTICES` | `git ls-files` (verified); decision 22 says so on purpose, README Status says so | intended while private (A4-6 REFUTED); both files have since been added (2026-11-04, see A4-5) |
+| release archives carry README, CHANGELOG, SECURITY and `LICENSE` if present | `build/quill:63-65` now | a missing `LICENSE` is skipped silently; intended in the private period. Since 2026-11-04 they also carry `THIRD-PARTY-NOTICES` if present (A4-5) |
+| archives ship the Go runtime and standard library (BSD-3-Clause) with no copy of that licence | A4-5 | CONFIRMED; fixed 2026-11-04 (owner-approved): the licence text ships as `THIRD-PARTY-NOTICES` |
 | a `LICENSE` lands before the repository goes public | decision 54 (reported) | not yet done; an owner action |
 
 ## Build and CI findings
@@ -264,7 +264,7 @@ passed. The skeptic's objection stands as the residual: the text is still in the
 owner squashes or filters history, or accepts it. No gate check stops a path from being reintroduced (deliberately not added). History is
 held for the owner.
 
-### A4-5: the archives ship the Go runtime with no copy of its licence (low; CONFIRMED, 2 votes, 1 reproduced; held for the owner)
+### A4-5: the archives ship the Go runtime with no copy of its licence (low; CONFIRMED, 2 votes, 1 reproduced; owner-approved 2026-11-04, fixed)
 
 **Claim.** The release archives contain a statically linked Go runtime and standard library (BSD-3-Clause) with no copy of that licence or notice, so
 decision 22's "no third-party code ships, so no THIRD-PARTY-NOTICES" does not hold for the binaries.
@@ -285,6 +285,8 @@ reading clause 2 of the licence in the local GOROOT, and by listing an existing 
 **Disposition.** Held for the owner, with the recommended answer: at the flip add the Go licence text to each archive and to the repository (or a
 THIRD-PARTY-NOTICES file naming the Go standard library), and reword decisions 22 and 15. No fix written; it is a semantic change to a recorded decision.
 
+**Resolved 2026-11-04 (owner-approved, L5-4; the commit titled `fix(stage2 L5-4)`).** `THIRD-PARTY-NOTICES` at the repository root holds a short header and the Go `LICENSE` text unchanged, copied from the go1.27.3 toolchain that `go.mod` pins (verified: `go list -m all` lists only the quill module, so nothing else ships). `build/quill` copies it into each archive beside `LICENSE`, with the same `[ -f ... ] && cp` form; the archives have one more member and the reproducibility test (two builds, identical `SHA256SUMS`) passes. `TestThirdPartyNoticesCarryGoLicense` compares the file with the toolchain's `LICENSE`; `TestBuildScriptReproducibleArchives` asserts every archive carries the file's bytes. Decisions 22 and 15 carry dated notes. This carries the notice the licence's binary-redistribution clause asks for (reported, from the licence text); the owner or counsel decides whether anything more is needed. The SBOM is unchanged.
+
 ### A4-6: `build/quill` does not enforce a LICENSE and README Status reads "Private" (rated medium by the auditor; REFUTED, 2 votes to 0)
 
 **Claim.** There is no LICENSE, as decision 22 says, but the release build silently builds archives without one and README Status still reads "Private,
@@ -302,7 +304,7 @@ conceded the absence is deliberate and owner-controlled. Neither voter rebuilt t
 **Verdict.** REFUTED, 2 votes to 0.
 
 **Disposition.** Deliberately not changed: a guard would break the release build that decisions 22 and 70 call for during the private period. The residual is a
-flip-time checklist: add LICENSE (and the A4-5 notice), update the README Status, confirm the SECURITY contact, and tag a new version. An opt-in or
+flip-time checklist: add LICENSE (and the A4-5 notice; both done 2026-11-04), update the README Status, confirm the SECURITY contact, and tag a new version. An opt-in or
 flip-time guard in `build/quill` is a hardening idea for the owner, not a defect.
 
 ### A4-7: release archives and the SBOM were not reproducible and carried the builder's account (low; CONFIRMED, 2 votes, both reproduced; fixed)
@@ -413,7 +415,7 @@ remains in the historical build prompt (`docs/design/build-prompt.md:21`, govuln
 
 Ranked by what the public flip needs, then by reach. Items 1 to 4 are owner actions or decisions; none is something the audit can do for the owner.
 
-1. Add the `LICENSE`, and the Go licence notice in the archives and the repository (A4-5, decision 54); reword decisions 22 and 15; update the README Status (A4-6 residual).
+1. Add the `LICENSE`, and the Go licence notice in the archives and the repository (A4-5, decision 54); reword decisions 22 and 15; update the README Status (A4-6 residual). `LICENSE` and the notice (`THIRD-PARTY-NOTICES`) are done 2026-11-04, decisions 22 and 15 are reworded; the README Status is not part of that change.
 2. Decide the history question before pushing anything (A4-4 residual): squash or filter so that neither the v0.1.0 tree nor earlier commits contain the workspace path, or accept it.
    Whatever is chosen, remember that the v0.1.0 tag also carries the old `SECURITY.md` and none of the A4 fixes, that main is 52 commits ahead, and that `build/quill` refuses an untagged HEAD, so the
    public release needs a new tag on a clean tree.
@@ -743,7 +745,7 @@ Auditors that failed to return: none.
   `GOFLAGS` and `GOEXPERIMENT` remain the builder's, by decision.
 - No dependency, no advisory, no reachable vulnerability, no secret, no internal name in the tree at HEAD.
 - Open, all owner decisions and unchanged in substance from the first pass's ranked action list above: the `LICENSE` and the
-  Go licence notice (A4r-4, A4-5), the history question and what to push (A4r-1, A4-4), the GitHub-side settings (A4r-4,
+  Go licence notice (A4r-4, A4-5; both done 2026-11-04), the history question and what to push (A4r-1, A4-4), the GitHub-side settings (A4r-4,
   A4-3), and whether the architecture description needs trimming (A4r-5). Optional: tag-format validation (A4r-3, A4-10).
 - Two points to add to the first pass's list: its item 5 says never to push the `stage2/*` branches, and the count is now
   454 local branches of several kinds, so the rule is to push main and the new tag only, never `--all` or `--mirror`

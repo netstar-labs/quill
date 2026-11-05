@@ -123,7 +123,7 @@ func TestBuildScriptReproducibleArchives(t *testing.T) {
 	}
 	write("go.mod", pinnedGoMod(t), 0o644)
 	write("cmd/quill/main.go", "package main\n\nvar version = \"unset\"\n\nfunc main() { _ = version }\n", 0o644)
-	for _, f := range []string{"README.md", "CHANGELOG.md", "SECURITY.md", "LICENSE"} {
+	for _, f := range []string{"README.md", "CHANGELOG.md", "SECURITY.md", "LICENSE", "THIRD-PARTY-NOTICES"} {
 		write(f, f+"\n", 0o644)
 	}
 	write("build/quill", string(script), 0o755)
@@ -179,6 +179,7 @@ func TestBuildScriptReproducibleArchives(t *testing.T) {
 			t.Errorf("%s: gzip header carries a time, %v", base, zr.ModTime)
 		}
 		var names []string
+		var notices []byte
 		tr := tar.NewReader(zr)
 		for {
 			h, err := tr.Next()
@@ -189,6 +190,11 @@ func TestBuildScriptReproducibleArchives(t *testing.T) {
 				t.Fatal(err)
 			}
 			names = append(names, h.Name)
+			if strings.HasSuffix(h.Name, "/THIRD-PARTY-NOTICES") {
+				if notices, err = io.ReadAll(tr); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if h.Uid != 0 || h.Gid != 0 || h.Uname != "" || h.Gname != "" {
 				t.Errorf("%s: %s carries an owner: uid %d gid %d uname %q gname %q",
 					base, h.Name, h.Uid, h.Gid, h.Uname, h.Gname)
@@ -205,8 +211,13 @@ func TestBuildScriptReproducibleArchives(t *testing.T) {
 			}
 		}
 		f.Close()
-		if !sort.StringsAreSorted(names) || len(names) != 6 {
-			t.Errorf("%s: entries %v, want 6 in name order", base, names)
+		if !sort.StringsAreSorted(names) || len(names) != 7 {
+			t.Errorf("%s: entries %v, want 7 in name order", base, names)
+		}
+		// The Go runtime and standard library are linked into the binary, and their licence asks
+		// for its notice in binary redistributions: every archive carries the repository's file.
+		if string(notices) != "THIRD-PARTY-NOTICES\n" {
+			t.Errorf("%s: THIRD-PARTY-NOTICES is %q, want the repository file's bytes", base, notices)
 		}
 	}
 	sbom, _ := filepath.Glob(filepath.Join(dir, "build", "install", "*.cdx.json"))
@@ -255,6 +266,28 @@ func TestBuildScriptReproducibleArchives(t *testing.T) {
 	time.Sleep(2100 * time.Millisecond)
 	if second := build(); second != first {
 		t.Errorf("two builds of one commit differ:\n%s\n---\n%s", first, second)
+	}
+}
+
+// The release binaries statically link the Go runtime and standard library (BSD-3-Clause),
+// whose licence asks for its text with a binary redistribution (audit A4-5). The repository's
+// THIRD-PARTY-NOTICES carries the toolchain's LICENSE verbatim, so a toolchain bump that changes
+// the licence text fails here until the file is refreshed.
+func TestThirdPartyNoticesCarryGoLicense(t *testing.T) {
+	out, err := exec.Command("go", "env", "GOROOT").Output()
+	if err != nil {
+		t.Skipf("go env GOROOT: %v", err)
+	}
+	lic, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(out)), "LICENSE"))
+	if err != nil {
+		t.Skipf("the toolchain's LICENSE is not readable: %v", err)
+	}
+	notices, err := os.ReadFile("THIRD-PARTY-NOTICES")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(notices), string(lic)) {
+		t.Errorf("THIRD-PARTY-NOTICES does not contain the Go LICENSE text of %s verbatim", runtime.Version())
 	}
 }
 
