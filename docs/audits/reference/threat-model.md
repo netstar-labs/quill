@@ -1011,6 +1011,8 @@ every frame's CRC to reach the offset.
 **Backing.** scope.md "Performance gate" ("Read cost does not grow with backlog: ... the sparse index seeks within a segment") and decision
 63. The T19 backlog test compares only a start read with a tail read on tiny segments, so it cannot catch this (inferred by a skeptic).
 
+**Later (2026-11-05).** Fixed after v0.2.0 (decision 63 amended; CHANGELOG "Unreleased"). The grounds above describe the code at the tag.
+
 **Rebuttal.** Decision 63 chose not to cache the active segment, for correctness after a writer crash; Records and Follow avoid the cost with a
 byte cursor; with the default 8 MiB segments the per-call cost is at most a few milliseconds; the segment-count cost needs hundreds of
 thousands of segments.

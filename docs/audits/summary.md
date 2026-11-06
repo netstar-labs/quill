@@ -40,14 +40,12 @@ State words are the release record's: **open** stays unless someone acts, **acce
 release. The full table, with the section of the record that holds each item, is "Known limitations and open items at the tag" in
 [release-v0.2.0.md](release-v0.2.0.md).
 
-- **Open, no fix written:** A3-7 (a symlinked `consumers/` directory is followed), A3-24 (the printed `time` field has no range check),
-  A3-26 (an unlinked `quill.lock` lets a second writer open until the first writer's next flush or prune pass).
 - **Open, other:** A3-10 points 1, 3 and 4 (the fix-skeptic's open points on `archive`, `tail` and `check` around a damaged oldest
   segment) and the optional `Archive` refusal (L1-12, optional, not approved).
-- **Accepted:** A1d-1 (a live retention pass syncs the directory once per deleted segment while holding the log's lock; the cost is not
+- **Accepted:** A3-7 (a symlinked `consumers/` directory is followed), A3-24 (the printed `time` field has no range check) and A3-26 (an unlinked `quill.lock` lets a second writer open, but the first writer's next flush fails before it writes; mitigated by `6acc23e`, the residual accepted), all three by the owner on 2026-11-05 (they were open at the tag); A1d-1 (a live retention pass syncs the directory once per deleted segment while holding the log's lock; the cost is not
   documented), A5-5 (a long-lived `Reader` does not notice that its directory was replaced), A4r-3 (the build script accepts any tag
   name).
-- **Deferred:** A3-18 (a `Reader` read costs in proportion to the log, not the request).
+- **Deferred:** A3-18 (a `Reader` read costs in proportion to the log, not the request). *Fixed after the tag, 2026-11-05 (CHANGELOG "Unreleased", decision 63 amended); the state at the tag is as written here.*
 - **Finished by hand, no fix-skeptic re-run on the final state:** A7-18 and A7-19 (the upgrade note and the README install section),
   L1-3, L1-4, L1-10 and the last comments of A3-10. Also finished by hand with no fix-skeptic: the history filter, the `LICENSE`
   commit and the `Reader` change kept at the owner's word (a view overtaken by a rotation restarts), recorded in the ledger section

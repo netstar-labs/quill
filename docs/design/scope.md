@@ -447,14 +447,7 @@ runs, in `docs/audits/reference/benchmark-baselines.md`. A later release may not
 The recorded baselines on the build machine: `Read(limit 100)` at about 21–36 µs depending on the segment,
 a full `ScanAll` at about 21 M records/s over 400 K warm records, and a `Reader` draining a backlog at about
 16 M records/s. The marker write and fsync on every flush, which the reference did not have, is about half
-of a flush's 10 ms on macOS; the baselines state that cost. Read cost does not grow with the backlog of sealed segments the way a scan would: segments below the offset are skipped without
-being opened (a `Reader` still lists the directory and rebuilds its view of the sealed segments on every call, O(sealed segments)),
-the sparse index seeks within a sealed segment, and a read stops after `limit` records. A cursorless `Reader` read of the
-*active* segment (`Read`, `ReadWait`, `Scan` or a `Consumer.Read` without an iterator) re-walks and CRC-checks that segment
-from its first byte to the requested offset, so it costs O(offset within the segment), bounded by `SegmentBytes`: measured at
-379 ms for a read at the top of a 343 MB active segment of 3,000,000 records (an audit measurement on a Linux box), and a few
-milliseconds at the default 8 MiB segment (an extrapolation, not a benchmark). `Records` and `Follow` carry a byte cursor and
-avoid it; a polling consumer should use them. `Commit` now writes a file (one fsync per commit), so consumers commit per batch.
+of a flush's 10 ms on macOS; the baselines state that cost. Read cost does not grow with the backlog of sealed segments the way a scan would: segments below the offset are skipped without being opened, the sparse index seeks within a sealed segment, and a read stops after `limit` records. A `Reader` keeps the references to the sealed segments between calls and lists the directory again only when the marker moves to a new segment or the oldest sealed segment is gone, and it keeps a sparse index of the part of the *active* segment it has verified, so a cursorless read (`Read`, `ReadWait`, `Scan` or a `Consumer.Read` without an iterator) starts near the offset asked for (decision 63, amended 2026-11-05 for A3-18). Before that amendment such a read re-walked and CRC-checked the active segment from its first byte and rebuilt its view of the sealed segments on every call: 379 ms at the top of a 343 MB active segment of 3,000,000 records (an audit measurement on a Linux box). Now: 57 µs at the top of a nearly full 8 MiB segment and 59 µs at the top of a 64 MiB one on macOS, 24 µs and 83 µs on a Linux ext4 box, and 36 µs (macOS) and 59 µs (Linux) with about 1,000 sealed segments of 64 KiB, where it was 757 µs and 972 µs (medians of repeated reads on a real directory; the 343 MB case was not re-run). The first read of a segment by a `Reader` still checks it up to the offset, once. `Records` and `Follow` carry a byte cursor and avoid even that; a polling consumer should still use them. `Commit` now writes a file (one fsync per commit), so consumers commit per batch.
 
 ### Platforms
 

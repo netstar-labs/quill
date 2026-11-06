@@ -1028,6 +1028,8 @@ is the larger change and only worth it if polling consumers are expected.
 
 **Disposition.** Wording only, in 3c36fc0 (on main; verified from `git log`); no code changed and no fix-skeptic ran. scope.md's performance gate and decision 63 now state that a read with no iterator cursor (`Reader.Read`, `ReadWait`, `Scan`, `Consumer.Read`) re-walks and CRC-checks the active segment from byte 0 to the requested offset, O(offset within the segment) and bounded by `SegmentBytes`, and rebuilds the sealed-segment view, O(sealed segments), on every call; `Records` and `Follow` avoid both, and the user guide tells polling consumers to use them. The measured 379 ms is the auditor's, on the Linux box, at the top of a 343 MB active segment; "a few milliseconds at the default 8 MiB segment" is an extrapolation and is labelled as one in scope.md. Not done: caching sealed refs between views as `Log` does (decision 103).
 
+**Later disposition (2026-11-05, owner-approved: "A3-18 step 1, 2 amend 63").** Both steps were done: (1) a `Reader` keeps the references to the sealed segments between views, listing the directory only when the marker moves to a new segment or the oldest sealed segment is gone, and (2) it keeps a sparse index of the active segment's verified prefix, extended lazily to the frame a read needs, so a cursorless read starts at the nearest anchor. Decision 63 is amended to say so. The sealed-ref cache alone was measured first and would not have been enough: on the Linux box a bare `os.ReadDir` of 1,043 sealed segments was 471 us of a 972 us `Reader.Read`, and on macOS 491 us of 626 us, so the plan keeps the listing out of the steady state with a one-`lstat` check of the oldest sealed segment instead (retention deletes oldest first, decision 65). The scribe design (an in-memory sparse index per segment, refreshed incrementally) was the model for step 2, read from scribe's `docs/architecture.md`, not from its code; its fixed-width offsets do not carry over to quill's variable-length frames.
+
 ## A3-19: the first-frame probe reads and CRC-checks the whole first frame (low, PLAUSIBLE)
 
 **Claim.** The Reader's probe of each uncached sealed segment (reader.go:249 now, `window.frameAt(0)`) reads, allocates and
@@ -2341,6 +2343,8 @@ consumer path helper, with a test per verb against a symlinked and a real `consu
 
 **Fix written.** None. The auditor's proposal is in threat-model.md, A3-7.
 
+**Later disposition (2026-11-05, owner).** Accepted as recommended: the code stays, the wording of decision 51 and SECURITY.md stands.
+
 ### A3-24 (`time` field): range-check the printed time
 
 **Claim.** The `time` field is `time.Unix(rec.At, 0).UTC()` formatted as RFC 3339 with no range check: `At` 253402300800
@@ -2356,6 +2360,8 @@ unchecked format, and the case needs a crafted file. If the owner wants it, prin
 `-json` only and document it in format.md next to the `time` definition.
 
 **Fix written.** None. The auditor's proposal is in threat-model.md, A3-24.
+
+**Later disposition (2026-11-05, owner).** Accepted as recommended: no change; `at` is the exact value.
 
 ### A3-26: unlinking `quill.lock` under a live writer lets a second writer open
 
@@ -2376,6 +2382,16 @@ state it as the disposition. The sentence "never delete `quill.lock`" suggested 
 step.
 
 **Fix written.** None for A3-26 itself; 6acc23e is the related fix for the first writer.
+
+**Later disposition (2026-11-05, owner: accepted; the directory lock is not built).** Re-run on 2026-11-05 (verified, a scratch program
+against the code at 7be4b54): with `quill.lock` unlinked under a live writer, a second writer opened; the first writer's next flush
+returned `ErrFailed` before it wrote anything; all ten acknowledged records were intact and `Check` was healthy. This corrects the
+claim above that the first writer's records and the second's can overwrite each other: no such overwrite was produced, because the
+first writer's check runs at the top of `flushLocked`, before any write. The residual is the gap between that check and the write
+(microseconds) and the delay before an idle first writer notices (its next flush or prune pass; the background flusher only runs a
+flush when records are buffered or a publish is pending, and a prune pass runs at most every minute by default). A directory-level
+`flock` was not built: it would let anyone who can create the lock directory refuse every writer, and it does not protect against
+writers older than the change. A3-26 is closed as mitigated by 6acc23e with that residual accepted.
 
 ## Held after pass A7
 

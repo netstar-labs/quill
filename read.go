@@ -71,6 +71,10 @@ type segRef struct {
 	// segment is active) and returns the segment's exact last sequence, which a Reader only
 	// learns by scanning: a last below the derived range end exposes a hole.
 	ensureIndex func() ([]anchor, uint64, error)
+	// indexTo returns a Reader's active segment's anchors, extended through the frame holding
+	// seq, or nil when it has none (decision 63). A read that has no cursor into the segment
+	// starts at the last anchor at or below its sequence instead of at byte 0.
+	indexTo func(seq uint64) []anchor
 }
 
 // segView is a snapshot of a log's segments: the good ones ascending, the holes, the head
@@ -112,6 +116,24 @@ func (v *segView) locate(seq uint64) (*segRef, error) {
 		return v.segs[i-1], nil
 	}
 	return nil, &GapError{From: seq, To: seq} // between segments with no hole recorded: cannot happen
+}
+
+// withLast puts a copy of s that ends at last in s's place in the view and returns it. The
+// references of a view may be shared with other views (a Reader keeps them between calls,
+// decision 63), so a read that learns where a segment really ends never writes one.
+func (v *segView) withLast(s *segRef, last uint64) *segRef {
+	c := *s
+	c.last = last
+	i, _ := slices.BinarySearchFunc(v.segs, s.first, func(s *segRef, target uint64) int {
+		if s.first > target {
+			return 1
+		}
+		return -1
+	})
+	if i > 0 && v.segs[i-1] == s {
+		v.segs[i-1] = &c
+	}
+	return &c
 }
 
 // readRecordOverhead is what each record delivered counts against MaxReadBytes besides its
@@ -221,11 +243,14 @@ func scanSource(src source, from cursor, limit int, maxBytes int, copyPayloads, 
 			if last < s.last {
 				// The segment ends before the next one starts: a hole the first frames
 				// could not show. Serve up to its real end; the gap is reported past it.
-				holeTo, s.last = s.last, last
+				holeTo, s = s.last, v.withLast(s, last)
 				if cur > last {
 					return fail(&GapError{From: cur, To: holeTo})
 				}
 			}
+		}
+		if index == nil && s.indexTo != nil && !(from.valid && from.segID == s.id && from.seq == cur) {
+			index = s.indexTo(cur)
 		}
 		r, size, closer, err := s.open()
 		if err != nil {

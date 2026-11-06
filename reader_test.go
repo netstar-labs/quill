@@ -671,7 +671,9 @@ func TestADamagedSegmentStaysCachedAsBadAcrossReaderCalls(t *testing.T) {
 	}
 	opens := 0
 	s.Inject = func(op fsx.Op, name string) error {
-		if name == seg0 {
+		// An lstat is the Reader's check that its oldest sealed segment is still there (the
+		// plan's probe, decision 63); opening or reading the segment is what must not repeat.
+		if name == seg0 && op != fsx.OpLstat {
 			opens++
 		}
 		return nil

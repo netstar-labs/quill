@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"math"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,7 +50,50 @@ type Reader struct {
 	segs   map[uint64]*readerSegment // sealed segments by id, built on first use
 	closed bool
 
+	// actMu guards act, the verified prefix of the active segment (decision 63, amended for
+	// A3-18). It is held while the prefix is extended, so concurrent reads of the active
+	// segment on one Reader take turns.
+	actMu sync.Mutex
+	act   *activeIndex
+
+	// plan is the last view's references to the sealed segments, kept while the marker still
+	// names the same active segment and the oldest sealed segment is still there, so a view
+	// that finds nothing changed does not list the directory (decision 63, amended for A3-18).
+	// It is guarded by mu. scanGen counts finished scans of sealed segments: one tells a view
+	// where a segment really ends, so a plan built before it is not used after it.
+	plan    *sealedPlan
+	scanGen atomic.Uint64
+
 	bufPool sync.Pool
+}
+
+// sealedPlan is what one view made of the sealed segments: their references and the holes
+// among them. Nothing in it is written once it is stored: a view copies the slice of
+// references, and a read that learns where a segment really ends copies the reference
+// (segView.withLast).
+type sealedPlan struct {
+	seg         uint64 // the marker's segment when the plan was built
+	activeFirst uint64 // that segment's first sequence, 0 when the marker covered no frame of it
+	seq         uint64 // the marker's sequence, which the plan depends on only when activeFirst is 0
+	gen         uint64 // Reader.scanGen when the plan was built
+	oldest      string // the path of the oldest sealed segment listed, "" when there was none
+	refs        []*segRef
+	holes       []Hole
+}
+
+// activeIndex is what a Reader has verified of the active segment: the frames in [0, end) are
+// whole, contiguous and CRC-good, and index holds one anchor per indexStride of them, the first
+// frame always. Bytes below the marker's offset are durable and are never rewritten (decisions
+// 39 and 65), so the prefix stays true for as long as it is the same file and has not shrunk.
+// Nothing above the marker's offset, and no payload, is kept.
+type activeIndex struct {
+	file    fs.FileInfo // the file the prefix was verified in, compared with fsx.SameFile
+	first   uint64      // the first frame's Seq and At as the view read them: a file system may reuse
+	firstAt int64       // an inode, so a new segment can look like the file it replaced
+	end     int64       // the byte after the last verified frame
+	last    uint64      // that frame's Seq
+	next    int64       // the position at or after which the next anchor is taken
+	index   []anchor
 }
 
 // readerSegment is what a Reader has learned about one sealed, immutable segment.
@@ -278,7 +322,51 @@ func (r *Reader) segment(id uint64) (*readerSegment, error) {
 func (r *Reader) forget(id uint64) {
 	r.mu.Lock()
 	delete(r.segs, id)
+	r.plan = nil
 	r.mu.Unlock()
+}
+
+// livePlan returns the kept plan when it still describes the sealed segments: the marker names
+// the segment it was built for, no scan has finished since, and the oldest sealed segment is
+// still there. Retention deletes oldest first (decision 65), so while the oldest is there the
+// ones after it are too; a segment removed out of order is met when it is opened, as a gap
+// (decision 101), and forget drops the plan then.
+func (r *Reader) livePlan(tl tail, gen uint64) *sealedPlan {
+	r.mu.Lock()
+	p := r.plan
+	r.mu.Unlock()
+	if p == nil || p.seg != tl.Seg || p.gen != gen {
+		return nil
+	}
+	if p.oldest != "" {
+		if _, err := r.fs.Lstat(p.oldest); err != nil {
+			return nil
+		}
+	}
+	return p
+}
+
+// listSealed lists the segments below the marker's, in id order, building the Reader's
+// record of each on first sight, and drops what the directory no longer holds.
+func (r *Reader) listSealed(tl tail) ([]*readerSegment, error) {
+	// Not listSegments: this runs on every call, and the extra id slice it builds costs more
+	// allocations and bytes per view than iterating the names directly.
+	names, err := r.fs.ReadDir(r.dir)
+	if err != nil {
+		return nil, err
+	}
+	sealed := make([]*readerSegment, 0, len(names))
+	for _, n := range names {
+		if id, ok := parseSegmentName(n); ok && id < tl.Seg {
+			s, err := r.segment(id)
+			if err != nil {
+				return nil, err
+			}
+			sealed = append(sealed, s)
+		}
+	}
+	r.prune(sealed)
+	return sealed, nil
 }
 
 // prune drops every cached segment that the latest listing no longer holds: retention deleted
@@ -357,8 +445,9 @@ func (r *Reader) view() (*segView, func(), error) {
 	}
 }
 
-// buildView reads the marker, lists the directory, and builds the segment ranges from first
-// frames (decision 47): a sealed segment's range ends where the next one starts.
+// buildView reads the marker, lists the directory unless the last view's references are still
+// good (livePlan), and builds the segment ranges from first frames (decision 47): a sealed
+// segment's range ends where the next one starts.
 func (r *Reader) buildView() (*segView, func(), error) {
 	r.mu.Lock()
 	closed := r.closed
@@ -366,27 +455,18 @@ func (r *Reader) buildView() (*segView, func(), error) {
 	if closed {
 		return nil, nil, ErrClosed
 	}
+	gen := r.scanGen.Load() // before anything below reads a scan's result
 	tl, err := r.readTail()
 	if err != nil {
 		return nil, nil, err
 	}
-	// Not listSegments: this runs on every call, and the extra id slice it builds costs more
-	// allocations and bytes per view than iterating the names directly.
-	names, err := r.fs.ReadDir(r.dir)
-	if err != nil {
-		return nil, nil, err
-	}
-	sealed := make([]*readerSegment, 0, len(names))
-	for _, n := range names {
-		if id, ok := parseSegmentName(n); ok && id < tl.Seg {
-			s, err := r.segment(id)
-			if err != nil {
-				return nil, nil, err
-			}
-			sealed = append(sealed, s)
+	plan := r.livePlan(tl, gen)
+	var sealed []*readerSegment
+	if plan == nil {
+		if sealed, err = r.listSealed(tl); err != nil {
+			return nil, nil, err
 		}
 	}
-	r.prune(sealed)
 	// The active segment: its first frame, if the marker covers one.
 	var activeFirst uint64
 	var activeAt int64
@@ -424,6 +504,23 @@ func (r *Reader) buildView() (*segView, func(), error) {
 		}
 		activeFirst, activeAt, activeFile = rec.Seq, rec.At, f
 	}
+	if plan != nil && (plan.activeFirst != activeFirst || (activeFirst == 0 && plan.seq != tl.Seq)) {
+		// The plan was built for another active segment or marker sequence (a writer crash
+		// renumbered it, decision 63): list the directory after all.
+		plan = nil
+		if sealed, err = r.listSealed(tl); err != nil {
+			if activeFile != nil {
+				_ = activeFile.Close()
+			}
+			return nil, nil, err
+		}
+	}
+	if plan != nil {
+		v := &segView{head: tl.Seq, holes: slices.Clone(plan.holes)}
+		v.segs = make([]*segRef, len(plan.refs), len(plan.refs)+1)
+		copy(v.segs, plan.refs)
+		return r.finishView(v, tl, activeFile, activeFirst, activeAt, new(segRef))
+	}
 	v := &segView{head: tl.Seq}
 	// First the ranges of the good segments, then one contiguity check over them and the
 	// active segment, then the segment references.
@@ -435,9 +532,12 @@ func (r *Reader) buildView() (*segView, func(), error) {
 	}
 	cands := make([]cand, 0, len(sealed))
 	rs := make([]seqRange, 0, len(sealed)+1)
-	leadBad := false // a bad segment before the first kept one
+	leadBad := false   // a bad segment before the first kept one
+	transient := false // a segment that could not be opened for an I/O reason is not cached (decision 94), so a plan holding it would hide that the next view looks again
 	for i, s := range sealed {
 		if s.bad != nil {
+			var se *SegmentError
+			transient = transient || !errors.As(s.bad, &se)
 			leadBad = leadBad || len(cands) == 0
 			continue
 		}
@@ -515,6 +615,7 @@ func (r *Reader) buildView() (*segView, func(), error) {
 			}}
 		if c.index == nil {
 			ref.ensureIndex = func() ([]anchor, uint64, error) {
+				scanned := s.result.Load() != nil
 				if err := s.scan(r.fs); err != nil {
 					if errors.Is(err, fs.ErrNotExist) {
 						r.forget(s.id) // retention deleted it: the next view lists without it
@@ -522,6 +623,11 @@ func (r *Reader) buildView() (*segView, func(), error) {
 					return nil, 0, err
 				}
 				res := s.result.Load()
+				if !scanned && res.last != last {
+					// The segment ends elsewhere than the plan has it (a hole, or an overlap):
+					// a plan built before this scan does not say so.
+					r.scanGen.Add(1)
+				}
 				if bounded && res.last > last {
 					// Frames past where the next segment starts: the overlap Open refuses (decision 102).
 					return nil, 0, fmt.Errorf("%w: segment %d holds sequence %d, inside the next segment (starts at %d)", ErrCorrupt, s.id, res.last, last+1)
@@ -531,16 +637,39 @@ func (r *Reader) buildView() (*segView, func(), error) {
 		}
 		v.segs = append(v.segs, ref)
 	}
-	if activeFile != nil {
+	if activeFile == nil {
+		if len(cands) > 0 && tl.Seq > cands[len(cands)-1].last {
+			v.holes = append(v.holes, Hole{From: cands[len(cands)-1].last + 1, To: tl.Seq})
+		} else if leadBad && len(cands) == 0 && tl.Seq > 0 {
+			v.holes = append(v.holes, Hole{From: 1, To: tl.Seq})
+		}
+	}
+	if !transient {
+		// v.segs holds the sealed references only, as yet: the next view starts from them.
+		p := &sealedPlan{seg: tl.Seg, activeFirst: activeFirst, seq: tl.Seq, gen: gen,
+			refs: slices.Clone(v.segs), holes: slices.Clone(v.holes)}
+		if len(sealed) > 0 {
+			p.oldest = sealed[0].path
+		}
+		r.mu.Lock()
+		r.plan = p
+		r.mu.Unlock()
+	}
+	return r.finishView(v, tl, activeFile, activeFirst, activeAt, &refs[len(cands)])
+}
+
+// finishView adds the active segment's reference, if the marker covers a frame of it, to a view
+// whose sealed references and holes are done, and returns it with the function that closes the
+// active segment's file. ref is the storage for the active reference.
+func (r *Reader) finishView(v *segView, tl tail, f fsx.File, first uint64, at int64, ref *segRef) (*segView, func(), error) {
+	if f != nil {
 		off := int64(tl.Off)
-		ref := &refs[len(cands)]
-		*ref = segRef{id: tl.Seg, first: activeFirst, last: tl.Seq, at: activeAt, active: true,
-			open: func() (io.ReaderAt, int64, func(), error) { return activeFile, off, func() {}, nil }}
+		*ref = segRef{id: tl.Seg, first: first, last: tl.Seq, at: at, active: true,
+			open: func() (io.ReaderAt, int64, func(), error) { return f, off, func() {}, nil },
+			indexTo: func(seq uint64) []anchor {
+				return r.activeIndexTo(f, tl, first, at, seq)
+			}}
 		v.segs = append(v.segs, ref)
-	} else if len(cands) > 0 && tl.Seq > cands[len(cands)-1].last {
-		v.holes = append(v.holes, Hole{From: cands[len(cands)-1].last + 1, To: tl.Seq})
-	} else if leadBad && len(cands) == 0 && tl.Seq > 0 {
-		v.holes = append(v.holes, Hole{From: 1, To: tl.Seq})
 	}
 	if len(v.segs) > 0 {
 		v.first = v.segs[0].first
@@ -548,11 +677,73 @@ func (r *Reader) buildView() (*segView, func(), error) {
 		v.first = tl.Seq + 1
 	}
 	release := func() {
-		if activeFile != nil {
-			_ = activeFile.Close()
+		if f != nil {
+			_ = f.Close()
 		}
 	}
 	return v, release, nil
+}
+
+// activeIndexTo returns the anchors of the active segment's verified prefix, extended first
+// through the frame holding seq, so that a read starts at the last anchor at or below seq
+// instead of at byte 0. The prefix is dropped when it no longer describes the file the view
+// opened: another file, a file shorter than what was verified, or another first frame. It
+// returns nil when there is nothing to start from; the read then walks from byte 0 as it
+// always did. Only anchors that start below the view's marker offset are returned.
+func (r *Reader) activeIndexTo(f fsx.File, tl tail, first uint64, firstAt int64, seq uint64) []anchor {
+	info, err := f.Stat()
+	if err != nil {
+		return nil
+	}
+	off := int64(tl.Off)
+	r.actMu.Lock()
+	defer r.actMu.Unlock()
+	a := r.act
+	if a == nil || !fsx.SameFile(a.file, info) || info.Size() < a.end || a.first != first || a.firstAt != firstAt {
+		a = &activeIndex{file: info, first: first, firstAt: firstAt}
+		r.act = a
+	}
+	if a.last < seq && a.end < off {
+		r.extendActive(a, f, tl, seq)
+	}
+	idx := a.index
+	for len(idx) > 0 && idx[len(idx)-1].pos >= off {
+		idx = idx[:len(idx)-1]
+	}
+	if len(idx) == 0 {
+		return nil
+	}
+	return idx[:len(idx):len(idx)]
+}
+
+// extendActive verifies the frames after a.end, up to and including the one holding seq or up
+// to the marker's offset, and records their anchors. A frame or I/O error ends the prefix where
+// it stands and is not reported: the read's own walk from the last anchor meets the same bytes
+// and reports them as it always did. An extension that contradicts the marker (a frame past
+// its sequence, or a first frame the view did not see) is dropped with the whole prefix.
+// Called with r.actMu held.
+func (r *Reader) extendActive(a *activeIndex, f fsx.File, tl tail, seq uint64) {
+	bufp := r.bufPool.Get().(*[]byte)
+	w := &window{r: f, size: int64(tl.Off), buf: (*bufp)[:0], noIndex: true}
+	before, next := len(a.index), a.next
+	info, _ := walk(w, a.end, a.last, a.end > 0, func(rec Record, pos int64) bool {
+		if pos >= next {
+			a.index = append(a.index, anchor{seq: rec.Seq, pos: pos, at: rec.At})
+			next = pos + indexStride
+		}
+		return rec.Seq < seq
+	})
+	*bufp = w.buf[:0]
+	r.bufPool.Put(bufp)
+	if info.frames == 0 {
+		return
+	}
+	if info.last.Seq > tl.Seq || (a.end == 0 && a.index[0].seq != a.first) {
+		a.index = a.index[:before]
+		r.act = nil
+		return
+	}
+	a.end, a.last, a.next = info.end, info.last.Seq, next
 }
 
 // MarkerAge returns how long ago quill.tail was last written: the only liveness hint a
