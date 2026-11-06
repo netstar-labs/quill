@@ -3,7 +3,13 @@
 All notable changes to quill. The format follows Keep a Changelog; versions are `v0.y.z`
 for ever, and the on-disk format is versioned separately in `quill.format`.
 
-## Unreleased
+## v0.2.1 (2026-11-06)
+
+A patch release on `v0.2.0`: the exported API is unchanged (`go doc -all` of the root package is identical at both tags), and
+the on-disk format `quill/1` is unchanged. A `Reader` is much cheaper to read through as a log grows (A3-18); `quill check`
+beside a live writer no longer reports a rolled and deleted segment as damage; the rest is documentation, tests and the audit
+record. Nothing needs migrating. The one behaviour a `Reader` has that differs is in the first entry below: a sealed segment added
+behind the oldest one by hand while a `Reader` is open is seen only when the marker next moves.
 
 ### Entries
 
