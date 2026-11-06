@@ -213,7 +213,8 @@ or not.
   gone"; `-json` adds `"behind_first": true`), and its LAG counts those records although they can no
   longer be read.
 - Its next read is a `*GapError`; `Commit(To+1)` or `quill commit` moves it past the gap.
-  `quill check` warns of the same consumer and stays HEALTHY.
+  `quill check` warns of the same consumer and stays HEALTHY, when retention took the records. When a damaged oldest
+  segment is why the offset is behind (a hole from sequence 1), `quill check` is UNHEALTHY for the hole and also warns of the consumer.
 
 Unprotected is the default, so `Retention` must be longer than the worst delay of an
 unprotected consumer, or negative.

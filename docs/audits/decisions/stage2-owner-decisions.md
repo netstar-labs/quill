@@ -1112,6 +1112,8 @@ Open points the fix-skeptic left, none fixed here:
    stays HEALTHY. That describes the retention case; with a damaged oldest segment `check` is UNHEALTHY for the hole and also warns
    of the new consumer at 1 (observed by the skeptic).
 
+**Later disposition of the four open points (2026-11-06, owner: "yes to taking the recommendations").** Point 1: accepted, no change. Re-run on the tree at 9d4d4d4 (verified): two sealed segments damaged, two `archive` runs both exit 3 with "the source lost records 1 to 40; the archive does not have them", and `quill consumers` notes the `_archive` consumer behind the first retained sequence; it fails loudly and `quill commit -name _archive -offset N` is the documented remedy. Point 2: fixed earlier (L4b-3, e51c2e3). Point 3: accepted as the behaviour and pinned (verified: with a hole 1 to 306 and 94 readable records, `tail -n 94` exits 0 with 94 lines, `tail -n 95` exits 1 with "records 306 to 306 are unavailable" and prints nothing; `TestTailThatReachesOneRecordIntoAHoleFromOneReportsTheGapAndPrintsNothing`). Point 4: wording corrected in the user guide and decision 36 (documentation only): `check` stays HEALTHY for a consumer behind `First` only when retention took the records.
+
 **Follow-up to open point 2 (L4b-3, owner-approved 2026-11-04).** Reproduced on a build of the tree at bdb1522 (verified): a log of three
 sealed segments of 500 records each, the first byte of the first frame of segment 0 damaged. `quill check -dir <log>` exits 3;
 `quill archive -dir <log> -to <dest>` prints `the source lost records 1 to 500; the archive holds the same hole` and exits 3;
@@ -1677,6 +1679,8 @@ behaviour by mutating archive.go to copy the whole source into a new destination
 want 31 and 60"). The CLI run (reported): archive to dA, more records and a roll, then archive to a new dB gave exit 0, `quill
 check` HEALTHY, first 4, head 6; after `quill commit -name _archive -offset 1`, a new dC had first 1, head 6. The optional refusal
 stays open, as recorded above.
+
+**Later disposition of the optional refusal (2026-11-06, owner: accepted; not built).** Recommended and accepted: leave it. A new destination that takes only the records at or above the offset is also what a rotation of destinations (one directory per period, each taking what came after the last) does, and `Archive` cannot tell that from the unintended case, so a refusal would need an override flag and would change an error and an exit code on a released tag (inferred, not tested). The wording from be8cb15 and the test that pins the suffix stand.
 
 ## L1-4: "every later Sync fails" on a failed log is not what the code does (low)
 

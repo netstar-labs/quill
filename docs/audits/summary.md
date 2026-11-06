@@ -40,9 +40,7 @@ State words are the release record's: **open** stays unless someone acts, **acce
 release. The full table, with the section of the record that holds each item, is "Known limitations and open items at the tag" in
 [release-v0.2.0.md](release-v0.2.0.md).
 
-- **Open, other:** A3-10 points 1, 3 and 4 (the fix-skeptic's open points on `archive`, `tail` and `check` around a damaged oldest
-  segment) and the optional `Archive` refusal (L1-12, optional, not approved).
-- **Accepted:** A3-7 (a symlinked `consumers/` directory is followed), A3-24 (the printed `time` field has no range check) and A3-26 (an unlinked `quill.lock` lets a second writer open, but the first writer's next flush fails before it writes; mitigated by `6acc23e`, the residual accepted), all three by the owner on 2026-11-05 (they were open at the tag); A1d-1 (a live retention pass syncs the directory once per deleted segment while holding the log's lock; the cost is not
+- **Accepted:** A3-10 points 1 and 3 (the fix-skeptic's open points on `archive` and `tail` around a damaged oldest segment; point 3 is now pinned by a test), the optional `Archive` refusal (L1-12, not built), A3-7 (a symlinked `consumers/` directory is followed), A3-24 (the printed `time` field has no range check) and A3-26 (an unlinked `quill.lock` lets a second writer open, but the first writer's next flush fails before it writes; mitigated by `6acc23e`, the residual accepted), A3-7, A3-24 and A3-26 by the owner on 2026-11-05 and the others on 2026-11-06 (all were open at the tag). A3-10 point 4 (the A5-18 notes said `check` stays HEALTHY) was fixed in wording on 2026-11-06; A1d-1 (a live retention pass syncs the directory once per deleted segment while holding the log's lock; the cost is not
   documented), A5-5 (a long-lived `Reader` does not notice that its directory was replaced), A4r-3 (the build script accepts any tag
   name).
 - **Deferred:** A3-18 (a `Reader` read costs in proportion to the log, not the request). *Fixed after the tag, 2026-11-05 (CHANGELOG "Unreleased", decision 63 amended); the state at the tag is as written here.*
